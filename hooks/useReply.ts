@@ -3,7 +3,7 @@ import { Client, PrivateKey } from '@hiveio/dhive';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import * as ImagePicker from 'expo-image-picker';
-import { convertToJPEG } from '../utils/imageConverter';
+import { convertImageSmart } from '../utils/imageConverter';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
