@@ -317,7 +317,11 @@ export default function ComposeScreen() {
 
       console.log('[ComposeScreen] Edit target ref set:', editTargetRef.current);
     }
-  }, [mode, parentAuthor, parentPermlink, initialText, reply, edit]);
+    // NOTE: reply and edit objects are intentionally omitted from dependencies to prevent infinite loops.
+    // Calling reply.openReplyModal() or edit.openEditModal() changes the hook state, which would
+    // trigger this effect again. The refs (replyTargetRef, editTargetRef) are used to access targets,
+    // and this effect only needs to run when route params (mode, parentAuthor, etc.) change.
+  }, [mode, parentAuthor, parentPermlink, initialText]);
 
   // Handle resnap URL parameter
   useEffect(() => {
