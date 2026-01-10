@@ -98,14 +98,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
                 if (!video) return false;
                 
                 try {
-                    // iOS-specific: webkitEnterFullscreen (added for cross-platform completeness)
-                    // This is the reliable method for iOS native fullscreen
-                    if (video.webkitEnterFullscreen) {
-                        video.webkitEnterFullscreen();
-                        return true;
-                    }
-                    
-                    // Standard fullscreen APIs for Android and other platforms
+                    // Standard fullscreen APIs for Android
                     if (video.requestFullscreen) {
                         video.requestFullscreen();
                         return true;
