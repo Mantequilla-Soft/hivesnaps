@@ -317,11 +317,7 @@ export default function ComposeScreen() {
 
       console.log('[ComposeScreen] Edit target ref set:', editTargetRef.current);
     }
-    // Note: reply and edit hooks are intentionally omitted from dependencies.
-    // Their callbacks are memoized with useCallback and are stable; this effect only depends
-    // on route-derived values (mode, parentAuthor, parentPermlink, initialText). The refs
-    // (replyTargetRef, editTargetRef) are used elsewhere to access the latest target state.
-  }, [mode, parentAuthor, parentPermlink, initialText]);
+  }, [mode, parentAuthor, parentPermlink, initialText, reply, edit]);
 
   // Handle resnap URL parameter
   useEffect(() => {
