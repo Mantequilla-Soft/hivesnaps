@@ -148,15 +148,6 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
                 
                 // Setup document-level listeners once
                 setupDocumentFullscreenListeners();
-                
-                // iOS-specific fullscreen exit event (video-level)
-                // Added for completeness in case WebView JS is ever reused cross-platform
-                video.addEventListener('webkitendfullscreen', () => {
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({
-                        type: 'fullscreen-exit',
-                        paused: video.paused
-                    }));
-                });
             }
             
             // Attach listeners to a video element (only once per video)
