@@ -44,7 +44,6 @@ export default function ComposeScreen() {
 
   // Share extension integration
   const { sharedContent, hasSharedContent, clearSharedContent } = useSharedContent();
-  const shareContext = useShare();
 
   // ALL BUSINESS LOGIC NOW IN useCompose HOOK
   const compose = useCompose({
