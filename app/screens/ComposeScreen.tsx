@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,48 +7,22 @@ import {
   TouchableOpacity,
   Image,
   useColorScheme,
-  Dimensions,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
-  Pressable,
-  FlatList,
   Modal,
-  ActionSheetIOS, // <-- statically import ActionSheetIOS
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import * as ImagePicker from 'expo-image-picker';
 import { FontAwesome } from '@expo/vector-icons';
-import { Client, PrivateKey } from '@hiveio/dhive';
-import { avatarService } from '../../services/AvatarService';
-import { uploadImageSmart } from '../../utils/imageUploadService';
-import { postSnapWithBeneficiaries } from '../../services/snapPostingService';
 import { useSharedContent } from '../../hooks/useSharedContent';
-import { uploadThumbnailToThreeSpeak, extractPermlinkFromEmbedUrl } from '../../services/threeSpeakUploadService';
-import { uploadThumbnailToIPFS } from '../../utils/ipfsUpload';
 import { useShare } from '../../context/ShareContext';
-import { useGifPicker } from '../../hooks/useGifPickerV2';
 import { GifPickerModal } from '../../components/GifPickerModalV2';
 import { SnapData } from '../../hooks/useConversationData';
 import Preview from '../components/Preview';
-import { useReply } from '../../hooks/useReply';
-import { useEdit } from '../../hooks/useEdit';
-import { stripImageTags, getAllImageUrls } from '../../utils/extractImageInfo';
-import { useVideoUpload } from '../../hooks/useVideoUpload';
-import { convertToJPEG, convertMultipleToJPEG } from '../../utils/imageConverter';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { useCompose } from '../../hooks/useCompose';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
@@ -62,85 +36,29 @@ export default function ComposeScreen() {
     resnapUrl?: string | string[];
   }>();
 
-  // Determine the mode and related params
+  // Extract params
   const mode = params.mode || 'compose';
   const parentAuthor = params.parentAuthor;
   const parentPermlink = params.parentPermlink;
   const initialText = params.initialText;
 
   // Share extension integration
-  const { sharedContent, hasSharedContent, clearSharedContent } =
-    useSharedContent();
+  const { sharedContent, hasSharedContent, clearSharedContent } = useSharedContent();
   const shareContext = useShare();
 
-  // Component state
-  const [text, setText] = useState('');
-  const [images, setImages] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [posting, setPosting] = useState(false);
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  // Text selection state for markdown formatting
-  const [selectionStart, setSelectionStart] = useState(0);
-  const [selectionEnd, setSelectionEnd] = useState(0);
-  const textInputRef = useRef<TextInput>(null);
-
-  // Spoiler modal state
-  const [spoilerModalVisible, setSpoilerModalVisible] = useState(false);
-  const [spoilerButtonText, setSpoilerButtonText] = useState('');
-
-  // Preview modal state
-  const [previewVisible, setPreviewVisible] = useState(false);
-
-  // GIF state for composer (array of GIF URLs)
-  const [gifs, setGifs] = useState<string[]>([]);
-
-  // Video upload state - now managed by professional hook with reducer
-  const video = useVideoUpload(currentUsername);
-
-  // Reply and edit hooks for modal-less operation
-  // Note: Parent screens (ConversationScreen, HivePostScreen) should use useFocusEffect
-  // to refresh their data when this screen navigates back
-  const reply = useReply(
-    currentUsername,
-    undefined,
-    undefined // We'll handle navigation after showing success alert
-  );
-  const edit = useEdit(
-    currentUsername,
-    undefined,
-    undefined // We'll handle navigation after showing success alert
-  );
-
-  // Store reply/edit in refs to avoid stale closures in callbacks
-  const replyRef = useRef(reply);
-  const editRef = useRef(edit);
-  useEffect(() => {
-    replyRef.current = reply;
-    editRef.current = edit;
-  }, [reply, edit]);
-
-  // Memoized GIF selection callback to prevent infinite re-render loop
-  const handleGifSelected = useCallback((gifUrl: string) => {
-    if (mode === 'reply') {
-      replyRef.current.addReplyGif(gifUrl);
-      setGifs(prev => [...prev, gifUrl]); // Also update local state for UI display
-    } else if (mode === 'edit') {
-      editRef.current.addEditGif(gifUrl);
-      setGifs(prev => [...prev, gifUrl]); // Also update local state for UI display
-    } else {
-      setGifs(prev => [...prev, gifUrl]);
-    }
-  }, [mode]);
-
-  // GIF picker state - using our new professional hook
-  const gifPicker = useGifPicker({
-    onGifSelected: handleGifSelected,
-    // Remove loadTrendingOnOpen to use default (false)
-    limit: 20,
+  // ALL BUSINESS LOGIC NOW IN useCompose HOOK
+  const compose = useCompose({
+    mode,
+    parentAuthor,
+    parentPermlink,
+    initialText,
+    onSuccess: () => router.back(),
   });
 
+  // UI-only refs
+  const textInputRef = useRef<TextInput>(null);
+
+  // Memoized colors based on theme
   const colors = useMemo(() => ({
     background: isDark ? '#15202B' : '#fff',
     text: isDark ? '#D7DBDC' : '#0F1419',
@@ -152,595 +70,57 @@ export default function ComposeScreen() {
     info: isDark ? '#8899A6' : '#536471',
   }), [isDark]);
 
-  // Computed video variables
-  const videoEmbedUrl = video.videoEmbedUrl;
-  const hasPostableContent = Boolean(text.trim() || images.length > 0 || gifs.length > 0 || videoEmbedUrl);
-  const isSubmitting = posting || reply.posting || edit.editing || video.uploading;
-  const disablePostButton = isSubmitting || !hasPostableContent;
-  const hasDraftContent = Boolean(
-    text.trim() || images.length > 0 || gifs.length > 0 || video.hasVideo
-  );
-
-  // Load user credentials and avatar
-  useEffect(() => {
-    const loadCredentials = async () => {
-      try {
-        const storedUsername = await SecureStore.getItemAsync('hive_username');
-        setCurrentUsername(storedUsername);
-
-        // Fetch user avatar (unified service)
-        if (storedUsername) {
-          const immediate =
-            avatarService.getCachedAvatarUrl(storedUsername) ||
-            `https://images.hive.blog/u/${storedUsername}/avatar/original`;
-          setAvatarUrl(immediate);
-          avatarService
-            .getAvatarUrl(storedUsername)
-            .then(({ url }) => {
-              if (url) setAvatarUrl(url);
-            })
-            .catch(() => { });
-        }
-      } catch (e) {
-        console.error('Error loading credentials:', e);
-      }
-    };
-    loadCredentials();
-  }, []);
-
-  // Handle shared content when component mounts or shared content changes
+  // Handle shared content when component mounts
   useEffect(() => {
     if (hasSharedContent && sharedContent) {
       console.log('📱 ComposeScreen received shared content:', sharedContent);
 
       switch (sharedContent.type) {
         case 'text':
-          if (typeof sharedContent.data === 'string') {
-            setText(prev =>
-              prev
-                ? `${prev}\n\n${sharedContent.data}`
-                : (sharedContent.data as string)
-            );
-          }
-          break;
-
         case 'url':
           if (typeof sharedContent.data === 'string') {
-            setText(prev =>
-              prev
-                ? `${prev}\n\n${sharedContent.data}`
-                : (sharedContent.data as string)
-            );
+            compose.setText(compose.state.text ? `${compose.state.text}\n\n${sharedContent.data}` : sharedContent.data);
           }
           break;
-
         case 'image':
           if (typeof sharedContent.data === 'string') {
-            setImages(prev => [...prev, sharedContent.data as string]);
+            compose.addImage();
           }
           break;
-
         case 'images':
-          // For multiple images, add all of them
           if (Array.isArray(sharedContent.data)) {
-            setImages(prev => [...prev, ...sharedContent.data]);
+            compose.addImage();
           }
           break;
       }
 
-      // Clear shared content after processing
       clearSharedContent();
     }
   }, [sharedContent, hasSharedContent, clearSharedContent]);
 
-  // Initialize reply/edit mode with content
-  useEffect(() => {
-    if (mode === 'reply' && parentAuthor && parentPermlink) {
-      console.log('[ComposeScreen] Initializing reply mode for', parentAuthor, parentPermlink);
-
-      // Set hook state for submission
-      reply.openReplyModal({ author: parentAuthor, permlink: parentPermlink });
-
-      console.log('[ComposeScreen] Reply target set in hook state');
-    } else if (mode === 'edit' && parentAuthor && parentPermlink && initialText) {
-      console.log('[ComposeScreen] Initializing edit mode for', parentAuthor, parentPermlink);
-      const textBody = stripImageTags(initialText);
-      const allUrls = getAllImageUrls(initialText);
-
-      // Separate GIFs (Tenor/Giphy URLs) from regular images
-      const gifUrls = allUrls.filter(url =>
-        url.includes('tenor.com') ||
-        url.includes('giphy.com') ||
-        url.includes('media.tenor') ||
-        url.includes('media.giphy')
-      );
-      const imageUrls = allUrls.filter(url =>
-        !url.includes('tenor.com') &&
-        !url.includes('giphy.com') &&
-        !url.includes('media.tenor') &&
-        !url.includes('media.giphy')
-      );
-
-      // Extract video embed URL (3speak format)
-      const videoMatch = initialText.match(/https:\/\/3speak\.tv\/watch\?v=[^\s)]+/);
-      const extractedVideo = videoMatch ? videoMatch[0] : null;
-
-      // Set local text and media state for the compose screen
-      setText(textBody);
-      setImages(imageUrls);
-      setGifs(gifUrls);
-      // TODO: Handle video extraction from edit mode if needed
-      // Video upload in edit mode would require re-uploading the video
-
-      // Set edit hook state for submission
-      edit.openEditModal(
-        { author: parentAuthor, permlink: parentPermlink, type: 'snap' },
-        initialText
-      );
-
-      console.log('[ComposeScreen] Edit target set in hook state');
-    }
-    // NOTE: reply and edit hooks now return memoized objects (fixed in PR), but are still
-    // omitted from dependencies because this effect only needs to run when route params change.
-  }, [mode, parentAuthor, parentPermlink, initialText]);
-
   // Handle resnap URL parameter
   useEffect(() => {
     if (params.resnapUrl) {
-      const resnapUrl = Array.isArray(params.resnapUrl)
-        ? params.resnapUrl[0]
-        : params.resnapUrl;
+      const resnapUrl = Array.isArray(params.resnapUrl) ? params.resnapUrl[0] : params.resnapUrl;
 
       if (typeof resnapUrl === 'string') {
         const newText = resnapUrl + '\n\n';
-        setText(newText);
+        compose.setText(newText);
 
-        // Focus the input and position cursor after URL and line breaks
         const timeoutId = setTimeout(() => {
           textInputRef.current?.focus();
           const cursorPosition = newText.length;
           textInputRef.current?.setSelection(cursorPosition, cursorPosition);
         }, 100);
 
-        // Cleanup timeout if component unmounts
         return () => clearTimeout(timeoutId);
       }
     }
   }, [params.resnapUrl]);
 
-  // Video upload handlers - now delegated to useVideoUpload hook
-  const handleAddVideo = async () => {
-    await video.addVideo();
-  };
-
-  const handleRetryVideoUpload = () => {
-    video.retry();
-  };
-
-  const handleRemoveVideo = () => {
-    video.remove();
-  };
-
-  const handleAddImage = async () => {
-    try {
-      let pickType: 'camera' | 'gallery' | 'cancel';
-
-      if (Platform.OS === 'ios') {
-        pickType = await new Promise<'camera' | 'gallery' | 'cancel'>(resolve => {
-          // Use static import for ActionSheetIOS to avoid dynamic import issues
-          ActionSheetIOS.showActionSheetWithOptions(
-            {
-              options: ['Cancel', 'Take Photo', 'Choose from Gallery'],
-              cancelButtonIndex: 0,
-            },
-            buttonIndex => {
-              if (buttonIndex === 0) resolve('cancel');
-              else if (buttonIndex === 1) resolve('camera');
-              else if (buttonIndex === 2) resolve('gallery');
-            }
-          );
-        });
-      } else {
-        pickType = await new Promise<'camera' | 'gallery' | 'cancel'>(
-          resolve => {
-            Alert.alert(
-              'Add Images',
-              'Choose an option',
-              [
-                { text: 'Take Photo', onPress: () => resolve('camera') },
-                {
-                  text: 'Choose from Gallery',
-                  onPress: () => resolve('gallery'),
-                },
-                {
-                  text: 'Cancel',
-                  style: 'cancel',
-                  onPress: () => resolve('cancel'),
-                },
-              ],
-              { cancelable: true }
-            );
-          }
-        );
-      }
-
-      if (pickType === 'cancel') return;
-
-      let result;
-      if (pickType === 'camera') {
-        const currentPermission = await ImagePicker.getCameraPermissionsAsync();
-        let finalStatus = currentPermission.status;
-
-        if (finalStatus !== 'granted') {
-          const requestPermission =
-            await ImagePicker.requestCameraPermissionsAsync();
-          finalStatus = requestPermission.status;
-        }
-
-        if (finalStatus !== 'granted') {
-          Alert.alert(
-            'Camera Permission Required',
-            'HiveSnaps needs camera access to take photos. Please enable camera permissions in your device settings.',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-
-        result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          quality: 0.8,
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        });
-      } else {
-        const currentPermission =
-          await ImagePicker.getMediaLibraryPermissionsAsync();
-        let finalStatus = currentPermission.status;
-
-        if (finalStatus !== 'granted') {
-          const requestPermission =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
-          finalStatus = requestPermission.status;
-        }
-
-        if (finalStatus !== 'granted') {
-          Alert.alert(
-            'Photo Library Permission Required',
-            'HiveSnaps needs photo library access to select images. Please enable photo permissions in your device settings.',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: false, // Allow multiple selection
-          quality: 0.8,
-          allowsMultipleSelection: true, // Enable multiple selection
-          selectionLimit: 10, // Limit to 10 images
-        });
-      }
-
-      if (
-        !result ||
-        result.canceled ||
-        !result.assets ||
-        result.assets.length === 0
-      )
-        return;
-
-      setUploading(true);
-      try {
-        // Convert all HEIC and other formats to JPEG in parallel
-        const convertedImages = await convertMultipleToJPEG(
-          result.assets.map(asset => asset.uri),
-          0.8
-        );
-
-        const uploadPromises = convertedImages.map(async (converted, index) => {
-          const fileToUpload = {
-            uri: converted.uri,
-            name: `compose-${Date.now()}-${index}.jpg`,
-            type: 'image/jpeg',
-          };
-          const uploadResult = await uploadImageSmart(fileToUpload, currentUsername);
-          console.log(`[ComposeScreen] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
-          return uploadResult.url;
-        });
-
-        const imageUrls = await Promise.all(uploadPromises);
-        setImages(prev => [...prev, ...imageUrls]);
-      } catch (err) {
-        console.error('Image upload error:', err);
-        Alert.alert(
-          'Upload Failed',
-          'Failed to upload one or more images. Please try again.'
-        );
-      } finally {
-        setUploading(false);
-      }
-    } catch (err) {
-      console.error('Image picker error:', err);
-      Alert.alert('Error', 'Failed to pick images. Please try again.');
-    }
-  };
-
-  const handleRemoveImage = (indexToRemove: number) => {
-    setImages(prev => prev.filter((_, index) => index !== indexToRemove));
-  };
-
-  const handleClearAllImages = () => {
-    setImages([]);
-  };
-
-  // GIF handlers - using new professional hook
-  const handleOpenGifPicker = () => {
-    gifPicker.openPicker();
-  };
-
-  const handleCloseGifModal = () => {
-    gifPicker.closePicker();
-  };
-
-  const handleSearchGifs = async (query: string) => {
-    await gifPicker.searchGifs(query);
-  };
-
-  const handleSelectGif = (gifUrl: string) => {
-    // This is now handled by the hook's onGifSelected callback
-    gifPicker.selectGif(gifUrl);
-  };
-
-  const handleRemoveGif = (indexToRemove: number) => {
-    setGifs(prev => prev.filter((_, index) => index !== indexToRemove));
-  };
-
-  // ===== Submit Handlers =====
-
-  const handleReplySubmit = async () => {
-    if (!parentAuthor || !parentPermlink) {
-      console.error('[ComposeScreen] Missing parent author or permlink for reply');
-      Alert.alert('Error', 'Missing reply information. Please try again.');
-      return;
-    }
-
-    if (!text.trim() && images.length === 0 && gifs.length === 0 && !videoEmbedUrl) {
-      console.error('[ComposeScreen] Reply has no content');
-      Alert.alert('Error', 'Please enter some text or add an image/GIF/video.');
-      return;
-    }
-
-    console.log('[ComposeScreen] Submitting reply to', parentAuthor, parentPermlink);
-    console.log('[ComposeScreen] Reply content:', {
-      text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-      images: images.length,
-      gifs: gifs.length,
-      video: videoEmbedUrl ? 'yes' : 'no',
-    });
-
-    // Submit reply - pass values directly to avoid async state timing issues
-    try {
-      await reply.submitReply({
-        target: { author: parentAuthor, permlink: parentPermlink },
-        text: text,
-        images: images,
-        gifs: gifs,
-        video: videoEmbedUrl,
-      });
-      console.log('[ComposeScreen] Reply submission completed successfully');
-
-      // Success - clear form and show success alert
-      setText('');
-      setImages([]);
-      setGifs([]);
-      video.clear();
-
-      Alert.alert(
-        'Reply Posted!',
-        'Your reply has been published to the Hive blockchain.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('[ComposeScreen] Reply submitted, navigating back');
-              router.back();
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('[ComposeScreen] Reply submission exception:', error);
-      Alert.alert('Reply Failed', error instanceof Error ? error.message : 'Unknown error occurred');
-    }
-  };
-
-  const handleEditSubmit = async () => {
-    if (!parentAuthor || !parentPermlink) {
-      console.error('[ComposeScreen] Missing parent author or permlink for edit');
-      Alert.alert('Error', 'Missing edit information. Please try again.');
-      return;
-    }
-
-    if (!text.trim() && images.length === 0 && gifs.length === 0 && !videoEmbedUrl) {
-      console.error('[ComposeScreen] Edit has no content');
-      Alert.alert('Error', 'Please enter some text or add an image/GIF/video.');
-      return;
-    }
-
-    console.log('[ComposeScreen] Submitting edit for', parentAuthor, parentPermlink);
-    console.log('[ComposeScreen] Edit content:', {
-      text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-      images: images.length,
-      gifs: gifs.length,
-      video: videoEmbedUrl ? 'yes' : 'no',
-    });
-
-    // Submit edit - pass values directly to avoid async state timing issues
-    try {
-      await edit.submitEdit({
-        target: { author: parentAuthor, permlink: parentPermlink },
-        text: text,
-        images: images,
-        gifs: gifs,
-        video: videoEmbedUrl,
-      });
-      console.log('[ComposeScreen] Edit submission completed successfully');
-
-      // Success - clear form state and show success alert
-      setText('');
-      setImages([]);
-      setGifs([]);
-      video.clear();
-
-      Alert.alert(
-        'Edit Saved!',
-        'Your changes have been published to the Hive blockchain.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('[ComposeScreen] Edit submitted, navigating back');
-              router.back();
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('[ComposeScreen] Edit submission exception:', error);
-      Alert.alert('Edit Failed', error instanceof Error ? error.message : 'Unknown error occurred');
-    }
-  };
-
-  const handleSubmit = async () => {
-    // Route to appropriate submit handler based on mode
-    if (mode === 'reply') {
-      await handleReplySubmit();
-      return;
-    } else if (mode === 'edit') {
-      await handleEditSubmit();
-      return;
-    }
-
-    // Original compose logic
-    if (video.uploading) {
-      Alert.alert('Video Uploading', 'Please wait for the video upload to finish.');
-      return;
-    }
-
-    if (!hasPostableContent) {
-      Alert.alert('Empty Post', 'Please add text, images, GIFs, or a video before posting.');
-      return;
-    }
-
-    if (video.asset && !video.assetId) {
-      Alert.alert('Video Not Ready', 'Finish uploading or remove the video before posting.');
-      return;
-    }
-
-    if (!currentUsername) {
-      Alert.alert('Not Logged In', 'Please log in to post to Hive.');
-      return;
-    }
-
-    setPosting(true);
-
-    try {
-      // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
-      if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
-      }
-      const postingKey = PrivateKey.fromString(postingKeyStr);
-
-      // Compose body
-      let body = text.trim();
-      if (images.length > 0) {
-        // Add all images to the body
-        images.forEach((imageUrl, index) => {
-          body += `\n![image${index + 1}](${imageUrl})`;
-        });
-      }
-      if (gifs.length > 0) {
-        // Add all GIFs to the body
-        gifs.forEach((gifUrl, index) => {
-          body += `\n![gif${index + 1}](${gifUrl})`;
-        });
-      }
-      if (videoEmbedUrl) {
-        body += `\n${videoEmbedUrl}`;
-      }
-
-      // Get latest @peak.snaps post (container) - Same as FeedScreen
-      const discussions = await client.database.call(
-        'get_discussions_by_blog',
-        [{ tag: 'peak.snaps', limit: 1 }]
-      );
-      if (!discussions || discussions.length === 0) {
-        throw new Error('No container post found.');
-      }
-      const container = discussions[0];
-
-      // Generate permlink - Same format as FeedScreen
-      const permlink = `snap-${Date.now()}`;
-
-      // Compose metadata - Same format as FeedScreen
-      const allMedia = [...images, ...gifs];
-      const json_metadata = JSON.stringify({
-        app: 'hivesnaps/1.0',
-        tags: ['hive-178315', 'snaps'],
-        image: allMedia, // Include all images and GIFs in metadata
-        video: videoEmbedUrl ? { platform: '3speak', url: videoEmbedUrl, uploadUrl: video.uploadUrl } : undefined,
-        shared: hasSharedContent, // Additional flag for shared content
-      });
-
-      // Post to Hive blockchain as reply to container with beneficiaries if video is present
-      await postSnapWithBeneficiaries(
-        client,
-        {
-          parentAuthor: container.author,
-          parentPermlink: container.permlink,
-          author: currentUsername,
-          permlink,
-          title: '',
-          body,
-          jsonMetadata: json_metadata,
-          hasVideo: !!videoEmbedUrl, // Add beneficiaries if there's a video
-        },
-        postingKey
-      );
-
-      // Success - clear form and navigate back to feed
-      setText('');
-      setImages([]);
-      setGifs([]);
-      video.clear();
-      clearSharedContent(); // Clear any shared content
-
-      Alert.alert(
-        'Posted Successfully!',
-        'Your snap has been published to the Hive blockchain.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.push('/screens/FeedScreen');
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Error posting snap:', error);
-      Alert.alert(
-        'Post Failed',
-        error.message || 'Failed to post snap. Please try again.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setPosting(false);
-    }
-  };
-
+  // UI event handlers - just delegate to compose hook
   const handleCancel = () => {
-    if (hasDraftContent) {
+    if (compose.hasDraftContent) {
       Alert.alert(
         'Discard Post?',
         'Are you sure you want to discard this post?',
@@ -749,13 +129,7 @@ export default function ComposeScreen() {
           {
             text: 'Discard',
             style: 'destructive',
-            onPress: () => {
-              setText('');
-              setImages([]);
-              setGifs([]);
-              video.clear();
-              router.back();
-            },
+            onPress: () => router.back(),
           },
         ]
       );
@@ -764,40 +138,30 @@ export default function ComposeScreen() {
     }
   };
 
-  // Markdown formatting functions
-  const insertMarkdown = (
-    before: string,
-    after: string,
-    placeholder: string
-  ) => {
+  // Markdown formatting helpers
+  const insertMarkdown = (before: string, after: string, placeholder: string) => {
+    const { selectionStart, selectionEnd, text } = compose.state;
     const hasSelection = selectionStart !== selectionEnd;
 
     if (hasSelection) {
-      // Wrap selected text
       const beforeText = text.substring(0, selectionStart);
       const selectedText = text.substring(selectionStart, selectionEnd);
       const afterText = text.substring(selectionEnd);
-
       const newText = beforeText + before + selectedText + after + afterText;
-      setText(newText);
+      compose.setText(newText);
 
-      // Position cursor after the formatted text
-      const newCursorPosition =
-        selectionStart + before.length + selectedText.length + after.length;
+      const newCursorPosition = selectionStart + before.length + selectedText.length + after.length;
       setTimeout(() => {
         textInputRef.current?.setNativeProps({
           selection: { start: newCursorPosition, end: newCursorPosition },
         });
       }, 10);
     } else {
-      // Insert with placeholder and select it
       const beforeText = text.substring(0, selectionStart);
       const afterText = text.substring(selectionStart);
-
       const newText = beforeText + before + placeholder + after + afterText;
-      setText(newText);
+      compose.setText(newText);
 
-      // Select the placeholder text for easy replacement
       const placeholderStart = selectionStart + before.length;
       const placeholderEnd = placeholderStart + placeholder.length;
       setTimeout(() => {
@@ -808,34 +172,20 @@ export default function ComposeScreen() {
     }
   };
 
-  const handleBold = () => {
-    insertMarkdown('**', '**', 'bold text');
-  };
-
-  const handleItalic = () => {
-    insertMarkdown('*', '*', 'italic text');
-  };
-
-  const handleUnderline = () => {
-    insertMarkdown('<u>', '</u>', 'underlined text');
-  };
-
-  const handleSpoiler = () => {
-    setSpoilerButtonText('');
-    setSpoilerModalVisible(true);
-  };
+  const handleBold = () => insertMarkdown('**', '**', 'bold text');
+  const handleItalic = () => insertMarkdown('*', '*', 'italic text');
+  const handleUnderline = () => insertMarkdown('<u>', '</u>', 'underlined text');
 
   const handleSpoilerConfirm = () => {
-    const buttonText = spoilerButtonText.trim() || 'button text';
+    const buttonText = compose.state.spoilerButtonText.trim() || 'button text';
     const spoilerSyntax = `>! [${buttonText}] spoiler content`;
 
-    const beforeText = text.substring(0, selectionStart);
-    const afterText = text.substring(selectionStart);
+    const beforeText = compose.state.text.substring(0, compose.state.selectionStart);
+    const afterText = compose.state.text.substring(compose.state.selectionStart);
     const newText = beforeText + spoilerSyntax + afterText;
-    setText(newText);
+    compose.setText(newText);
 
-    // Position cursor after "spoiler content" and select it for easy replacement
-    const contentStart = selectionStart + `>! [${buttonText}] `.length;
+    const contentStart = compose.state.selectionStart + `>! [${buttonText}] `.length;
     const contentEnd = contentStart + 'spoiler content'.length;
     setTimeout(() => {
       textInputRef.current?.setNativeProps({
@@ -843,39 +193,37 @@ export default function ComposeScreen() {
       });
     }, 10);
 
-    setSpoilerModalVisible(false);
-    setSpoilerButtonText('');
+    compose.closeSpoilerModal();
   };
 
   const handleSelectionChange = (event: any) => {
     const { start, end } = event.nativeEvent.selection;
-    setSelectionStart(start);
-    setSelectionEnd(end);
+    compose.setSelection(start, end);
   };
 
   // Create preview SnapData from current compose state
   const createPreviewSnapData = (): SnapData => {
-    // Process body same way as in handleSubmit
-    let body = text.trim();
-    if (images.length > 0) {
-      images.forEach((imageUrl, index) => {
+    let body = compose.state.text.trim();
+
+    if (compose.state.images.length > 0) {
+      compose.state.images.forEach((imageUrl, index) => {
         body += `\n![image${index + 1}](${imageUrl})`;
       });
     }
-    if (gifs.length > 0) {
-      gifs.forEach((gifUrl, index) => {
+    if (compose.state.gifs.length > 0) {
+      compose.state.gifs.forEach((gifUrl, index) => {
         body += `\n![gif${index + 1}](${gifUrl})`;
       });
     }
-    if (videoEmbedUrl) {
-      body += `\n${videoEmbedUrl}`;
+    if (compose.video.videoEmbedUrl) {
+      body += `\n${compose.video.videoEmbedUrl}`;
     }
 
     return {
-      author: currentUsername || 'preview-user',
-      avatarUrl: avatarUrl || undefined,
+      author: compose.state.currentUsername || 'preview-user',
+      avatarUrl: compose.state.avatarUrl || undefined,
       body: body,
-      created: new Date().toISOString().slice(0, -1), // Remove 'Z' to match Hive format
+      created: new Date().toISOString().slice(0, -1),
       voteCount: 0,
       replyCount: 0,
       payout: 0,
@@ -924,19 +272,19 @@ export default function ComposeScreen() {
           </View>
 
           <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={disablePostButton}
+            onPress={compose.submit}
+            disabled={!compose.canSubmit}
             style={[
               styles.headerButton,
               styles.postButton,
               {
-                backgroundColor: disablePostButton
+                backgroundColor: !compose.canSubmit
                   ? colors.buttonInactive
                   : colors.button,
               },
             ]}
           >
-            {isSubmitting ? (
+            {compose.isSubmitting ? (
               <ActivityIndicator size='small' color={colors.buttonText} />
             ) : (
               <Text
@@ -951,11 +299,11 @@ export default function ComposeScreen() {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* User info */}
           <View style={styles.userRow}>
-            {avatarUrl ? (
+            {compose.state.avatarUrl ? (
               <Image
-                source={{ uri: avatarUrl }}
+                source={{ uri: compose.state.avatarUrl }}
                 style={styles.avatar}
-                onError={() => setAvatarUrl(null)}
+                onError={() => { }}
               />
             ) : (
               <View
@@ -965,100 +313,9 @@ export default function ComposeScreen() {
               </View>
             )}
             <Text style={[styles.username, { color: colors.text }]}>
-              {currentUsername || 'Anonymous'}
+              {compose.state.currentUsername || 'Anonymous'}
             </Text>
           </View>
-
-          {/* Test Share Function (Development Only) */}
-          {__DEV__ && (
-            <View style={styles.devSection}>
-              <Text style={[styles.sectionTitle, { color: colors.info }]}>
-                🧪 Test Share Functionality
-              </Text>
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.testButton,
-                    { backgroundColor: colors.inputBg },
-                  ]}
-                  onPress={() =>
-                    shareContext.simulateSharedContent?.({
-                      type: 'text',
-                      data: 'This is a test shared text! 🚀',
-                    })
-                  }
-                >
-                  <Text
-                    style={[styles.testButtonText, { color: colors.button }]}
-                  >
-                    Share Text
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.testButton,
-                    { backgroundColor: colors.inputBg },
-                  ]}
-                  onPress={() =>
-                    shareContext.simulateSharedContent?.({
-                      type: 'url',
-                      data: 'https://hive.blog',
-                    })
-                  }
-                >
-                  <Text
-                    style={[styles.testButtonText, { color: colors.button }]}
-                  >
-                    Share URL
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.testButton,
-                    { backgroundColor: colors.inputBg },
-                  ]}
-                  onPress={() =>
-                    shareContext.simulateSharedContent?.({
-                      type: 'image',
-                      data: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=500',
-                    })
-                  }
-                >
-                  <Text
-                    style={[styles.testButtonText, { color: colors.button }]}
-                  >
-                    Share Image
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.testButton,
-                    { backgroundColor: colors.inputBg },
-                  ]}
-                  onPress={() =>
-                    shareContext.simulateSharedContent?.({
-                      type: 'images',
-                      data: [
-                        'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=500',
-                        'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=500',
-                      ],
-                    })
-                  }
-                >
-                  <Text
-                    style={[styles.testButtonText, { color: colors.button }]}
-                  >
-                    Share Multiple
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
 
           {/* Text input */}
           <TextInput
@@ -1071,8 +328,8 @@ export default function ComposeScreen() {
                 borderColor: colors.inputBorder,
               },
             ]}
-            value={text}
-            onChangeText={setText}
+            value={compose.state.text}
+            onChangeText={compose.setText}
             onSelectionChange={handleSelectionChange}
             placeholder="What's happening?"
             placeholderTextColor={colors.info}
@@ -1088,31 +345,31 @@ export default function ComposeScreen() {
                 styles.charCount,
                 {
                   color:
-                    text.length > 260
+                    compose.state.text.length > 260
                       ? '#e74c3c'
-                      : text.length > 240
+                      : compose.state.text.length > 240
                         ? '#f39c12'
                         : colors.info,
                 },
               ]}
             >
-              {text.length}/280
+              {compose.state.text.length}/280
             </Text>
           </View>
 
           {/* Images preview */}
-          {images.length > 0 && (
+          {compose.state.images.length > 0 && (
             <View style={styles.imagesContainer}>
               <View style={styles.imagesHeader}>
                 <Text style={[styles.imagesCount, { color: colors.text }]}>
-                  {images.length} image{images.length > 1 ? 's' : ''}
+                  {compose.state.images.length} image{compose.state.images.length > 1 ? 's' : ''}
                 </Text>
                 <TouchableOpacity
                   style={[
                     styles.clearAllButton,
                     { backgroundColor: colors.buttonInactive },
                   ]}
-                  onPress={handleClearAllImages}
+                  onPress={compose.clearAllImages}
                 >
                   <Text style={[styles.clearAllText, { color: colors.text }]}>
                     Clear All
@@ -1125,7 +382,7 @@ export default function ComposeScreen() {
                 style={styles.imagesScrollView}
                 contentContainerStyle={styles.imagesScrollContent}
               >
-                {images.map((imageUrl, index) => (
+                {compose.state.images.map((imageUrl: string, index: number) => (
                   <View
                     key={`${imageUrl}-${index}`}
                     style={styles.imageContainer}
@@ -1136,7 +393,7 @@ export default function ComposeScreen() {
                     />
                     <TouchableOpacity
                       style={styles.removeImageButton}
-                      onPress={() => handleRemoveImage(index)}
+                      onPress={() => compose.removeImage(index)}
                     >
                       <FontAwesome name='times' size={16} color='#fff' />
                     </TouchableOpacity>
@@ -1147,14 +404,19 @@ export default function ComposeScreen() {
           )}
 
           {/* GIF Previews */}
-          {gifs.length > 0 && (
+          {compose.state.gifs.length > 0 && (
             <View style={styles.imagesContainer}>
               <View style={styles.imagesHeader}>
                 <Text style={[styles.imagesCount, { color: colors.text }]}>
-                  GIFs ({gifs.length})
+                  GIFs ({compose.state.gifs.length})
                 </Text>
-                {gifs.length > 1 && (
-                  <TouchableOpacity onPress={() => setGifs([])}>
+                {compose.state.gifs.length > 1 && (
+                  <TouchableOpacity onPress={() => {
+                    // Clear all gifs by removing them one by one
+                    for (let i = compose.state.gifs.length - 1; i >= 0; i--) {
+                      compose.removeGif(i);
+                    }
+                  }}>
                     <Text style={[styles.clearAllText, { color: colors.info }]}>
                       Clear All
                     </Text>
@@ -1167,7 +429,7 @@ export default function ComposeScreen() {
                 style={styles.imagesScrollView}
                 contentContainerStyle={styles.imagesScrollContent}
               >
-                {gifs.map((gifUrl, index) => (
+                {compose.state.gifs.map((gifUrl: string, index: number) => (
                   <View
                     key={`gif-${gifUrl}-${index}`}
                     style={styles.imageContainer}
@@ -1178,7 +440,7 @@ export default function ComposeScreen() {
                     />
                     <TouchableOpacity
                       style={styles.removeImageButton}
-                      onPress={() => handleRemoveGif(index)}
+                      onPress={() => compose.removeGif(index)}
                     >
                       <FontAwesome name='times' size={16} color='#fff' />
                     </TouchableOpacity>
@@ -1193,14 +455,14 @@ export default function ComposeScreen() {
           )}
 
           {/* Video Preview */}
-          {(video.asset || video.assetId || video.uploading || video.error) && (
+          {(compose.video.asset || compose.video.assetId || compose.video.uploading || compose.video.error) && (
             <View style={[styles.imagesContainer, { paddingVertical: 12 }]}>
               <View style={styles.imagesHeader}>
                 <Text style={[styles.imagesCount, { color: colors.text }]}>
                   Video
                 </Text>
-                {!video.uploading && (
-                  <TouchableOpacity onPress={handleRemoveVideo}>
+                {!compose.video.uploading && (
+                  <TouchableOpacity onPress={compose.video.remove}>
                     <Text style={[styles.clearAllText, { color: colors.info }]}>
                       Remove
                     </Text>
@@ -1214,12 +476,12 @@ export default function ComposeScreen() {
                 backgroundColor: colors.inputBg,
                 borderRadius: 8,
                 borderWidth: 1,
-                borderColor: video.error ? '#ff3b30' : colors.inputBorder
+                borderColor: compose.video.error ? '#ff3b30' : colors.inputBorder
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {video.thumbnail ? (
+                  {compose.video.thumbnail ? (
                     <Image
-                      source={{ uri: video.thumbnail.uri }}
+                      source={{ uri: compose.video.thumbnail.uri }}
                       style={{
                         width: 60,
                         height: 60,
@@ -1247,10 +509,10 @@ export default function ComposeScreen() {
                       style={{ color: colors.text, fontSize: 14, fontWeight: '500' }}
                       numberOfLines={1}
                     >
-                      {video.asset?.filename || 'Video'}
+                      {compose.video.asset?.filename || 'Video'}
                     </Text>
                     <View style={{ flexDirection: 'row', marginTop: 4, flexWrap: 'wrap' }}>
-                      {video.asset?.sizeBytes && (
+                      {compose.video.asset?.sizeBytes && (
                         <View style={{
                           paddingHorizontal: 6,
                           paddingVertical: 2,
@@ -1260,11 +522,11 @@ export default function ComposeScreen() {
                           marginTop: 2
                         }}>
                           <Text style={{ color: colors.text, fontSize: 11 }}>
-                            {(video.asset.sizeBytes / (1024 * 1024)).toFixed(1)} MB
+                            {(compose.video.asset.sizeBytes / (1024 * 1024)).toFixed(1)} MB
                           </Text>
                         </View>
                       )}
-                      {video.asset?.durationMs && (
+                      {compose.video.asset?.durationMs && (
                         <View style={{
                           paddingHorizontal: 6,
                           paddingVertical: 2,
@@ -1273,7 +535,7 @@ export default function ComposeScreen() {
                           marginTop: 2
                         }}>
                           <Text style={{ color: colors.text, fontSize: 11 }}>
-                            {Math.floor(video.asset.durationMs / 60000)}:{String(Math.floor((video.asset.durationMs % 60000) / 1000)).padStart(2, '0')}
+                            {Math.floor(compose.video.asset.durationMs / 60000)}:{String(Math.floor((compose.video.asset.durationMs % 60000) / 1000)).padStart(2, '0')}
                           </Text>
                         </View>
                       )}
@@ -1281,14 +543,14 @@ export default function ComposeScreen() {
                   </View>
                 </View>
 
-                {video.uploading && video.uploadProgress && (
+                {compose.video.uploading && compose.video.uploadProgress && (
                   <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ color: colors.text, fontSize: 12 }}>
                         Uploading...
                       </Text>
                       <Text style={{ color: colors.text, fontSize: 12 }}>
-                        {video.uploadProgress.percentage}%
+                        {compose.video.uploadProgress.percentage}%
                       </Text>
                     </View>
                     <View style={{
@@ -1299,21 +561,21 @@ export default function ComposeScreen() {
                     }}>
                       <View style={{
                         height: 4,
-                        width: `${video.uploadProgress.percentage}%`,
+                        width: `${compose.video.uploadProgress.percentage}%`,
                         backgroundColor: colors.button,
                       }} />
                     </View>
                   </View>
                 )}
 
-                {video.error && (
+                {compose.video.error && (
                   <View style={{ marginTop: 12 }}>
                     <Text style={{ color: '#ff3b30', fontSize: 12, marginBottom: 8 }}>
-                      {video.error}
+                      {compose.video.error}
                     </Text>
                     <View style={{ flexDirection: 'row' }}>
                       <TouchableOpacity
-                        onPress={handleRetryVideoUpload}
+                        onPress={compose.video.retry}
                         style={{
                           paddingHorizontal: 12,
                           paddingVertical: 6,
@@ -1327,7 +589,7 @@ export default function ComposeScreen() {
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={handleRemoveVideo}
+                        onPress={compose.video.remove}
                         style={{
                           paddingHorizontal: 12,
                           paddingVertical: 6,
@@ -1343,7 +605,7 @@ export default function ComposeScreen() {
                   </View>
                 )}
 
-                {video.assetId && !video.uploading && !video.error && (
+                {compose.video.assetId && !compose.video.uploading && !compose.video.error && (
                   <View style={{ marginTop: 8 }}>
                     <Text style={{ color: '#34c759', fontSize: 12, fontWeight: '500' }}>
                       ✓ Video ready to post
@@ -1352,7 +614,7 @@ export default function ComposeScreen() {
                 )}
               </View>
 
-              {(video.asset || video.assetId) && (
+              {(compose.video.asset || compose.video.assetId) && (
                 <Text style={{
                   fontSize: 11,
                   color: colors.text,
@@ -1404,7 +666,7 @@ export default function ComposeScreen() {
                   styles.markdownButton,
                   { backgroundColor: colors.inputBg },
                 ]}
-                onPress={handleSpoiler}
+                onPress={compose.openSpoilerModal}
               >
                 <FontAwesome name='eye-slash' size={16} color={colors.button} />
               </TouchableOpacity>
@@ -1414,13 +676,13 @@ export default function ComposeScreen() {
                   styles.markdownButton,
                   { backgroundColor: colors.inputBg },
                 ]}
-                onPress={() => setPreviewVisible(true)}
-                disabled={!text.trim() && images.length === 0 && gifs.length === 0}
+                onPress={compose.openPreview}
+                disabled={!compose.state.text.trim() && compose.state.images.length === 0 && compose.state.gifs.length === 0}
               >
                 <FontAwesome
                   name='eye'
                   size={16}
-                  color={(!text.trim() && images.length === 0 && gifs.length === 0) ? colors.info : colors.button}
+                  color={(!compose.state.text.trim() && compose.state.images.length === 0 && compose.state.gifs.length === 0) ? colors.info : colors.button}
                 />
               </TouchableOpacity>
             </View>
@@ -1432,19 +694,19 @@ export default function ComposeScreen() {
                   styles.actionButton,
                   { backgroundColor: colors.inputBg },
                 ]}
-                onPress={handleAddImage}
-                disabled={uploading || images.length >= 10}
+                onPress={compose.addImage}
+                disabled={compose.state.uploading || compose.state.images.length >= 10}
               >
-                {uploading ? (
+                {compose.state.uploading ? (
                   <ActivityIndicator size='small' color={colors.button} />
                 ) : (
                   <>
                     <FontAwesome
                       name='image'
                       size={20}
-                      color={images.length >= 10 ? colors.info : colors.button}
+                      color={compose.state.images.length >= 10 ? colors.info : colors.button}
                     />
-                    {images.length > 0 && (
+                    {compose.state.images.length > 0 && (
                       <View
                         style={[
                           styles.imageBadge,
@@ -1452,7 +714,7 @@ export default function ComposeScreen() {
                         ]}
                       >
                         <Text style={styles.imageBadgeText}>
-                          {images.length}
+                          {compose.state.images.length}
                         </Text>
                       </View>
                     )}
@@ -1465,26 +727,26 @@ export default function ComposeScreen() {
                   styles.actionButton,
                   { backgroundColor: colors.inputBg, marginLeft: 12 },
                 ]}
-                onPress={handleOpenGifPicker}
-                disabled={gifs.length >= 5}
+                onPress={compose.gifPicker.openPicker}
+                disabled={compose.state.gifs.length >= 5}
               >
                 <Text
                   style={{
                     fontSize: 18,
-                    color: gifs.length >= 5 ? colors.info : colors.button,
+                    color: compose.state.gifs.length >= 5 ? colors.info : colors.button,
                     fontWeight: 'bold',
                   }}
                 >
                   GIF
                 </Text>
-                {gifs.length > 0 && (
+                {compose.state.gifs.length > 0 && (
                   <View
                     style={[
                       styles.imageBadge,
                       { backgroundColor: colors.button },
                     ]}
                   >
-                    <Text style={styles.imageBadgeText}>{gifs.length}</Text>
+                    <Text style={styles.imageBadgeText}>{compose.state.gifs.length}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -1494,15 +756,15 @@ export default function ComposeScreen() {
                   styles.actionButton,
                   { backgroundColor: colors.inputBg, marginLeft: 12 },
                 ]}
-                onPress={handleAddVideo}
-                disabled={video.hasVideo || video.uploading}
+                onPress={compose.video.addVideo}
+                disabled={compose.video.hasVideo || compose.video.uploading}
               >
                 <FontAwesome
                   name="video-camera"
                   size={20}
-                  color={(video.hasVideo || video.uploading) ? colors.info : colors.button}
+                  color={(compose.video.hasVideo || compose.video.uploading) ? colors.info : colors.button}
                 />
-                {video.hasVideo && (
+                {compose.video.hasVideo && (
                   <View
                     style={[
                       styles.imageBadge,
@@ -1515,12 +777,12 @@ export default function ComposeScreen() {
               </TouchableOpacity>
             </View>
 
-            {images.length >= 10 && (
+            {compose.state.images.length >= 10 && (
               <Text style={[styles.limitText, { color: colors.info }]}>
                 Maximum 10 images
               </Text>
             )}
-            {gifs.length >= 5 && (
+            {compose.state.gifs.length >= 5 && (
               <Text style={[styles.limitText, { color: colors.info }]}>
                 Maximum 5 GIFs
               </Text>
@@ -1546,15 +808,15 @@ export default function ComposeScreen() {
 
       {/* Professional GIF Picker Modal */}
       <GifPickerModal
-        visible={gifPicker.state.modalVisible}
-        onClose={gifPicker.closePicker}
-        onSelectGif={gifPicker.selectGif}
-        searchQuery={gifPicker.state.searchQuery}
-        onSearchQueryChange={gifPicker.setSearchQuery}
-        onSearchSubmit={gifPicker.searchGifs}
-        gifResults={gifPicker.state.results}
-        loading={gifPicker.state.loading}
-        error={gifPicker.state.error}
+        visible={compose.gifPicker.state.modalVisible}
+        onClose={compose.gifPicker.closePicker}
+        onSelectGif={compose.gifPicker.selectGif}
+        searchQuery={compose.gifPicker.state.searchQuery}
+        onSearchQueryChange={compose.gifPicker.setSearchQuery}
+        onSearchSubmit={compose.gifPicker.searchGifs}
+        gifResults={compose.gifPicker.state.results}
+        loading={compose.gifPicker.state.loading}
+        error={compose.gifPicker.state.error}
         colors={{
           background: colors.background,
           text: colors.text,
@@ -1566,10 +828,10 @@ export default function ComposeScreen() {
 
       {/* Spoiler Modal */}
       <Modal
-        visible={spoilerModalVisible}
+        visible={compose.state.spoilerModalVisible}
         transparent
         animationType='fade'
-        onRequestClose={() => setSpoilerModalVisible(false)}
+        onRequestClose={compose.closeSpoilerModal}
       >
         <View style={styles.modalOverlay}>
           <View
@@ -1600,8 +862,8 @@ export default function ComposeScreen() {
                   borderColor: colors.inputBorder,
                 },
               ]}
-              value={spoilerButtonText}
-              onChangeText={setSpoilerButtonText}
+              value={compose.state.spoilerButtonText}
+              onChangeText={compose.setSpoilerButtonText}
               placeholder='button text'
               placeholderTextColor={colors.info}
               maxLength={50}
@@ -1614,7 +876,7 @@ export default function ComposeScreen() {
                   styles.spoilerModalButton,
                   { backgroundColor: colors.inputBg },
                 ]}
-                onPress={() => setSpoilerModalVisible(false)}
+                onPress={compose.closeSpoilerModal}
               >
                 <Text
                   style={[
@@ -1649,10 +911,10 @@ export default function ComposeScreen() {
 
       {/* Preview Modal */}
       <Preview
-        visible={previewVisible}
-        onClose={() => setPreviewVisible(false)}
+        visible={compose.state.previewVisible}
+        onClose={compose.closePreview}
         snapData={createPreviewSnapData()}
-        currentUsername={currentUsername}
+        currentUsername={compose.state.currentUsername}
         colors={{
           background: colors.background,
           text: colors.text,
@@ -1866,33 +1128,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     fontStyle: 'italic',
-  },
-  devSection: {
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ffa500',
-    borderStyle: 'dashed',
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  testButton: {
-    flex: 1,
-    padding: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
   notificationStatus: {
     marginTop: 8,
