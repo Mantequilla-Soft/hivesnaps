@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -162,7 +162,7 @@ export default function ComposeScreen() {
     limit: 20,
   });
 
-  const colors = {
+  const colors = useMemo(() => ({
     background: isDark ? '#15202B' : '#fff',
     text: isDark ? '#D7DBDC' : '#0F1419',
     inputBg: isDark ? '#22303C' : '#F7F9F9',
@@ -171,7 +171,7 @@ export default function ComposeScreen() {
     buttonText: '#FFFFFF',
     buttonInactive: isDark ? '#22303C' : '#E1E8ED',
     info: isDark ? '#8899A6' : '#536471',
-  };
+  }), [isDark]);
 
   // Computed video variables
   const videoEmbedUrl = videoAssetId || null;
