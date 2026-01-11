@@ -12,6 +12,7 @@ import { useVideoUpload } from './useVideoUpload';
 import { useReply } from './useReply';
 import { useEdit } from './useEdit';
 import { useGifPicker } from './useGifPickerV2';
+import { uploadAudioTo3Speak } from '../services/audioUploadService';
 
 const HIVE_NODES = [
     'https://api.hive.blog',
@@ -29,10 +30,14 @@ interface ComposeState {
     text: string;
     images: string[];
     gifs: string[];
+    audioEmbedUrl: string | null;
+    audioDuration: number;
 
     // UI State
     uploading: boolean;
     posting: boolean;
+    audioUploading: boolean;
+    audioRecorderVisible: boolean;
     spoilerModalVisible: boolean;
     spoilerButtonText: string;
     previewVisible: boolean;
@@ -55,7 +60,11 @@ type ComposeAction =
     | { type: 'SET_GIFS'; payload: string[] }
     | { type: 'ADD_GIF'; payload: string }
     | { type: 'REMOVE_GIF'; payload: number }
+    | { type: 'SET_AUDIO'; payload: { url: string | null; duration: number } }
+    | { type: 'CLEAR_AUDIO' }
+    | { type: 'SET_AUDIO_RECORDER_VISIBLE'; payload: boolean }
     | { type: 'SET_UPLOADING'; payload: boolean }
+    | { type: 'SET_AUDIO_UPLOADING'; payload: boolean }
     | { type: 'SET_POSTING'; payload: boolean }
     | { type: 'SET_SPOILER_MODAL'; payload: { visible: boolean; text?: string } }
     | { type: 'SET_PREVIEW_VISIBLE'; payload: boolean }
@@ -67,8 +76,12 @@ const initialState: ComposeState = {
     text: '',
     images: [],
     gifs: [],
+    audioEmbedUrl: null,
+    audioDuration: 0,
     uploading: false,
     posting: false,
+    audioUploading: false,
+    audioRecorderVisible: false,
     spoilerModalVisible: false,
     spoilerButtonText: '',
     previewVisible: false,
@@ -96,8 +109,16 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
             return { ...state, gifs: [...state.gifs, action.payload] };
         case 'REMOVE_GIF':
             return { ...state, gifs: state.gifs.filter((_, i) => i !== action.payload) };
+        case 'SET_AUDIO':
+            return { ...state, audioEmbedUrl: action.payload.url, audioDuration: action.payload.duration };
+        case 'CLEAR_AUDIO':
+            return { ...state, audioEmbedUrl: null, audioDuration: 0 };
+        case 'SET_AUDIO_RECORDER_VISIBLE':
+            return { ...state, audioRecorderVisible: action.payload };
         case 'SET_UPLOADING':
             return { ...state, uploading: action.payload };
+        case 'SET_AUDIO_UPLOADING':
+            return { ...state, audioUploading: action.payload };
         case 'SET_POSTING':
             return { ...state, posting: action.payload };
         case 'SET_SPOILER_MODAL':
@@ -126,6 +147,8 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
                 text: '',
                 images: [],
                 gifs: [],
+                audioEmbedUrl: null,
+                audioDuration: 0,
                 spoilerButtonText: '',
             };
         default:
@@ -431,6 +454,63 @@ export function useCompose({
         dispatch({ type: 'SET_PREVIEW_VISIBLE', payload: false });
     }, []);
 
+    // ===== Audio Operations =====
+
+    const openAudioRecorder = useCallback(() => {
+        dispatch({ type: 'SET_AUDIO_RECORDER_VISIBLE', payload: true });
+    }, []);
+
+    const closeAudioRecorder = useCallback(() => {
+        dispatch({ type: 'SET_AUDIO_RECORDER_VISIBLE', payload: false });
+    }, []);
+
+    const handleAudioRecorded = useCallback(async (audioBlob: Blob, durationSeconds: number) => {
+        dispatch({ type: 'SET_AUDIO_UPLOADING', payload: true });
+
+        try {
+            if (!state.currentUsername) {
+                throw new Error('Not logged in');
+            }
+
+            const result = await uploadAudioTo3Speak(
+                audioBlob,
+                durationSeconds,
+                state.currentUsername,
+                {
+                    title: `Audio Snap by ${state.currentUsername}`,
+                }
+            );
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to upload audio');
+            }
+
+            dispatch({
+                type: 'SET_AUDIO',
+                payload: { url: result.playUrl, duration: durationSeconds },
+            });
+            dispatch({ type: 'SET_AUDIO_RECORDER_VISIBLE', payload: false });
+
+            Alert.alert(
+                'Audio Uploaded',
+                'Your audio has been uploaded successfully!',
+                [{ text: 'OK' }]
+            );
+        } catch (error: any) {
+            console.error('Error uploading audio:', error);
+            Alert.alert(
+                'Upload Error',
+                error.message || 'Failed to upload audio. Please try again.'
+            );
+        } finally {
+            dispatch({ type: 'SET_AUDIO_UPLOADING', payload: false });
+        }
+    }, [state.currentUsername]);
+
+    const removeAudio = useCallback(() => {
+        dispatch({ type: 'CLEAR_AUDIO' });
+    }, []);
+
     // ===== Validation =====
 
     const hasPostableContent = useMemo(() => {
@@ -438,22 +518,25 @@ export function useCompose({
             state.text.trim() ||
             state.images.length > 0 ||
             state.gifs.length > 0 ||
-            video.videoEmbedUrl
+            video.videoEmbedUrl ||
+            state.audioEmbedUrl
         );
-    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl]);
+    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl]);
 
     const hasDraftContent = useMemo(() => {
         return Boolean(
             state.text.trim() ||
             state.images.length > 0 ||
             state.gifs.length > 0 ||
-            video.hasVideo
+            video.hasVideo ||
+            state.audioEmbedUrl ||
+            state.audioUploading
         );
-    }, [state.text, state.images.length, state.gifs.length, video.hasVideo]);
+    }, [state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
 
     const isSubmitting = useMemo(() => {
-        return state.posting || reply.posting || edit.editing || video.uploading;
-    }, [state.posting, reply.posting, edit.editing, video.uploading]);
+        return state.posting || reply.posting || edit.editing || video.uploading || state.audioUploading;
+    }, [state.posting, reply.posting, edit.editing, video.uploading, state.audioUploading]);
 
     const canSubmit = useMemo(() => {
         return hasPostableContent && !isSubmitting;
@@ -470,7 +553,7 @@ export function useCompose({
 
         if (!hasPostableContent) {
             console.error('[useCompose] Reply has no content');
-            Alert.alert('Error', 'Please enter some text or add an image/GIF/video.');
+            Alert.alert('Error', 'Please enter some text or add an image/GIF/video/audio.');
             return;
         }
 
@@ -483,6 +566,7 @@ export function useCompose({
                 images: state.images,
                 gifs: state.gifs,
                 video: video.videoEmbedUrl,
+                audio: state.audioEmbedUrl,
             });
 
             console.log('[useCompose] Reply submission completed successfully');
@@ -510,7 +594,7 @@ export function useCompose({
 
         if (!hasPostableContent) {
             console.error('[useCompose] Edit has no content');
-            Alert.alert('Error', 'Please enter some text or add an image/GIF/video.');
+            Alert.alert('Error', 'Please enter some text or add an image/GIF/video/audio.');
             return;
         }
 
@@ -523,6 +607,7 @@ export function useCompose({
                 images: state.images,
                 gifs: state.gifs,
                 video: video.videoEmbedUrl,
+                audio: state.audioEmbedUrl,
             });
 
             console.log('[useCompose] Edit submission completed successfully');
@@ -542,13 +627,13 @@ export function useCompose({
     }, [parentAuthor, parentPermlink, hasPostableContent, state.text, state.images, state.gifs, video, edit, onSuccess]);
 
     const submitPost = useCallback(async () => {
-        if (video.uploading) {
-            Alert.alert('Video Uploading', 'Please wait for the video upload to finish.');
+        if (video.uploading || state.audioUploading) {
+            Alert.alert('Upload in Progress', 'Please wait for the upload to finish.');
             return;
         }
 
         if (!hasPostableContent) {
-            Alert.alert('Empty Post', 'Please add text, images, GIFs, or a video before posting.');
+            Alert.alert('Empty Post', 'Please add text, images, GIFs, video, or audio before posting.');
             return;
         }
 
@@ -586,6 +671,9 @@ export function useCompose({
             if (video.videoEmbedUrl) {
                 body += `\n${video.videoEmbedUrl}`;
             }
+            if (state.audioEmbedUrl) {
+                body += `\n${state.audioEmbedUrl}`;
+            }
 
             // Get latest @peak.snaps post (container)
             const discussions = await client.database.call('get_discussions_by_blog', [
@@ -606,6 +694,9 @@ export function useCompose({
                 video: video.videoEmbedUrl
                     ? { platform: '3speak', url: video.videoEmbedUrl, uploadUrl: video.uploadUrl }
                     : undefined,
+                audio: state.audioEmbedUrl
+                    ? { platform: '3speak', url: state.audioEmbedUrl }
+                    : undefined,
             });
 
             await postSnapWithBeneficiaries(
@@ -619,6 +710,7 @@ export function useCompose({
                     body,
                     jsonMetadata: json_metadata,
                     hasVideo: !!video.videoEmbedUrl,
+                    hasAudio: !!state.audioEmbedUrl,
                 },
                 postingKey
             );
@@ -689,6 +781,10 @@ export function useCompose({
             setSpoilerButtonText,
             openPreview,
             closePreview,
+            openAudioRecorder,
+            closeAudioRecorder,
+            handleAudioRecorded,
+            removeAudio,
             submit,
         }),
         [
@@ -713,6 +809,10 @@ export function useCompose({
             setSpoilerButtonText,
             openPreview,
             closePreview,
+            openAudioRecorder,
+            closeAudioRecorder,
+            handleAudioRecorded,
+            removeAudio,
             submit,
         ]
     );

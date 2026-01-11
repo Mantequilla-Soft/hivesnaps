@@ -6,16 +6,17 @@ if (!BASE_API_URL) {
   console.warn('BASE_API_URL is not set in .env - some API features may not work');
 }
 
-// THREE_SPEAK_API_KEY is required for video upload features.
-// It is optional for read-only operations (e.g., viewing videos).
+// THREE_SPEAK_API_KEY is required for video and audio upload features.
+// It is optional for read-only operations (e.g., viewing videos/audio).
 export const THREE_SPEAK_API_KEY = process.env.EXPO_PUBLIC_3SPEAK_API_KEY || '';
 if (!THREE_SPEAK_API_KEY) {
-  const message = 
+  const message =
     '⚠️  THREE_SPEAK_API_KEY is not set in .env\n' +
-    'Video upload features will NOT work.\n' +
-    'Set EXPO_PUBLIC_3SPEAK_API_KEY in your .env file to enable video uploading.\n' +
-    'Viewing videos will still work normally.';
-  
+    'Video and audio upload features will NOT work.\n' +
+    'Set EXPO_PUBLIC_3SPEAK_API_KEY in your .env file to enable uploading.\n' +
+    'Optionally, you can also set EXPO_PUBLIC_AUDIO_API_ENDPOINT for custom audio API endpoints.\n' +
+    'Viewing videos and audio will still work normally.';
+
   if (__DEV__) {
     // In development, show clear warning but don't crash (allows testing read-only features)
     console.error(message);
@@ -24,5 +25,9 @@ if (!THREE_SPEAK_API_KEY) {
   }
 }
 
+// AUDIO_API_ENDPOINT for 3Speak Audio API
+export const AUDIO_API_ENDPOINT = process.env.EXPO_PUBLIC_AUDIO_API_ENDPOINT || 'https://audio.3speak.tv';
+
+// IPFS endpoints for 3Speak
 export const IPFS_UPLOAD_ENDPOINT = process.env.EXPO_PUBLIC_IPFS_UPLOAD_ENDPOINT || 'https://ipfs.3speak.tv/api/v0/add';
 export const IPFS_GATEWAY_URL = process.env.EXPO_PUBLIC_IPFS_GATEWAY_URL || 'https://ipfs.3speak.tv/ipfs';

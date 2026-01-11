@@ -47,6 +47,7 @@ interface UseEditReturn extends EditState {
     images?: string[];
     gifs?: string[];
     video?: string | null;
+    audio?: string | null;
   }) => Promise<void>;
   addImage: (mode: 'edit') => Promise<void>;
   addGif: (gifUrl: string) => void;
@@ -193,6 +194,7 @@ export const useEdit = (
     images?: string[];
     gifs?: string[];
     video?: string | null; // 3speak video embed URL
+    audio?: string | null; // 3speak audio embed URL
   }) => {
     // Use overrides if provided, otherwise fall back to state
     const target = overrides?.target || state.editTarget;
@@ -200,6 +202,7 @@ export const useEdit = (
     const images = overrides?.images ?? state.editImages;
     const gifs = overrides?.gifs ?? state.editGifs;
     const video = overrides?.video ?? null;
+    const audio = overrides?.audio ?? null;
 
     // Validate and throw errors instead of silently returning
     if (!target) {
@@ -207,8 +210,8 @@ export const useEdit = (
       setState(prev => ({ ...prev, error: error.message, editing: false }));
       throw error;
     }
-    if (!text.trim() && images.length === 0 && gifs.length === 0 && !video) {
-      const error = new Error('Edit cannot be empty. Please add text, images, GIFs, or video.');
+    if (!text.trim() && images.length === 0 && gifs.length === 0 && !video && !audio) {
+      const error = new Error('Edit cannot be empty. Please add text, images, GIFs, video, or audio.');
       setState(prev => ({ ...prev, error: error.message, editing: false }));
       throw error;
     }
@@ -245,6 +248,11 @@ export const useEdit = (
         body += `\n${video}`;
       }
 
+      // Add audio embed URL if present
+      if (audio) {
+        body += `\n${audio}`;
+      }
+
       // Get the original post to preserve parent relationships
       const originalPost = await client.database.call('get_content', [
         target.author,
@@ -278,6 +286,11 @@ export const useEdit = (
       // Add or update video metadata if present
       if (video) {
         json_metadata.video = { platform: '3speak', url: video };
+      }
+
+      // Add or update audio metadata if present
+      if (audio) {
+        json_metadata.audio = { platform: '3speak', url: audio };
       }
 
       // Edit the post/reply using same author/permlink with new content
