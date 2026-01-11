@@ -150,6 +150,9 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
                 audioEmbedUrl: null,
                 audioDuration: 0,
                 spoilerButtonText: '',
+                audioRecorderVisible: false,
+                spoilerModalVisible: false,
+                previewVisible: false,
             };
         default:
             return state;
