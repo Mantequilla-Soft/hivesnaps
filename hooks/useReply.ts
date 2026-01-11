@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import * as ImagePicker from 'expo-image-picker';
-import { convertToJPEG } from '../utils/imageConverter';
+import { convertImageSmart } from '../utils/imageConverter';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -39,7 +39,13 @@ interface UseReplyReturn extends ReplyState {
   removeReplyImage: (imageUrl: string) => void;
   addReplyGif: (gifUrl: string) => void;
   removeReplyGif: (gifUrl: string) => void;
-  submitReply: () => Promise<void>;
+  submitReply: (overrides?: {
+    target?: { author: string; permlink: string };
+    text?: string;
+    images?: string[];
+    gifs?: string[];
+    video?: string | null;
+  }) => Promise<void>;
   addImage: (mode: 'reply') => Promise<void>;
   addGif: (gifUrl: string) => void;
   clearError: () => void;
@@ -99,9 +105,9 @@ export const useReply = (
   }, []);
 
   const removeReplyImage = useCallback((imageUrl: string) => {
-    setState(prev => ({ 
-      ...prev, 
-      replyImages: prev.replyImages.filter(img => img !== imageUrl) 
+    setState(prev => ({
+      ...prev,
+      replyImages: prev.replyImages.filter(img => img !== imageUrl)
     }));
   }, []);
 
@@ -110,9 +116,9 @@ export const useReply = (
   }, []);
 
   const removeReplyGif = useCallback((gifUrl: string) => {
-    setState(prev => ({ 
-      ...prev, 
-      replyGifs: prev.replyGifs.filter(gif => gif !== gifUrl) 
+    setState(prev => ({
+      ...prev,
+      replyGifs: prev.replyGifs.filter(gif => gif !== gifUrl)
     }));
   }, []);
 
@@ -134,22 +140,22 @@ export const useReply = (
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
 
-        // Convert HEIC and other formats to JPEG
-        const converted = await convertToJPEG(asset.uri, 0.8);
+        // Smart conversion - only converts HEIC, preserves GIFs
+        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
 
         const fileToUpload = {
           uri: converted.uri,
-          name: `reply-${Date.now()}.jpg`,
-          type: 'image/jpeg',
+          name: converted.name,
+          type: converted.type,
         };
 
         const uploadResult = await uploadImageSmart(fileToUpload, currentUsername);
         console.log(`[useReply] Image uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
-        
+
         // Add to array instead of replacing
-        setState(prev => ({ 
-          ...prev, 
-          replyImages: [...prev.replyImages, uploadResult.url] 
+        setState(prev => ({
+          ...prev,
+          replyImages: [...prev.replyImages, uploadResult.url]
         }));
       }
     } catch (error) {
@@ -168,13 +174,36 @@ export const useReply = (
     setState(prev => ({ ...prev, replyGifs: [...prev.replyGifs, gifUrl] }));
   }, []);
 
-  const submitReply = useCallback(async () => {
-    if (
-      !state.replyTarget ||
-      (!state.replyText.trim() && state.replyImages.length === 0 && state.replyGifs.length === 0) ||
-      !currentUsername
-    ) {
-      return;
+  // submitReply now accepts optional override parameters to avoid async state timing issues
+  const submitReply = useCallback(async (overrides?: {
+    target?: { author: string; permlink: string };
+    text?: string;
+    images?: string[];
+    gifs?: string[];
+    video?: string | null; // 3speak video embed URL
+  }) => {
+    // Use overrides if provided, otherwise fall back to state
+    const target = overrides?.target || state.replyTarget;
+    const text = overrides?.text ?? state.replyText;
+    const images = overrides?.images ?? state.replyImages;
+    const gifs = overrides?.gifs ?? state.replyGifs;
+    const video = overrides?.video ?? null;
+
+    // Validate and throw errors instead of silently returning
+    if (!target) {
+      const error = new Error('No reply target specified. Please try again.');
+      setState(prev => ({ ...prev, error: error.message, posting: false }));
+      throw error;
+    }
+    if (!text.trim() && images.length === 0 && gifs.length === 0 && !video) {
+      const error = new Error('Reply cannot be empty. Please add text, images, GIFs, or video.');
+      setState(prev => ({ ...prev, error: error.message, posting: false }));
+      throw error;
+    }
+    if (!currentUsername) {
+      const error = new Error('Not logged in. Please log in to reply.');
+      setState(prev => ({ ...prev, error: error.message, posting: false }));
+      throw error;
     }
 
     setState(prev => ({ ...prev, posting: true, error: null }));
@@ -187,20 +216,25 @@ export const useReply = (
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
-      let body = state.replyText.trim();
-      
+      let body = text.trim();
+
       // Add all images
-      state.replyImages.forEach(imageUrl => {
+      images.forEach(imageUrl => {
         body += `\n![image](${imageUrl})`;
       });
-      
+
       // Add all GIFs
-      state.replyGifs.forEach(gifUrl => {
+      gifs.forEach(gifUrl => {
         body += `\n![gif](${gifUrl})`;
       });
 
-      const parent_author = state.replyTarget.author;
-      const parent_permlink = state.replyTarget.permlink;
+      // Add video embed URL if present
+      if (video) {
+        body += `\n${video}`;
+      }
+
+      const parent_author = target.author;
+      const parent_permlink = target.permlink;
       const author = currentUsername;
 
       // Sanitize parent_author for use in permlink
@@ -216,9 +250,14 @@ export const useReply = (
       };
 
       // Add all images and GIFs to metadata
-      const allMedia = [...state.replyImages, ...state.replyGifs];
+      const allMedia = [...images, ...gifs];
       if (allMedia.length > 0) {
         json_metadata.image = allMedia;
+      }
+
+      // Add video metadata if present
+      if (video) {
+        json_metadata.video = { platform: '3speak', url: video };
       }
 
       // Post to Hive blockchain
@@ -303,20 +342,40 @@ export const useReply = (
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
-  return {
-    ...state,
-    openReplyModal,
-    closeReplyModal,
-    setReplyText,
-    setReplyImages,
-    setReplyGifs,
-    addReplyImage,
-    removeReplyImage,
-    addReplyGif,
-    removeReplyGif,
-    submitReply,
-    addImage,
-    addGif,
-    clearError,
-  };
+  // Memoize return object to prevent infinite loops when used in dependency arrays
+  // This ensures the object reference only changes when actual state/callbacks change
+  return useMemo(
+    () => ({
+      ...state,
+      openReplyModal,
+      closeReplyModal,
+      setReplyText,
+      setReplyImages,
+      setReplyGifs,
+      addReplyImage,
+      removeReplyImage,
+      addReplyGif,
+      removeReplyGif,
+      submitReply,
+      addImage,
+      addGif,
+      clearError,
+    }),
+    [
+      state,
+      openReplyModal,
+      closeReplyModal,
+      setReplyText,
+      setReplyImages,
+      setReplyGifs,
+      addReplyImage,
+      removeReplyImage,
+      addReplyGif,
+      removeReplyGif,
+      submitReply,
+      addImage,
+      addGif,
+      clearError,
+    ]
+  );
 };

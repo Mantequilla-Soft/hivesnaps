@@ -8,7 +8,7 @@ import { uploadImageSmart } from '../utils/imageUploadService';
 import { avatarService } from '../services/AvatarService';
 import { saveAvatarImage } from '../utils/avatarUtils';
 import { useAppStore } from '../store/context';
-import { convertToJPEG } from '../utils/imageConverter';
+import { convertImageSmart } from '../utils/imageConverter';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -184,13 +184,13 @@ export const useAvatarManagement = (currentUsername: string | null) => {
       setAvatarUploading(true);
 
       try {
-        // Convert HEIC and other formats to JPEG
-        const converted = await convertToJPEG(asset.uri, 0.8);
+        // Smart conversion - only converts HEIC, preserves original format
+        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
 
         const fileToSave = {
           uri: converted.uri,
-          name: `avatar-${currentUsername}-${Date.now()}.jpg`,
-          type: 'image/jpeg',
+          name: converted.name,
+          type: converted.type,
         };
         const saveResult = await saveAvatarImage(fileToSave, currentUsername!);
         console.log('Avatar image uploaded:', saveResult);

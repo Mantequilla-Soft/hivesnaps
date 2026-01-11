@@ -70,3 +70,80 @@ export async function convertMultipleToJPEG(
   const promises = uris.map(uri => convertToJPEG(uri, quality));
   return Promise.all(promises);
 }
+
+export interface SmartConversionResult {
+  uri: string;
+  type: string;
+  name: string;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * Smart image conversion - only converts HEIC/HEIF to JPEG, preserves GIFs and PNGs
+ * 
+ * @param uri - The URI of the image
+ * @param originalFileName - Original file name (optional, for extension detection)
+ * @param quality - JPEG quality for conversion (0-1), defaults to 0.8
+ * @returns File info ready for upload with proper mime type
+ */
+export async function convertImageSmart(
+  uri: string,
+  originalFileName?: string,
+  quality: number = 0.8
+): Promise<SmartConversionResult> {
+  try {
+    // Determine file extension
+    const extension = (originalFileName || uri).toLowerCase().split('.').pop() || '';
+
+    console.log('[imageConverter] Smart conversion - file extension:', extension);
+
+    // Only convert HEIC/HEIF to JPEG (iOS photos)
+    const needsConversion = extension === 'heic' || extension === 'heif';
+
+    if (needsConversion) {
+      console.log('[imageConverter] Converting HEIC/HEIF to JPEG');
+      const converted = await convertToJPEG(uri, quality);
+      return {
+        uri: converted.uri,
+        type: 'image/jpeg',
+        name: `image-${Date.now()}.jpg`,
+        width: converted.width,
+        height: converted.height,
+      };
+    }
+
+    // Preserve GIF animations and PNG transparency
+    if (extension === 'gif') {
+      console.log('[imageConverter] Preserving GIF animation');
+      return {
+        uri,
+        type: 'image/gif',
+        name: originalFileName || `image-${Date.now()}.gif`,
+      };
+    }
+
+    if (extension === 'png') {
+      console.log('[imageConverter] Preserving PNG transparency');
+      return {
+        uri,
+        type: 'image/png',
+        name: originalFileName || `image-${Date.now()}.png`,
+      };
+    }
+
+    // For JPEG and other formats, pass through as JPEG
+    console.log('[imageConverter] Passing through as JPEG');
+    return {
+      uri,
+      type: 'image/jpeg',
+      name: originalFileName || `image-${Date.now()}.jpg`,
+    };
+
+  } catch (error) {
+    if (__DEV__) {
+      console.error('[imageConverter] Error in smart conversion:', error);
+    }
+    throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

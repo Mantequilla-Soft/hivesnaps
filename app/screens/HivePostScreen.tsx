@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { SafeAreaView as SafeAreaViewRN } from 'react-native';
 import {
   SafeAreaView as SafeAreaViewSA,
@@ -15,7 +15,7 @@ import {
   Pressable,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import PostBody from '../components/PostBody';
 import { Dimensions } from 'react-native';
@@ -24,13 +24,11 @@ import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
 import { useHivePostData } from '../../hooks/useHivePostData';
 import { HivePostScreenStyles } from '../../styles/HivePostScreenStyles';
-import { useReply, ReplyTarget } from '../../hooks/useReply';
-import { useGifPicker } from '../../hooks/useGifPickerV2';
+// useReply and useGifPicker removed - now using ComposeScreen for reply
 import UpvoteModal from '../../components/UpvoteModal';
 import { useMutedList } from '../../store/context';
 import Snap from '../components/Snap';
-import ContentModal from '../components/ContentModal';
-import { GifPickerModal } from '../../components/GifPickerModalV2';
+// ContentModal and GifPickerModal removed - now using ComposeScreen
 import genericAvatar from '../../assets/images/generic-avatar.png';
 
 const HivePostScreen = () => {
@@ -84,43 +82,28 @@ const HivePostScreen = () => {
     confirmUpvote,
   } = useUpvote(currentUsername, globalProps, rewardFund, hivePrice, handleUpdatePost, updateComment);
 
-  // Reply functionality hook
-  const {
-    replyModalVisible,
-    replyText,
-    replyImages,
-    replyGifs,
-    replyTarget,
-    posting: replyPosting,
-    uploading: replyUploading,
-    processing: replyProcessing,
-    error: replyError,
-    openReplyModal,
-    closeReplyModal,
-    setReplyText,
-    setReplyImages,
-    setReplyGifs,
-    addReplyImage,
-    removeReplyImage,
-    addReplyGif,
-    removeReplyGif,
-    submitReply,
-    addImage: addImage,
-    addGif,
-    clearError: clearReplyError,
-  } = useReply(currentUsername, async () => {
-    await refreshAll();
-    return true; // Always return true since we refreshed
-  });
+  // Removed useReply and useGifPicker hooks - now using ComposeScreen for reply
 
-    // GIF picker functionality - using new professional hook
-  const gifPicker = useGifPicker({
-    onGifSelected: (gifUrl: string) => {
-      addGif(gifUrl);
-    },
-    loadTrendingOnOpen: true,
-    limit: 20,
-  });
+  // Refresh post when screen comes back into focus (e.g., after posting a reply)
+  // Use a ref to track if this is the initial mount (don't refresh on first focus)
+  const hasInitiallyLoadedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasInitiallyLoadedRef.current) {
+        // First time loading - don't refresh, just mark as loaded
+        hasInitiallyLoadedRef.current = true;
+        console.log('[HivePostScreen] Initial load, skipping auto-refresh');
+        return;
+      }
+
+      // Coming back from another screen - do a full refresh to get new replies
+      if (author && permlink) {
+        console.log('[HivePostScreen] Screen focused, refreshing post data...');
+        refreshAll();
+      }
+    }, [author, permlink, refreshAll])
+  );
 
   const handleUpvotePress = useCallback(() => {
     if (!post) return;
@@ -139,9 +122,12 @@ const HivePostScreen = () => {
   // Handle reply modal opening
   const handleOpenReplyModal = useCallback(
     (author: string, permlink: string) => {
-      openReplyModal({ author, permlink });
+      router.push({
+        pathname: '/screens/ComposeScreen',
+        params: { mode: 'reply', parentAuthor: author, parentPermlink: permlink }
+      });
     },
-    [openReplyModal]
+    [router]
   );
 
   // Handle resnap from a Hive Post (same behavior as in Snap/Feed/Conversation)
@@ -151,21 +137,7 @@ const HivePostScreen = () => {
     router.push({ pathname: '/screens/ComposeScreen', params: { resnapUrl: snapUrl } });
   }, [post, router]);
 
-  // Handle GIF picker opening
-  const handleOpenGifPicker = useCallback(
-    (mode: 'reply') => {
-      gifPicker.openPicker();
-    },
-    [gifPicker]
-  );
-
-  // Handle GIF selection
-  const handleSelectGif = useCallback(
-    (gifUrl: string) => {
-      gifPicker.selectGif(gifUrl);
-    },
-    [gifPicker]
-  );
+  // Removed handleOpenGifPicker and handleSelectGif - now handled in ComposeScreen
 
   const colors = {
     background: isDark ? '#15202B' : '#fff',
@@ -186,7 +158,7 @@ const HivePostScreen = () => {
 
     // Ensure mutedList is a Set for efficient lookups
     const mutedSet = mutedList instanceof Set ? mutedList : new Set(mutedList);
-    
+
     const filterCommentsRecursively = (commentList: typeof comments): typeof comments => {
       return commentList
         .filter(comment => !mutedSet.has(comment.author))
@@ -291,7 +263,7 @@ const HivePostScreen = () => {
           { backgroundColor: colors.background },
         ]}
       >
-        <View 
+        <View
           style={HivePostScreenStyles.errorContainer}
           accessible={true}
           accessibilityLabel="Loading post"
@@ -582,7 +554,7 @@ const HivePostScreen = () => {
                     '-' +
                     comment.visualLevel
                   }
-                  snap={{...comment, community: post?.category}}
+                  snap={{ ...comment, community: post?.category }}
                   onUpvotePress={handleCommentUpvotePress}
                   onReplyPress={handleOpenReplyModal}
                   onEditPress={(snapData: { author: string; permlink: string; body: string }) => {
@@ -621,47 +593,9 @@ const HivePostScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Reply Modal */}
-      <ContentModal
-        isVisible={replyModalVisible}
-        onClose={closeReplyModal}
-        onSubmit={submitReply}
-        mode='reply'
-        target={replyTarget}
-        text={replyText}
-        onTextChange={setReplyText}
-        images={replyImages}
-        gifs={replyGifs}
-        onImageRemove={removeReplyImage}
-        onGifRemove={removeReplyGif}
-        onAddImage={() => addImage('reply')}
-        onAddGif={() => handleOpenGifPicker('reply')}
-        posting={replyPosting}
-        uploading={replyUploading}
-        processing={replyProcessing}
-        error={replyError}
-        currentUsername={currentUsername}
-      />
+      {/* Reply Modal removed - now using ComposeScreen */}
 
-      {/* Professional GIF Picker Modal */}
-      <GifPickerModal
-        visible={gifPicker.state.modalVisible}
-        onClose={gifPicker.closePicker}
-        onSelectGif={gifPicker.selectGif}
-        searchQuery={gifPicker.state.searchQuery}
-        onSearchQueryChange={gifPicker.setSearchQuery}
-        onSearchSubmit={gifPicker.searchGifs}
-        gifResults={gifPicker.state.results}
-        loading={gifPicker.state.loading}
-        error={gifPicker.state.error}
-        colors={{
-          background: colors.background,
-          text: colors.text,
-          inputBg: colors.border,
-          inputBorder: colors.border,
-          button: colors.button,
-        }}
-      />
+      {/* Professional GIF Picker Modal removed - now handled in ComposeScreen */}
 
       {/* Upvote Modal */}
       <UpvoteModal

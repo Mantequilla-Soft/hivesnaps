@@ -20,7 +20,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
 import Snap from '../components/Snap';
 import UpvoteModal from '../../components/UpvoteModal';
-import ContentModal from '../components/ContentModal';
+// ContentModal removed - now using ComposeScreen for edit
 
 // Import custom hooks
 import { useProfileData } from '../../hooks/useProfileData';
@@ -31,7 +31,7 @@ import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
-import { useEdit } from '../../hooks/useEdit';
+// useEdit removed - now using ComposeScreen for edit
 
 const ProfileScreen = () => {
   const colorScheme = useColorScheme() || 'light';
@@ -130,28 +130,7 @@ const ProfileScreen = () => {
     updateSnap
   );
 
-  // Edit functionality
-  const {
-    editModalVisible,
-    editText,
-    editImages,
-    editGifs,
-    editTarget,
-    editing,
-    error: editError,
-    uploading: editUploading,
-    processing: editProcessing,
-    openEditModal,
-    closeEditModal,
-    setEditText,
-    addEditImage,
-    removeEditImage,
-    addEditGif,
-    removeEditGif,
-    submitEdit,
-    addImage: addEditImageFromPicker,
-    addGif: addEditGifFromPicker,
-  } = useEdit(currentUsername);
+  // Removed useEdit hook - now using ComposeScreen for edit
 
   // Initialize styles
   const styles = createProfileScreenStyles(isDark);
@@ -232,10 +211,15 @@ const ProfileScreen = () => {
     permlink: string;
     body: string;
   }) => {
-    openEditModal(
-      { author: snapData.author, permlink: snapData.permlink, type: 'snap' },
-      snapData.body
-    );
+    router.push({
+      pathname: '/screens/ComposeScreen',
+      params: {
+        mode: 'edit',
+        parentAuthor: snapData.author,
+        parentPermlink: snapData.permlink,
+        initialText: snapData.body
+      }
+    });
   };
 
   const handleBack = () => {
@@ -1350,27 +1334,7 @@ const ProfileScreen = () => {
         colors={colors}
       />
 
-      {/* Edit Modal */}
-      <ContentModal
-        isVisible={editModalVisible}
-        onClose={closeEditModal}
-        onSubmit={submitEdit}
-        mode='edit'
-        target={editTarget}
-        text={editText}
-        onTextChange={setEditText}
-        images={editImages}
-        gifs={editGifs}
-        onImageRemove={removeEditImage}
-        onGifRemove={removeEditGif}
-        onAddImage={() => addEditImageFromPicker('edit')}
-        onAddGif={() => addEditGifFromPicker('edit')}
-        posting={editing}
-        uploading={editUploading}
-        processing={editProcessing}
-        error={editError}
-        currentUsername={currentUsername}
-      />
+      {/* Edit Modal removed - now using ComposeScreen */}
     </SafeAreaViewSA>
   );
 };

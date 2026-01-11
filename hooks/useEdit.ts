@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import * as ImagePicker from 'expo-image-picker';
-import { convertToJPEG } from '../utils/imageConverter';
+import { convertImageSmart } from '../utils/imageConverter';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -41,7 +41,13 @@ interface UseEditReturn extends EditState {
   removeEditImage: (imageUrl: string) => void;
   addEditGif: (gifUrl: string) => void;
   removeEditGif: (gifUrl: string) => void;
-  submitEdit: () => Promise<void>;
+  submitEdit: (overrides?: {
+    target?: { author: string; permlink: string };
+    text?: string;
+    images?: string[];
+    gifs?: string[];
+    video?: string | null;
+  }) => Promise<void>;
   addImage: (mode: 'edit') => Promise<void>;
   addGif: (gifUrl: string) => void;
   clearError: () => void;
@@ -111,9 +117,9 @@ export const useEdit = (
   }, []);
 
   const removeEditImage = useCallback((imageUrl: string) => {
-    setState(prev => ({ 
-      ...prev, 
-      editImages: prev.editImages.filter(img => img !== imageUrl) 
+    setState(prev => ({
+      ...prev,
+      editImages: prev.editImages.filter(img => img !== imageUrl)
     }));
   }, []);
 
@@ -122,9 +128,9 @@ export const useEdit = (
   }, []);
 
   const removeEditGif = useCallback((gifUrl: string) => {
-    setState(prev => ({ 
-      ...prev, 
-      editGifs: prev.editGifs.filter(gif => gif !== gifUrl) 
+    setState(prev => ({
+      ...prev,
+      editGifs: prev.editGifs.filter(gif => gif !== gifUrl)
     }));
   }, []);
 
@@ -146,22 +152,22 @@ export const useEdit = (
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
 
-        // Convert HEIC and other formats to JPEG
-        const converted = await convertToJPEG(asset.uri, 0.8);
+        // Smart conversion - only converts HEIC, preserves GIFs
+        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
 
         const fileToUpload = {
           uri: converted.uri,
-          name: `edit-${Date.now()}.jpg`,
-          type: 'image/jpeg',
+          name: converted.name,
+          type: converted.type,
         };
 
         const uploadResult = await uploadImageSmart(fileToUpload, currentUsername);
         console.log(`[useEdit] Image uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
-        
+
         // Add to array instead of replacing
-        setState(prev => ({ 
-          ...prev, 
-          editImages: [...prev.editImages, uploadResult.url] 
+        setState(prev => ({
+          ...prev,
+          editImages: [...prev.editImages, uploadResult.url]
         }));
       }
     } catch (error) {
@@ -180,13 +186,36 @@ export const useEdit = (
     setState(prev => ({ ...prev, editGifs: [...prev.editGifs, gifUrl] }));
   }, []);
 
-  const submitEdit = useCallback(async () => {
-    if (
-      !state.editTarget ||
-      (!state.editText.trim() && state.editImages.length === 0 && state.editGifs.length === 0) ||
-      !currentUsername
-    ) {
-      return;
+  // submitEdit now accepts optional override parameters to avoid async state timing issues
+  const submitEdit = useCallback(async (overrides?: {
+    target?: { author: string; permlink: string };
+    text?: string;
+    images?: string[];
+    gifs?: string[];
+    video?: string | null; // 3speak video embed URL
+  }) => {
+    // Use overrides if provided, otherwise fall back to state
+    const target = overrides?.target || state.editTarget;
+    const text = overrides?.text ?? state.editText;
+    const images = overrides?.images ?? state.editImages;
+    const gifs = overrides?.gifs ?? state.editGifs;
+    const video = overrides?.video ?? null;
+
+    // Validate and throw errors instead of silently returning
+    if (!target) {
+      const error = new Error('No edit target specified. Please try again.');
+      setState(prev => ({ ...prev, error: error.message, editing: false }));
+      throw error;
+    }
+    if (!text.trim() && images.length === 0 && gifs.length === 0 && !video) {
+      const error = new Error('Edit cannot be empty. Please add text, images, GIFs, or video.');
+      setState(prev => ({ ...prev, error: error.message, editing: false }));
+      throw error;
+    }
+    if (!currentUsername) {
+      const error = new Error('Not logged in. Please log in to edit.');
+      setState(prev => ({ ...prev, error: error.message, editing: false }));
+      throw error;
     }
 
     setState(prev => ({ ...prev, editing: true, error: null }));
@@ -199,22 +228,27 @@ export const useEdit = (
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
-      let body = state.editText.trim();
-      
+      let body = text.trim();
+
       // Add all images
-      state.editImages.forEach(imageUrl => {
+      images.forEach(imageUrl => {
         body += `\n![image](${imageUrl})`;
       });
-      
+
       // Add all GIFs
-      state.editGifs.forEach(gifUrl => {
+      gifs.forEach(gifUrl => {
         body += `\n![gif](${gifUrl})`;
       });
 
+      // Add video embed URL if present
+      if (video) {
+        body += `\n${video}`;
+      }
+
       // Get the original post to preserve parent relationships
       const originalPost = await client.database.call('get_content', [
-        state.editTarget.author,
-        state.editTarget.permlink,
+        target.author,
+        target.permlink,
       ]);
 
       // Parse existing metadata and add edited flag
@@ -236,9 +270,14 @@ export const useEdit = (
       };
 
       // Add all images and GIFs to metadata
-      const allMedia = [...state.editImages, ...state.editGifs];
+      const allMedia = [...images, ...gifs];
       if (allMedia.length > 0) {
         json_metadata.image = allMedia;
+      }
+
+      // Add or update video metadata if present
+      if (video) {
+        json_metadata.video = { platform: '3speak', url: video };
       }
 
       // Edit the post/reply using same author/permlink with new content
@@ -247,7 +286,7 @@ export const useEdit = (
           parent_author: originalPost.parent_author, // Keep original parent
           parent_permlink: originalPost.parent_permlink, // Keep original parent permlink
           author: currentUsername,
-          permlink: state.editTarget.permlink,
+          permlink: target.permlink,
           title: originalPost.title || '', // Keep original title
           body,
           json_metadata: JSON.stringify(json_metadata),
@@ -324,20 +363,40 @@ export const useEdit = (
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
-  return {
-    ...state,
-    openEditModal,
-    closeEditModal,
-    setEditText,
-    setEditImages,
-    setEditGifs,
-    addEditImage,
-    removeEditImage,
-    addEditGif,
-    removeEditGif,
-    submitEdit,
-    addImage,
-    addGif,
-    clearError,
-  };
+  // Memoize return object to prevent infinite loops when used in dependency arrays
+  // This ensures the object reference only changes when actual state/callbacks change
+  return useMemo(
+    () => ({
+      ...state,
+      openEditModal,
+      closeEditModal,
+      setEditText,
+      setEditImages,
+      setEditGifs,
+      addEditImage,
+      removeEditImage,
+      addEditGif,
+      removeEditGif,
+      submitEdit,
+      addImage,
+      addGif,
+      clearError,
+    }),
+    [
+      state,
+      openEditModal,
+      closeEditModal,
+      setEditText,
+      setEditImages,
+      setEditGifs,
+      addEditImage,
+      removeEditImage,
+      addEditGif,
+      removeEditGif,
+      submitEdit,
+      addImage,
+      addGif,
+      clearError,
+    ]
+  );
 };

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import ContentModal from '../components/ContentModal';
+// ContentModal removed - now using ComposeScreen for edit
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarService } from '../../services/AvatarService';
@@ -24,7 +24,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Snap from '../components/Snap';
 import { Client } from '@hiveio/dhive';
 import UpvoteModal from '../../components/UpvoteModal';
-import { useEdit } from '../../hooks/useEdit';
+// useEdit removed - now using ComposeScreen for edit
 
 // Use local twitterColors definition (copied from FeedScreen)
 const twitterColors = {
@@ -90,26 +90,7 @@ const DiscoveryScreen = () => {
   const [loading, setLoading] = useState(true);
   const [avatarCache, setAvatarCache] = useState<{ [username: string]: { url: string; ts: number } }>({});
 
-  // Edit functionality
-  const {
-    editModalVisible,
-    editText,
-    editImages,
-    editGifs,
-    editTarget,
-    editing,
-    error: editError,
-    uploading: editUploading,
-    processing: editProcessing,
-    openEditModal,
-    closeEditModal,
-    setEditText,
-    removeEditImage,
-    removeEditGif,
-    submitEdit,
-    addImage: addEditImage,
-    addGif: addEditGif,
-  } = useEdit(currentUsername);
+  // Removed useEdit hook - now using ComposeScreen for edit
 
   // Avatar helper (deterministic); service will be used to warm/update
   const getAvatarUrl = (username: string) => `https://images.hive.blog/u/${username}/avatar/original`;
@@ -120,7 +101,7 @@ const DiscoveryScreen = () => {
       try {
         const cacheStr = await AsyncStorage.getItem('hivesnaps_avatar_cache');
         if (cacheStr) setAvatarCache(JSON.parse(cacheStr));
-      } catch {}
+      } catch { }
     })();
   }, []);
 
@@ -129,7 +110,7 @@ const DiscoveryScreen = () => {
     AsyncStorage.setItem(
       'hivesnaps_avatar_cache',
       JSON.stringify(avatarCache)
-    ).catch(() => {});
+    ).catch(() => { });
   }, [avatarCache]);
 
   // Refactor: extract fetchHashtagSnaps for reuse, accept username as parameter
@@ -183,7 +164,7 @@ const DiscoveryScreen = () => {
         newCache[u] = { url: cached || getAvatarUrl(u), ts: now };
       }
       setAvatarCache(newCache);
-      avatarService.preloadAvatars(uniqueAuthors).catch(() => {});
+      avatarService.preloadAvatars(uniqueAuthors).catch(() => { });
 
       // Attach avatarUrl and hasUpvoted to each snap
       const snapsWithAvatars = limitedSnaps.map(snap => {
@@ -193,12 +174,12 @@ const DiscoveryScreen = () => {
           snap.active_votes.some(
             (v: any) => v.voter === currentUsername && v.percent > 0
           );
-  const chosenUrl = newCache[snap.author]?.url || getAvatarUrl(snap.author);
+        const chosenUrl = newCache[snap.author]?.url || getAvatarUrl(snap.author);
         try {
           console.log(
             `[Avatar][Discovery] ${snap.author} -> ${chosenUrl || 'EMPTY'}`
           );
-        } catch {}
+        } catch { }
         return {
           ...snap,
           avatarUrl: chosenUrl,
@@ -335,10 +316,15 @@ const DiscoveryScreen = () => {
     permlink: string;
     body: string;
   }) => {
-    openEditModal(
-      { author: snapData.author, permlink: snapData.permlink, type: 'snap' },
-      snapData.body
-    );
+    router.push({
+      pathname: '/screens/ComposeScreen',
+      params: {
+        mode: 'edit',
+        parentAuthor: snapData.author,
+        parentPermlink: snapData.permlink,
+        initialText: snapData.body
+      }
+    });
   };
 
   const handleUpvoteConfirm = async () => {
@@ -351,12 +337,12 @@ const DiscoveryScreen = () => {
       if (!postingKeyStr)
         throw new Error('No posting key found. Please log in again.');
       const postingKey = PrivateKey.fromString(postingKeyStr);
-      
+
       // Ensure user is logged in
       if (!currentUsername) {
         throw new Error('User not logged in. Please log in again.');
       }
-      
+
       // Broadcast vote
       await client.broadcast.vote(
         {
@@ -367,7 +353,7 @@ const DiscoveryScreen = () => {
         },
         postingKey
       );
-      
+
       // Persist the vote weight after successful vote
       await AsyncStorage.setItem('hivesnaps_vote_weight', String(voteWeight));
 
@@ -385,7 +371,7 @@ const DiscoveryScreen = () => {
                 snap.pending_payout_value?.replace(' HBD', '') || '0'
               );
             const newPayout = currentPayout + estimatedValueIncrease;
-            
+
             return {
               ...snap,
               hasUpvoted: true,
@@ -394,9 +380,9 @@ const DiscoveryScreen = () => {
               pending_payout_value: `${newPayout.toFixed(3)} HBD`,
               active_votes: Array.isArray(snap.active_votes)
                 ? [
-                    ...snap.active_votes,
-                    { voter: currentUsername, percent: voteWeight * 100 },
-                  ]
+                  ...snap.active_votes,
+                  { voter: currentUsername, percent: voteWeight * 100 },
+                ]
                 : [{ voter: currentUsername, percent: voteWeight * 100 }],
             };
           }
@@ -561,27 +547,7 @@ const DiscoveryScreen = () => {
         />
       )}
 
-      {/* Edit Modal */}
-      <ContentModal
-        isVisible={editModalVisible}
-        onClose={closeEditModal}
-        onSubmit={submitEdit}
-        mode='edit'
-        target={editTarget}
-        text={editText}
-        onTextChange={setEditText}
-        images={editImages}
-        gifs={editGifs}
-        onImageRemove={removeEditImage}
-        onGifRemove={removeEditGif}
-        onAddImage={() => addEditImage('edit')}
-        onAddGif={() => addEditGif('edit')}
-        posting={editing}
-        uploading={editUploading}
-        processing={editProcessing}
-        error={editError}
-        currentUsername={currentUsername}
-      />
+      {/* Edit Modal removed - now using ComposeScreen */}
     </View>
   );
 };

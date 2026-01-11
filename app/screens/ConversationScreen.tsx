@@ -23,7 +23,7 @@ import {
 import RenderHtml from 'react-native-render-html';
 import { ConversationScreenStyles } from '../../styles/ConversationScreenStyles';
 import { FontAwesome } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Modal from 'react-native-modal';
 import Markdown from 'react-native-markdown-display';
 import {
@@ -50,7 +50,7 @@ import YouTubeEmbed from '../components/YouTubeEmbed';
 import UpvoteModal from '../../components/UpvoteModal';
 import Snap from '../components/Snap';
 
-import ContentModal from '../components/ContentModal';
+// ContentModal removed - now using ComposeScreen for reply/edit
 
 // Custom hooks for business logic
 import { useCurrentUser } from '../../store/context';
@@ -61,10 +61,8 @@ import {
 } from '../../hooks/useConversationData';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
-import { useReply } from '../../hooks/useReply';
-import { useEdit } from '../../hooks/useEdit';
-import { useGifPicker, GifPickerMode, GifSelectionCallback } from '../../hooks/useGifPickerV2';
-import { GifPickerModal } from '../../components/GifPickerModalV2';
+// useReply and useEdit removed - now using ComposeScreen for reply/edit
+// useGifPicker and GifPickerModal removed - now handled in ComposeScreen
 
 import { useMutedList } from '../../store/context';
 
@@ -120,47 +118,9 @@ const ConversationScreenRefactored = () => {
     updateReply
   );
 
-  const {
-    replyModalVisible,
-    replyText,
-    replyImages,
-    replyGifs,
-    replyTarget,
-    posting,
-    uploading,
-    processing: replyProcessing,
-    error: replyError,
-    openReplyModal,
-    closeReplyModal,
-    setReplyText,
-    removeReplyImage,
-    removeReplyGif,
-    submitReply,
-    addImage: addReplyImage,
-    addGif: addReplyGif,
-  } = useReply(currentUsername, checkForNewContent);
+  // Removed useReply and useEdit hooks - now using ComposeScreen for reply/edit
 
-  const {
-    editModalVisible,
-    editText,
-    editImages,
-    editGifs,
-    editTarget,
-    editing,
-    uploading: editUploading,
-    processing: editProcessing,
-    error: editError,
-    openEditModal,
-    closeEditModal,
-    setEditText,
-    removeEditImage,
-    removeEditGif,
-    submitEdit,
-    addImage: addEditImage,
-    addGif: addEditGif,
-  } = useEdit(currentUsername, checkForNewContent);
-
-    const colors = {
+  const colors = {
     background: isDark ? '#15202B' : '#fff',
     text: isDark ? '#D7DBDC' : '#0F1419',
     bubble: isDark ? '#22303C' : '#f7f9f9',
@@ -182,26 +142,34 @@ const ConversationScreenRefactored = () => {
     buttonText: colors.buttonText,
   };
 
-  // GIF picker state
-  const [gifPickerMode, setGifPickerMode] = useState<'reply' | 'edit'>('reply');
-  
-  const handleGifSelection: GifSelectionCallback = useCallback((gifUrl: string) => {
-    if (gifPickerMode === 'edit') {
-      addEditGif(gifUrl);
-    } else {
-      addReplyGif(gifUrl);
-    }
-  }, [gifPickerMode, addEditGif, addReplyGif]);
-
-  const gifPicker = useGifPicker({
-    onGifSelected: handleGifSelection,
-  });
+  // Removed GIF picker state - now handled in ComposeScreen
 
   // Local UI state
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [modalImages, setModalImages] = useState<Array<{ uri: string }>>([]);
   const [modalImageIndex, setModalImageIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Refresh conversation when screen comes back into focus (e.g., after posting a reply)
+  // Use a ref to track if this is the initial mount (don't refresh on first focus)
+  const hasInitiallyLoadedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasInitiallyLoadedRef.current) {
+        // First time loading - don't refresh, just mark as loaded
+        hasInitiallyLoadedRef.current = true;
+        console.log('[ConversationScreen] Initial load, skipping auto-refresh');
+        return;
+      }
+
+      // Coming back from another screen - do a full refresh to get new replies
+      if (author && permlink) {
+        console.log('[ConversationScreen] Screen focused, refreshing conversation...');
+        refreshConversation();
+      }
+    }, [author, permlink, refreshConversation])
+  );
 
   const handlePullToRefresh = async () => {
     setRefreshing(true);
@@ -285,7 +253,7 @@ const ConversationScreenRefactored = () => {
     if (!targetSnap.hasUpvoted) {
       // Get current vote count
       const currentVotes = targetSnap.voteCount || 0;
-      
+
       // Only update vote count and visual state - NOT payout
       // Payout will be updated after modal confirmation with actual vote weight
       const optimisticUpdate = {
@@ -372,7 +340,10 @@ const ConversationScreenRefactored = () => {
   };
 
   const handleOpenReplyModal = (author: string, permlink: string) => {
-    openReplyModal({ author, permlink });
+    router.push({
+      pathname: '/screens/ComposeScreen',
+      params: { mode: 'reply', parentAuthor: author, parentPermlink: permlink }
+    });
   };
 
   const handleOpenEditModal = (
@@ -381,16 +352,26 @@ const ConversationScreenRefactored = () => {
   ) => {
     if (type === 'snap') {
       if (!snap) return;
-      openEditModal(
-        { author: snap.author, permlink: snap.permlink!, type: 'snap' },
-        snap.body
-      );
+      router.push({
+        pathname: '/screens/ComposeScreen',
+        params: {
+          mode: 'edit',
+          parentAuthor: snap.author,
+          parentPermlink: snap.permlink!,
+          initialText: snap.body
+        }
+      });
     } else {
       if (!content) return;
-      openEditModal(
-        { author: content.author, permlink: content.permlink, type: 'reply' },
-        content.body
-      );
+      router.push({
+        pathname: '/screens/ComposeScreen',
+        params: {
+          mode: 'edit',
+          parentAuthor: content.author,
+          parentPermlink: content.permlink,
+          initialText: content.body
+        }
+      });
     }
   };
 
@@ -400,15 +381,7 @@ const ConversationScreenRefactored = () => {
     setImageModalVisible(true);
   };
 
-  const handleOpenGifPicker = (mode: 'reply' | 'edit') => {
-    setGifPickerMode(mode);
-    gifPicker.openPicker();
-  };
-
-  const handleSelectGif = (gifUrl: string) => {
-    // This is now handled automatically by the callback in useGifPicker
-    // The mode is already set when opening the picker
-  };
+  // Removed handleOpenGifPicker and handleSelectGif - now handled in ComposeScreen
 
   // Utility functions (simplified versions)
   const stripImageTags = (text: string): string => {
@@ -679,8 +652,8 @@ const ConversationScreenRefactored = () => {
   // DEPRECATED: renderReplyTree function - Now using flattened approach instead
   const renderReplyTree = (reply: ReplyData, level = 0) => {
     const videoInfo = extractVideoInfo(reply.body);
-  const imageUrls = extractImageUrls(reply.body);
-  const rawImageUrls = extractRawImageUrlsUtil(reply.body);
+    const imageUrls = extractImageUrls(reply.body);
+    const rawImageUrls = extractRawImageUrlsUtil(reply.body);
     const hivePostUrls = extractBlogPostUrls(reply.body);
 
     let textBody = reply.body;
@@ -743,7 +716,7 @@ const ConversationScreenRefactored = () => {
                   }
                   style={ConversationScreenStyles.avatar}
                   contentFit='cover'
-                  onError={() => {}}
+                  onError={() => { }}
                 />
               ) : (
                 <ExpoImage
@@ -979,8 +952,8 @@ const ConversationScreenRefactored = () => {
     if (!snap) return null;
 
     const videoInfo = extractVideoInfo(snap.body);
-  const imageUrls = extractImageUrls(snap.body);
-  const rawImageUrls = extractRawImageUrlsUtil(snap.body);
+    const imageUrls = extractImageUrls(snap.body);
+    const rawImageUrls = extractRawImageUrlsUtil(snap.body);
     const hivePostUrls = extractBlogPostUrls(snap.body);
 
     let textBody = snap.body;
@@ -1038,7 +1011,7 @@ const ConversationScreenRefactored = () => {
                 }
                 style={ConversationScreenStyles.avatar}
                 contentFit='cover'
-                onError={() => {}}
+                onError={() => { }}
               />
             ) : (
               <ExpoImage
@@ -1354,34 +1327,7 @@ const ConversationScreenRefactored = () => {
               />
             }
           >
-            {/* Blockchain Processing Indicator */}
-            {(replyProcessing || editProcessing) && (
-              <View
-                style={{
-                  backgroundColor: colors.bubble,
-                  margin: 16,
-                  padding: 12,
-                  borderRadius: 8,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  borderLeftWidth: 4,
-                  borderLeftColor: colors.icon,
-                }}
-              >
-                <FontAwesome
-                  name='cog'
-                  size={16}
-                  color={colors.icon}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={{ color: colors.text, fontSize: 14, flex: 1 }}>
-                  {replyProcessing
-                    ? 'Checking for new reply...'
-                    : 'Checking for updated content...'}
-                </Text>
-                <ActivityIndicator size='small' color={colors.icon} />
-              </View>
-            )}
+            {/* Blockchain Processing Indicator removed - now handled in ComposeScreen */}
 
             {snap && (
               <Snap
@@ -1392,8 +1338,8 @@ const ConversationScreenRefactored = () => {
                     permlink: snap.permlink || '',
                   })
                 }
-                onSpeechBubblePress={() => {}} // Disable in conversation view
-                onContentPress={() => {}} // Disable in conversation view
+                onSpeechBubblePress={() => { }} // Disable in conversation view
+                onContentPress={() => { }} // Disable in conversation view
                 onUserPress={username => {
                   router.push(`/screens/ProfileScreen?username=${username}` as any);
                 }}
@@ -1424,34 +1370,32 @@ const ConversationScreenRefactored = () => {
                   });
                 }}
                 currentUsername={currentUsername}
-                posting={posting} // Pass posting state to disable reply button
-                editing={editing} // Pass editing state to disable buttons during edit
+              // posting and editing props removed - now handled in ComposeScreen
               />
             )}
             <View style={ConversationScreenStyles.repliesList}>
               {filteredReplies.map(reply => (
-                  <Snap
-                    key={reply.author + reply.permlink + '-' + reply.visualLevel}
-                    snap={reply}
-                    onUpvotePress={handleUpvotePress}
-                    onReplyPress={handleOpenReplyModal}
-                    onEditPress={(snapData: { author: string; permlink: string; body: string }) =>
-                      handleOpenEditModal(snapData, 'reply')
-                    }
-                    onUserPress={username => {
-                      router.push(`/screens/ProfileScreen?username=${username}` as any);
-                    }}
-                    onImagePress={handleImagePress}
-                    currentUsername={currentUsername}
-                    posting={posting}
-                    editing={editing}
-                    // Reply-specific props
-                    visualLevel={reply.visualLevel}
-                    isReply={true}
-                    compactMode={true}
-                    showAuthor={true}
-                  />
-                ))}
+                <Snap
+                  key={reply.author + reply.permlink + '-' + reply.visualLevel}
+                  snap={reply}
+                  onUpvotePress={handleUpvotePress}
+                  onReplyPress={handleOpenReplyModal}
+                  onEditPress={(snapData: { author: string; permlink: string; body: string }) =>
+                    handleOpenEditModal(snapData, 'reply')
+                  }
+                  onUserPress={username => {
+                    router.push(`/screens/ProfileScreen?username=${username}` as any);
+                  }}
+                  onImagePress={handleImagePress}
+                  currentUsername={currentUsername}
+                  // posting and editing props removed - now handled in ComposeScreen
+                  // Reply-specific props
+                  visualLevel={reply.visualLevel}
+                  isReply={true}
+                  compactMode={true}
+                  showAuthor={true}
+                />
+              ))}
             </View>
           </ScrollView>
         )}
@@ -1459,49 +1403,7 @@ const ConversationScreenRefactored = () => {
         {/* Modals would go here - simplified for brevity */}
         {/* Upvote Modal, Reply Modal, Edit Modal, GIF Picker Modal */}
 
-        {/* Reply Modal */}
-        <ContentModal
-          isVisible={replyModalVisible}
-          onClose={closeReplyModal}
-          onSubmit={submitReply}
-          mode='reply'
-          target={replyTarget}
-          text={replyText}
-          onTextChange={setReplyText}
-          images={replyImages}
-          gifs={replyGifs}
-          onImageRemove={removeReplyImage}
-          onGifRemove={removeReplyGif}
-          onAddImage={() => addReplyImage('reply')}
-          onAddGif={() => handleOpenGifPicker('reply')}
-          posting={posting}
-          uploading={uploading}
-          processing={replyProcessing}
-          error={replyError}
-          currentUsername={currentUsername}
-        />
-
-        {/* Edit Modal */}
-        <ContentModal
-          isVisible={editModalVisible}
-          onClose={closeEditModal}
-          onSubmit={submitEdit}
-          mode='edit'
-          target={editTarget}
-          text={editText}
-          onTextChange={setEditText}
-          images={editImages}
-          gifs={editGifs}
-          onImageRemove={removeEditImage}
-          onGifRemove={removeEditGif}
-          onAddImage={() => addEditImage('edit')}
-          onAddGif={() => handleOpenGifPicker('edit')}
-          posting={editing}
-          uploading={editUploading}
-          processing={editProcessing}
-          error={editError}
-          currentUsername={currentUsername}
-        />
+        {/* Reply and Edit modals removed - now using ComposeScreen */}
 
         {/* Upvote Modal */}
         <UpvoteModal
@@ -1517,19 +1419,7 @@ const ConversationScreenRefactored = () => {
           colors={colors}
         />
 
-        {/* GIF Picker Modal */}
-        <GifPickerModal
-          visible={gifPicker.state.modalVisible}
-          onClose={gifPicker.closePicker}
-          onSelectGif={gifPicker.selectGif}
-          searchQuery={gifPicker.state.searchQuery}
-          onSearchQueryChange={gifPicker.setSearchQuery}
-          onSearchSubmit={gifPicker.searchGifs}
-          gifResults={gifPicker.state.results}
-          loading={gifPicker.state.loading}
-          error={gifPicker.state.error}
-          colors={gifPickerColors}
-        />
+        {/* GIF Picker Modal removed - now handled in ComposeScreen */}
       </KeyboardAvoidingView>
     </SafeAreaViewSA>
   );

@@ -98,14 +98,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
                 if (!video) return false;
                 
                 try {
-                    // iOS-specific: webkitEnterFullscreen (added for cross-platform completeness)
-                    // This is the reliable method for iOS native fullscreen
-                    if (video.webkitEnterFullscreen) {
-                        video.webkitEnterFullscreen();
-                        return true;
-                    }
-                    
-                    // Standard fullscreen APIs for Android and other platforms
+                    // Standard fullscreen APIs for Android
                     if (video.requestFullscreen) {
                         video.requestFullscreen();
                         return true;
@@ -155,15 +148,6 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
                 
                 // Setup document-level listeners once
                 setupDocumentFullscreenListeners();
-                
-                // iOS-specific fullscreen exit event (video-level)
-                // Added for completeness in case WebView JS is ever reused cross-platform
-                video.addEventListener('webkitendfullscreen', () => {
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({
-                        type: 'fullscreen-exit',
-                        paused: video.paused
-                    }));
-                });
             }
             
             // Attach listeners to a video element (only once per video)
@@ -284,12 +268,13 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
                     try {
                         const data = JSON.parse(event.nativeEvent.data);
                         if (data.type === 'fullscreen-exit') {
-                            // Android: Always show overlay after exiting fullscreen
-                            // Unlike iOS (which uses native fullscreen and auto-pauses), Android videos
-                            // continue playing in the WebView without accessible controls after exiting.
-                            // The overlay is required to re-enter fullscreen, regardless of play state.
-                            // iOS checks data.paused because allowsInlineMediaPlayback={false} forces
-                            // native fullscreen that auto-pauses on exit. Android needs manual control.
+                            // Android: Always show overlay after exiting fullscreen.
+                            // Unlike the iOS implementation (ThreeSpeakEmbed.ios.tsx), which uses native
+                            // fullscreen that typically auto-pauses on exit, Android videos can continue
+                            // playing in the WebView without accessible controls after exiting.
+                            // The overlay is therefore required to re-enter fullscreen on Android,
+                            // regardless of the video's play state. This comment explains the
+                            // behavioral difference between platforms; iOS logic lives in its own file.
                             setShowPlayButton(true);
                         } else if (data.type === 'fullscreen-error') {
                             // Fullscreen failed, show overlay again to allow retry
