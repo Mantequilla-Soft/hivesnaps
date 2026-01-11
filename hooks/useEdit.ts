@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
@@ -363,20 +363,40 @@ export const useEdit = (
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
-  return {
-    ...state,
-    openEditModal,
-    closeEditModal,
-    setEditText,
-    setEditImages,
-    setEditGifs,
-    addEditImage,
-    removeEditImage,
-    addEditGif,
-    removeEditGif,
-    submitEdit,
-    addImage,
-    addGif,
-    clearError,
-  };
+  // Memoize return object to prevent infinite loops when used in dependency arrays
+  // This ensures the object reference only changes when actual state/callbacks change
+  return useMemo(
+    () => ({
+      ...state,
+      openEditModal,
+      closeEditModal,
+      setEditText,
+      setEditImages,
+      setEditGifs,
+      addEditImage,
+      removeEditImage,
+      addEditGif,
+      removeEditGif,
+      submitEdit,
+      addImage,
+      addGif,
+      clearError,
+    }),
+    [
+      state,
+      openEditModal,
+      closeEditModal,
+      setEditText,
+      setEditImages,
+      setEditGifs,
+      addEditImage,
+      removeEditImage,
+      addEditGif,
+      removeEditGif,
+      submitEdit,
+      addImage,
+      addGif,
+      clearError,
+    ]
+  );
 };
