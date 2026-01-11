@@ -99,10 +99,6 @@ export default function ComposeScreen() {
   // Video upload state - now managed by professional hook with reducer
   const video = useVideoUpload(currentUsername);
 
-  // Track if reply/edit target has been initialized (refs are synchronous)
-  const replyTargetRef = useRef<{ author: string; permlink: string } | null>(null);
-  const editTargetRef = useRef<{ author: string; permlink: string } | null>(null);
-
   // Reply and edit hooks for modal-less operation
   // Note: Parent screens (ConversationScreen, HivePostScreen) should use useFocusEffect
   // to refresh their data when this screen navigates back
@@ -242,13 +238,10 @@ export default function ComposeScreen() {
     if (mode === 'reply' && parentAuthor && parentPermlink) {
       console.log('[ComposeScreen] Initializing reply mode for', parentAuthor, parentPermlink);
 
-      // Store in ref for immediate synchronous access (React state is async)
-      replyTargetRef.current = { author: parentAuthor, permlink: parentPermlink };
-
-      // Also set hook state for submission
+      // Set hook state for submission
       reply.openReplyModal({ author: parentAuthor, permlink: parentPermlink });
 
-      console.log('[ComposeScreen] Reply target ref set:', replyTargetRef.current);
+      console.log('[ComposeScreen] Reply target set in hook state');
     } else if (mode === 'edit' && parentAuthor && parentPermlink && initialText) {
       console.log('[ComposeScreen] Initializing edit mode for', parentAuthor, parentPermlink);
       const textBody = stripImageTags(initialText);
@@ -279,20 +272,16 @@ export default function ComposeScreen() {
       // TODO: Handle video extraction from edit mode if needed
       // Video upload in edit mode would require re-uploading the video
 
-      // Store in ref for immediate synchronous access
-      editTargetRef.current = { author: parentAuthor, permlink: parentPermlink };
-
-      // Also set edit hook state for submission
+      // Set edit hook state for submission
       edit.openEditModal(
         { author: parentAuthor, permlink: parentPermlink, type: 'snap' },
         initialText
       );
 
-      console.log('[ComposeScreen] Edit target ref set:', editTargetRef.current);
+      console.log('[ComposeScreen] Edit target set in hook state');
     }
     // NOTE: reply and edit hooks now return memoized objects (fixed in PR), but are still
     // omitted from dependencies because this effect only needs to run when route params change.
-    // The refs (replyTargetRef, editTargetRef) provide synchronous access to targets.
   }, [mode, parentAuthor, parentPermlink, initialText]);
 
   // Handle resnap URL parameter
@@ -544,7 +533,6 @@ export default function ComposeScreen() {
       setImages([]);
       setGifs([]);
       video.clear();
-      replyTargetRef.current = null;
 
       Alert.alert(
         'Reply Posted!',
@@ -602,7 +590,6 @@ export default function ComposeScreen() {
       setImages([]);
       setGifs([]);
       video.clear();
-      editTargetRef.current = null;
 
       Alert.alert(
         'Edit Saved!',

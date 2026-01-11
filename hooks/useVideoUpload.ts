@@ -1,4 +1,4 @@
-import { useReducer, useRef, useCallback } from 'react';
+import { useReducer, useRef, useCallback, useEffect } from 'react';
 import { Alert, Platform, ActionSheetIOS } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -117,6 +117,25 @@ export function useVideoUpload(currentUsername: string | null) {
     const uploadControllerRef = useRef<AbortController | null>(null);
     const cancelRequestedRef = useRef(false);
     const thumbnailIpfsUploadPromiseRef = useRef<Promise<string | null> | null>(null);
+    const isMountedRef = useRef(true);
+
+    // Cleanup on unmount: abort requests, clear refs, prevent memory leaks
+    useEffect(() => {
+        return () => {
+            // Mark component as unmounted
+            isMountedRef.current = false;
+
+            // Abort any ongoing upload
+            if (uploadControllerRef.current) {
+                uploadControllerRef.current.abort();
+            }
+
+            // Clear all refs
+            uploadControllerRef.current = null;
+            cancelRequestedRef.current = false;
+            thumbnailIpfsUploadPromiseRef.current = null;
+        };
+    }, []);
 
     /**
      * Clear all video state atomically
@@ -159,13 +178,16 @@ export function useVideoUpload(currentUsername: string | null) {
                 },
                 signal: controller.signal,
                 onProgress: progress => {
-                    // Only update if progress is moving forward (prevents backtracking)
-                    if (progress.percentage >= maxPercentageSeen) {
+                    // Only update if progress is moving forward and component is mounted
+                    if (isMountedRef.current && progress.percentage >= maxPercentageSeen) {
                         maxPercentageSeen = progress.percentage;
                         dispatch({ type: 'UPLOAD_PROGRESS', payload: progress });
                     }
                 },
             });
+
+            // Only update state if component is still mounted
+            if (!isMountedRef.current) return;
 
             dispatch({
                 type: 'UPLOAD_SUCCESS',
@@ -177,6 +199,9 @@ export function useVideoUpload(currentUsername: string | null) {
                 try {
                     console.log('⏳ Waiting for thumbnail IPFS upload to complete...');
                     const ipfsUrl = await thumbnailIpfsUploadPromiseRef.current;
+
+                    // Check if still mounted before making API call
+                    if (!isMountedRef.current) return;
 
                     if (ipfsUrl) {
                         console.log('✅ Thumbnail IPFS upload complete, setting on 3Speak...');
@@ -192,11 +217,17 @@ export function useVideoUpload(currentUsername: string | null) {
                     }
                 } catch (thumbnailError) {
                     console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
+                } finally {
+                    // Always clear promise reference after completion/error
+                    thumbnailIpfsUploadPromiseRef.current = null;
                 }
             } else {
                 console.warn('⚠️ No thumbnail upload in progress');
             }
         } catch (error: any) {
+            // Only update state if component is still mounted
+            if (!isMountedRef.current) return;
+
             if (cancelRequestedRef.current) {
                 dispatch({ type: 'CLEAR' });
             } else {
@@ -207,6 +238,7 @@ export function useVideoUpload(currentUsername: string | null) {
         } finally {
             uploadControllerRef.current = null;
             cancelRequestedRef.current = false;
+            thumbnailIpfsUploadPromiseRef.current = null;
         }
     }, [currentUsername]);
 
@@ -312,8 +344,11 @@ export function useVideoUpload(currentUsername: string | null) {
                 thumbnailIpfsUploadPromiseRef.current = (async () => {
                     try {
                         const ipfsUrl = await uploadThumbnailToIPFS(thumbnail.uri);
-                        dispatch({ type: 'THUMBNAIL_IPFS_UPLOADED', payload: ipfsUrl });
-                        console.log('✅ Thumbnail uploaded to IPFS:', ipfsUrl);
+                        // Only update state if component is still mounted
+                        if (isMountedRef.current) {
+                            dispatch({ type: 'THUMBNAIL_IPFS_UPLOADED', payload: ipfsUrl });
+                            console.log('✅ Thumbnail uploaded to IPFS:', ipfsUrl);
+                        }
                         return ipfsUrl;
                     } catch (ipfsError) {
                         console.error('❌ Failed to upload thumbnail to IPFS:', ipfsError);
