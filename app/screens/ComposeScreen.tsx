@@ -38,14 +38,7 @@ import Preview from '../components/Preview';
 import { useReply } from '../../hooks/useReply';
 import { useEdit } from '../../hooks/useEdit';
 import { stripImageTags, getAllImageUrls } from '../../utils/extractImageInfo';
-import {
-  generateVideoThumbnail,
-  prepareLocalVideoAsset,
-  uploadVideoToThreeSpeak,
-  LocalVideoAsset,
-  VideoThumbnail,
-  VideoUploadProgress,
-} from '../../services/threeSpeakUploadService';
+import { useVideoUpload } from '../../hooks/useVideoUpload';
 import { convertToJPEG, convertMultipleToJPEG } from '../../utils/imageConverter';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -103,18 +96,8 @@ export default function ComposeScreen() {
   // GIF state for composer (array of GIF URLs)
   const [gifs, setGifs] = useState<string[]>([]);
 
-  // Video upload state
-  const [videoAsset, setVideoAsset] = useState<LocalVideoAsset | null>(null);
-  const [videoThumbnail, setVideoThumbnail] = useState<VideoThumbnail | null>(null);
-  const [videoThumbnailIpfsUrl, setVideoThumbnailIpfsUrl] = useState<string | null>(null);
-  const [videoUploadProgress, setVideoUploadProgress] = useState<VideoUploadProgress | null>(null);
-  const [videoUploading, setVideoUploading] = useState(false);
-  const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
-  const [videoAssetId, setVideoAssetId] = useState<string | null>(null);
-  const [videoUploadUrl, setVideoUploadUrl] = useState<string | null>(null);
-  const videoUploadControllerRef = useRef<AbortController | null>(null);
-  const videoCancelRequestedRef = useRef(false);
-  const thumbnailIpfsUploadPromiseRef = useRef<Promise<string | null> | null>(null);
+  // Video upload state - now managed by professional hook with reducer
+  const video = useVideoUpload(currentUsername);
 
   // Track if reply/edit target has been initialized (refs are synchronous)
   const replyTargetRef = useRef<{ author: string; permlink: string } | null>(null);
@@ -174,12 +157,12 @@ export default function ComposeScreen() {
   }), [isDark]);
 
   // Computed video variables
-  const videoEmbedUrl = videoAssetId || null;
+  const videoEmbedUrl = video.videoEmbedUrl;
   const hasPostableContent = Boolean(text.trim() || images.length > 0 || gifs.length > 0 || videoEmbedUrl);
-  const isSubmitting = posting || reply.posting || edit.editing || videoUploading;
+  const isSubmitting = posting || reply.posting || edit.editing || video.uploading;
   const disablePostButton = isSubmitting || !hasPostableContent;
   const hasDraftContent = Boolean(
-    text.trim() || images.length > 0 || gifs.length > 0 || videoAsset || videoAssetId || videoUploading
+    text.trim() || images.length > 0 || gifs.length > 0 || video.hasVideo
   );
 
   // Load user credentials and avatar
@@ -207,15 +190,6 @@ export default function ComposeScreen() {
       }
     };
     loadCredentials();
-
-    // Cleanup: abort any ongoing video upload when component unmounts
-    return () => {
-      if (videoUploadControllerRef.current) {
-        console.log('[ComposeScreen] Unmounting - aborting video upload');
-        videoCancelRequestedRef.current = true;
-        videoUploadControllerRef.current.abort();
-      }
-    };
   }, []);
 
   // Handle shared content when component mounts or shared content changes
@@ -302,9 +276,8 @@ export default function ComposeScreen() {
       setText(textBody);
       setImages(imageUrls);
       setGifs(gifUrls);
-      if (extractedVideo) {
-        setVideoAssetId(extractedVideo);
-      }
+      // TODO: Handle video extraction from edit mode if needed
+      // Video upload in edit mode would require re-uploading the video
 
       // Store in ref for immediate synchronous access
       editTargetRef.current = { author: parentAuthor, permlink: parentPermlink };
@@ -347,236 +320,17 @@ export default function ComposeScreen() {
     }
   }, [params.resnapUrl]);
 
-  // Video upload handlers
-  const clearVideoState = () => {
-    setVideoAsset(null);
-    setVideoThumbnail(null);
-    setVideoUploadProgress(null);
-    setVideoUploadError(null);
-    setVideoAssetId(null);
-    setVideoUploadUrl(null);
-  };
-
-  const startVideoUpload = async (asset: LocalVideoAsset) => {
-    try {
-      setVideoUploading(true);
-      setVideoUploadError(null);
-      setVideoAssetId(null);
-      setVideoUploadUrl(null);
-      setVideoUploadProgress({ bytesUploaded: 0, bytesTotal: asset.sizeBytes, percentage: 0 });
-
-      const controller = new AbortController();
-      videoUploadControllerRef.current = controller;
-      videoCancelRequestedRef.current = false;
-
-      let maxPercentageSeen = 0;
-
-      const result = await uploadVideoToThreeSpeak({
-        asset,
-        metadata: {
-          owner: currentUsername || undefined,
-        },
-        signal: controller.signal,
-        onProgress: progress => {
-          // Only update if progress is moving forward (prevents backtracking)
-          if (progress.percentage >= maxPercentageSeen) {
-            maxPercentageSeen = progress.percentage;
-            setVideoUploadProgress(progress);
-          }
-        },
-      });
-
-      setVideoAssetId(result.embedUrl);
-      setVideoUploadUrl(result.uploadUrl);
-      setVideoUploadProgress({ bytesUploaded: asset.sizeBytes, bytesTotal: asset.sizeBytes, percentage: 100 });
-
-      // Wait for thumbnail IPFS upload and set on 3Speak
-      if (thumbnailIpfsUploadPromiseRef.current && result.embedUrl) {
-        try {
-          console.log('⏳ Waiting for thumbnail IPFS upload to complete...');
-          const ipfsUrl = await thumbnailIpfsUploadPromiseRef.current;
-
-          if (ipfsUrl) {
-            console.log('✅ Thumbnail IPFS upload complete, setting on 3Speak...');
-            const permlink = extractPermlinkFromEmbedUrl(result.embedUrl);
-            if (permlink) {
-              await uploadThumbnailToThreeSpeak(permlink, ipfsUrl);
-              console.log('✅ Thumbnail set on 3Speak for permlink:', permlink);
-            } else {
-              console.error('❌ Could not extract permlink from embedUrl:', result.embedUrl);
-            }
-          } else {
-            console.warn('⚠️ Thumbnail IPFS upload failed, skipping 3Speak thumbnail');
-          }
-        } catch (thumbnailError) {
-          console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
-        }
-      } else {
-        console.warn('⚠️ No thumbnail upload in progress');
-      }
-    } catch (error: any) {
-      if (videoCancelRequestedRef.current) {
-        clearVideoState();
-      } else {
-        console.error('3Speak video upload failed:', error);
-        setVideoUploadError(error instanceof Error ? error.message : 'Failed to upload video. Please try again.');
-      }
-    } finally {
-      setVideoUploading(false);
-      videoUploadControllerRef.current = null;
-      videoCancelRequestedRef.current = false;
-    }
+  // Video upload handlers - now delegated to useVideoUpload hook
+  const handleAddVideo = async () => {
+    await video.addVideo();
   };
 
   const handleRetryVideoUpload = () => {
-    if (!videoAsset) return;
-    startVideoUpload(videoAsset);
+    video.retry();
   };
 
   const handleRemoveVideo = () => {
-    if (!videoAsset && !videoAssetId) return;
-
-    Alert.alert(
-      videoUploading ? 'Cancel Upload?' : 'Remove Video?',
-      videoUploading ? 'Do you want to cancel this video upload?' : 'Remove the attached video from your snap?',
-      [
-        { text: 'Keep', style: 'cancel' },
-        {
-          text: videoUploading ? 'Cancel Upload' : 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            if (videoUploading && videoUploadControllerRef.current) {
-              videoCancelRequestedRef.current = true;
-              videoUploadControllerRef.current.abort();
-            } else {
-              clearVideoState();
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleAddVideo = async () => {
-    try {
-      if (videoUploading) {
-        Alert.alert('Video Uploading', 'Please wait for the current video upload to finish.');
-        return;
-      }
-
-      if (videoAsset || videoAssetId) {
-        Alert.alert('Video Already Attached', 'Remove the current video before adding another one.');
-        return;
-      }
-
-      let pickType: 'camera' | 'gallery' | 'cancel';
-
-      if (Platform.OS === 'ios') {
-        pickType = await new Promise(resolve => {
-          ActionSheetIOS.showActionSheetWithOptions(
-            { options: ['Cancel', 'Record Video', 'Choose from Library'], cancelButtonIndex: 0 },
-            buttonIndex => {
-              if (buttonIndex === 0) resolve('cancel');
-              else if (buttonIndex === 1) resolve('camera');
-              else resolve('gallery');
-            }
-          );
-        });
-      } else {
-        pickType = await new Promise(resolve => {
-          Alert.alert(
-            'Add Video',
-            'Choose a source',
-            [
-              { text: 'Record Video', onPress: () => resolve('camera') },
-              { text: 'Choose from Library', onPress: () => resolve('gallery') },
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve('cancel') },
-            ],
-            { cancelable: true }
-          );
-        });
-      }
-
-      if (pickType === 'cancel') return;
-
-      let result: ImagePicker.ImagePickerResult;
-      if (pickType === 'camera') {
-        const currentPermission = await ImagePicker.getCameraPermissionsAsync();
-        let finalStatus = currentPermission.status;
-        if (finalStatus !== 'granted') {
-          const requestPermission = await ImagePicker.requestCameraPermissionsAsync();
-          finalStatus = requestPermission.status;
-        }
-        if (finalStatus !== 'granted') {
-          Alert.alert('Camera Permission Required', 'HiveSnaps needs camera access to record video.');
-          return;
-        }
-
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-          videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-          videoMaxDuration: 120,
-        });
-      } else {
-        const currentPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
-        let finalStatus = currentPermission.status;
-        if (finalStatus !== 'granted') {
-          const requestPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          finalStatus = requestPermission.status;
-        }
-        if (finalStatus !== 'granted') {
-          Alert.alert('Library Permission Required', 'HiveSnaps needs photo library access to choose a video.');
-          return;
-        }
-
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-          allowsMultipleSelection: false,
-          quality: 1,
-        });
-      }
-
-      if (!result || result.canceled || !result.assets?.length) return;
-
-      const pickedVideo = result.assets[0];
-      if (!pickedVideo?.uri) throw new Error('Unable to access selected video.');
-
-      const preparedAsset = await prepareLocalVideoAsset(pickedVideo.uri, {
-        filename: pickedVideo.fileName || `snapie-video-${Date.now()}.mp4`,
-        mimeType: pickedVideo.mimeType || 'video/mp4',
-        durationMs: typeof pickedVideo.duration === 'number' ? Math.round(pickedVideo.duration * 1000) : undefined,
-      });
-
-      setVideoAsset(preparedAsset);
-      setVideoUploadError(null);
-
-      try {
-        const thumbnailResult = await generateVideoThumbnail(pickedVideo.uri);
-        setVideoThumbnail(thumbnailResult);
-
-        // Start uploading thumbnail to IPFS in parallel with video upload
-        console.log('Starting thumbnail upload to IPFS...');
-        thumbnailIpfsUploadPromiseRef.current = (async () => {
-          try {
-            const ipfsUrl = await uploadThumbnailToIPFS(thumbnailResult.uri);
-            setVideoThumbnailIpfsUrl(ipfsUrl);
-            console.log('✅ Thumbnail uploaded to IPFS:', ipfsUrl);
-            return ipfsUrl;
-          } catch (ipfsError) {
-            console.error('❌ Failed to upload thumbnail to IPFS:', ipfsError);
-            return null;
-          }
-        })();
-      } catch (thumbnailError) {
-        console.warn('Failed to generate video thumbnail', thumbnailError);
-        setVideoThumbnail(null);
-      }
-
-      await startVideoUpload(preparedAsset);
-    } catch (error: any) {
-      console.error('Video picker error:', error);
-      Alert.alert('Video Error', error instanceof Error ? error.message : 'Failed to add video. Please try again.');
-    }
+    video.remove();
   };
 
   const handleAddImage = async () => {
@@ -790,7 +544,7 @@ export default function ComposeScreen() {
       setText('');
       setImages([]);
       setGifs([]);
-      clearVideoState();
+      video.clear();
       replyTargetRef.current = null;
 
       Alert.alert(
@@ -848,7 +602,7 @@ export default function ComposeScreen() {
       setText('');
       setImages([]);
       setGifs([]);
-      clearVideoState();
+      video.clear();
       editTargetRef.current = null;
 
       Alert.alert(
@@ -881,7 +635,7 @@ export default function ComposeScreen() {
     }
 
     // Original compose logic
-    if (videoUploading) {
+    if (video.uploading) {
       Alert.alert('Video Uploading', 'Please wait for the video upload to finish.');
       return;
     }
@@ -891,7 +645,7 @@ export default function ComposeScreen() {
       return;
     }
 
-    if (videoAsset && !videoAssetId) {
+    if (video.asset && !video.assetId) {
       Alert.alert('Video Not Ready', 'Finish uploading or remove the video before posting.');
       return;
     }
@@ -948,7 +702,7 @@ export default function ComposeScreen() {
         app: 'hivesnaps/1.0',
         tags: ['hive-178315', 'snaps'],
         image: allMedia, // Include all images and GIFs in metadata
-        video: videoEmbedUrl ? { platform: '3speak', url: videoEmbedUrl, uploadUrl: videoUploadUrl } : undefined,
+        video: videoEmbedUrl ? { platform: '3speak', url: videoEmbedUrl, uploadUrl: video.uploadUrl } : undefined,
         shared: hasSharedContent, // Additional flag for shared content
       });
 
@@ -972,7 +726,7 @@ export default function ComposeScreen() {
       setText('');
       setImages([]);
       setGifs([]);
-      clearVideoState();
+      video.clear();
       clearSharedContent(); // Clear any shared content
 
       Alert.alert(
@@ -1013,12 +767,7 @@ export default function ComposeScreen() {
               setText('');
               setImages([]);
               setGifs([]);
-              if (videoUploadControllerRef.current) {
-                videoCancelRequestedRef.current = true;
-                videoUploadControllerRef.current.abort();
-              }
-              clearVideoState();
-              setVideoUploading(false);
+              video.clear();
               router.back();
             },
           },
@@ -1458,13 +1207,13 @@ export default function ComposeScreen() {
           )}
 
           {/* Video Preview */}
-          {(videoAsset || videoAssetId || videoUploading || videoUploadError) && (
+          {(video.asset || video.assetId || video.uploading || video.error) && (
             <View style={[styles.imagesContainer, { paddingVertical: 12 }]}>
               <View style={styles.imagesHeader}>
                 <Text style={[styles.imagesCount, { color: colors.text }]}>
                   Video
                 </Text>
-                {!videoUploading && (
+                {!video.uploading && (
                   <TouchableOpacity onPress={handleRemoveVideo}>
                     <Text style={[styles.clearAllText, { color: colors.info }]}>
                       Remove
@@ -1479,12 +1228,12 @@ export default function ComposeScreen() {
                 backgroundColor: colors.inputBg,
                 borderRadius: 8,
                 borderWidth: 1,
-                borderColor: videoUploadError ? '#ff3b30' : colors.inputBorder
+                borderColor: video.error ? '#ff3b30' : colors.inputBorder
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {videoThumbnail ? (
+                  {video.thumbnail ? (
                     <Image
-                      source={{ uri: videoThumbnail.uri }}
+                      source={{ uri: video.thumbnail.uri }}
                       style={{
                         width: 60,
                         height: 60,
@@ -1512,10 +1261,10 @@ export default function ComposeScreen() {
                       style={{ color: colors.text, fontSize: 14, fontWeight: '500' }}
                       numberOfLines={1}
                     >
-                      {videoAsset?.filename || 'Video'}
+                      {video.asset?.filename || 'Video'}
                     </Text>
                     <View style={{ flexDirection: 'row', marginTop: 4, flexWrap: 'wrap' }}>
-                      {videoAsset?.sizeBytes && (
+                      {video.asset?.sizeBytes && (
                         <View style={{
                           paddingHorizontal: 6,
                           paddingVertical: 2,
@@ -1525,11 +1274,11 @@ export default function ComposeScreen() {
                           marginTop: 2
                         }}>
                           <Text style={{ color: colors.text, fontSize: 11 }}>
-                            {(videoAsset.sizeBytes / (1024 * 1024)).toFixed(1)} MB
+                            {(video.asset.sizeBytes / (1024 * 1024)).toFixed(1)} MB
                           </Text>
                         </View>
                       )}
-                      {videoAsset?.durationMs && (
+                      {video.asset?.durationMs && (
                         <View style={{
                           paddingHorizontal: 6,
                           paddingVertical: 2,
@@ -1538,7 +1287,7 @@ export default function ComposeScreen() {
                           marginTop: 2
                         }}>
                           <Text style={{ color: colors.text, fontSize: 11 }}>
-                            {Math.floor(videoAsset.durationMs / 60000)}:{String(Math.floor((videoAsset.durationMs % 60000) / 1000)).padStart(2, '0')}
+                            {Math.floor(video.asset.durationMs / 60000)}:{String(Math.floor((video.asset.durationMs % 60000) / 1000)).padStart(2, '0')}
                           </Text>
                         </View>
                       )}
@@ -1546,14 +1295,14 @@ export default function ComposeScreen() {
                   </View>
                 </View>
 
-                {videoUploading && videoUploadProgress && (
+                {video.uploading && video.uploadProgress && (
                   <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ color: colors.text, fontSize: 12 }}>
                         Uploading...
                       </Text>
                       <Text style={{ color: colors.text, fontSize: 12 }}>
-                        {videoUploadProgress.percentage}%
+                        {video.uploadProgress.percentage}%
                       </Text>
                     </View>
                     <View style={{
@@ -1564,17 +1313,17 @@ export default function ComposeScreen() {
                     }}>
                       <View style={{
                         height: 4,
-                        width: `${videoUploadProgress.percentage}%`,
+                        width: `${video.uploadProgress.percentage}%`,
                         backgroundColor: colors.button,
                       }} />
                     </View>
                   </View>
                 )}
 
-                {videoUploadError && (
+                {video.error && (
                   <View style={{ marginTop: 12 }}>
                     <Text style={{ color: '#ff3b30', fontSize: 12, marginBottom: 8 }}>
-                      {videoUploadError}
+                      {video.error}
                     </Text>
                     <View style={{ flexDirection: 'row' }}>
                       <TouchableOpacity
@@ -1608,7 +1357,7 @@ export default function ComposeScreen() {
                   </View>
                 )}
 
-                {videoAssetId && !videoUploading && !videoUploadError && (
+                {video.assetId && !video.uploading && !video.error && (
                   <View style={{ marginTop: 8 }}>
                     <Text style={{ color: '#34c759', fontSize: 12, fontWeight: '500' }}>
                       ✓ Video ready to post
@@ -1617,7 +1366,7 @@ export default function ComposeScreen() {
                 )}
               </View>
 
-              {(videoAsset || videoAssetId) && (
+              {(video.asset || video.assetId) && (
                 <Text style={{
                   fontSize: 11,
                   color: colors.text,
@@ -1760,14 +1509,14 @@ export default function ComposeScreen() {
                   { backgroundColor: colors.inputBg, marginLeft: 12 },
                 ]}
                 onPress={handleAddVideo}
-                disabled={videoAsset !== null || videoAssetId !== null || videoUploading}
+                disabled={video.hasVideo || video.uploading}
               >
                 <FontAwesome
                   name="video-camera"
                   size={20}
-                  color={(videoAsset || videoAssetId || videoUploading) ? colors.info : colors.button}
+                  color={(video.hasVideo || video.uploading) ? colors.info : colors.button}
                 />
-                {(videoAsset || videoAssetId) && (
+                {video.hasVideo && (
                   <View
                     style={[
                       styles.imageBadge,
