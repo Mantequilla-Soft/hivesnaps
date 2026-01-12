@@ -19,16 +19,18 @@ export interface DetectedMedia {
  * Pattern for 3Speak video URLs
  * Matches: https://play.3speak.tv/...
  * Note: Using global flag for match() and replace() operations
+ * Exported for use in other components that need to remove video URLs
  */
-const VIDEO_URL_PATTERN =
+export const VIDEO_URL_PATTERN =
   /https?:\/\/(play\.)?3speak\.(tv|online)\/[^\s]+/gi;
 
 /**
  * Pattern for 3Speak audio URLs
  * Matches: https://audio.3speak.tv/play?a=...
  * Note: Using global flag for match() and replace() operations
+ * Exported for use in other components that need to remove audio URLs
  */
-const AUDIO_URL_PATTERN =
+export const AUDIO_URL_PATTERN =
   /https?:\/\/audio\.3speak\.tv\/play\?[^\s]+/gi;
 
 /**

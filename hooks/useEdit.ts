@@ -291,6 +291,7 @@ export const useEdit = (
       // Add or update audio metadata if present
       if (audio) {
         json_metadata.audio = { platform: '3speak', url: audio };
+        // Note: Duration would be tracked separately when audio is uploaded
       }
 
       // Edit the post/reply using same author/permlink with new content

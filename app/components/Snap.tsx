@@ -19,7 +19,7 @@ import { Clipboard } from 'react-native';
 import { extractImageUrls } from '../../utils/extractImageUrls';
 import { stripImageTags } from '../../utils/stripImageTags';
 import { extractVideoInfo, removeVideoUrls, removeInstagramUrls } from '../../utils/extractVideoInfo';
-import { detectMediaInBody } from '../../utils/mediaDetection';
+import { detectMediaInBody, AUDIO_URL_PATTERN } from '../../utils/mediaDetection';
 import { buildSnapieUrl } from '../../utils/snapieUrlBuilder';
 import IPFSVideoPlayer from './IPFSVideoPlayer';
 import { WebView } from 'react-native-webview';
@@ -443,9 +443,8 @@ const Snap: React.FC<SnapProps> = ({
 
   // Remove 3Speak audio URLs from text body to avoid showing raw URLs
   // (they're rendered as audio embeds)
-  const audioUrlPattern = /https?:\/\/audio\.3speak\.tv\/play\?[^\s]+/gi;
-  if (audioUrlPattern.test(textBody)) {
-    textBody = textBody.replace(audioUrlPattern, '').trim();
+  if (AUDIO_URL_PATTERN.test(textBody)) {
+    textBody = textBody.replace(AUDIO_URL_PATTERN, '').trim();
     // Clean up extra whitespace
     textBody = textBody
       .replace(/\r\n/g, '\n')

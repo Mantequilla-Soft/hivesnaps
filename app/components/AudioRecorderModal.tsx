@@ -10,13 +10,13 @@ import {
     View,
     Text,
     TouchableOpacity,
-    useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import AudioButton from './AudioButton';
 import { audioRecorderModalStyles as styles } from './AudioRecorderModal.styles';
+import { useAppColors } from '../styles/colors';
 
 interface AudioRecorderModalProps {
     isVisible: boolean;
@@ -29,9 +29,7 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
     onClose,
     onAudioRecorded,
 }) => {
-    const colorScheme = useColorScheme() || 'light';
-    const isDark = colorScheme === 'dark';
-
+    const colors = useAppColors();
     const recorder = useAudioRecorder();
 
     const handleUse = async () => {
@@ -55,13 +53,6 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
         onClose();
     };
 
-    // Theme colors
-    const bgColor = isDark ? '#1a1a1a' : '#ffffff';
-    const textColor = isDark ? '#ffffff' : '#000000';
-    const secondaryTextColor = isDark ? '#cccccc' : '#666666';
-    const borderColor = isDark ? '#333333' : '#e0e0e0';
-    const progressBgColor = isDark ? '#333333' : '#e0e0e0';
-
     return (
         <Modal
             visible={isVisible}
@@ -70,12 +61,12 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
             onRequestClose={handleClose}
         >
             <SafeAreaView
-                style={[styles.container, { backgroundColor: bgColor }]}
+                style={[styles.container, { backgroundColor: colors.background }]}
                 edges={['top', 'bottom']}
             >
                 {/* Header */}
-                <View style={[styles.header, { borderBottomColor: borderColor }]}>
-                    <Text style={[styles.headerTitle, { color: textColor }]}>
+                <View style={[styles.header, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>
                         Record Audio Snap
                     </Text>
                     <TouchableOpacity
@@ -83,7 +74,7 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
                         disabled={recorder.isUploading}
                         style={styles.closeButton}
                     >
-                        <FontAwesome name="times" size={24} color={secondaryTextColor} />
+                        <FontAwesome name="times" size={24} color={colors.placeholderText} />
                     </TouchableOpacity>
                 </View>
 
@@ -91,10 +82,10 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
                 <View style={styles.content}>
                     {/* Timer Display */}
                     <View style={styles.timerSection}>
-                        <Text style={[styles.timerText, { color: textColor }]}>
+                        <Text style={[styles.timerText, { color: colors.text }]}>
                             {recorder.formatTime(recorder.duration)}
                         </Text>
-                        <Text style={[styles.maxDurationText, { color: secondaryTextColor }]}>
+                        <Text style={[styles.maxDurationText, { color: colors.placeholderText }]}>
                             Max: {recorder.formatTime(recorder.maxDuration)}
                         </Text>
 
@@ -102,7 +93,7 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
                         <View
                             style={[
                                 styles.progressBar,
-                                { backgroundColor: progressBgColor },
+                                { backgroundColor: colors.border },
                             ]}
                         >
                             <View
@@ -113,7 +104,7 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
                                         backgroundColor:
                                             recorder.duration >= recorder.maxDuration
                                                 ? '#ff4444'
-                                                : '#0066ff',
+                                                : colors.icon,
                                     },
                                 ]}
                             />
@@ -186,14 +177,14 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
                 </View>
 
                 {/* Footer Buttons */}
-                <View style={[styles.footer, { borderTopColor: borderColor }]}>
+                <View style={[styles.footer, { borderTopColor: colors.border }]}>
                     <AudioButton
                         onPress={handleClose}
                         text="Cancel"
                         variant="ghost"
                         disabled={recorder.isUploading}
                         style={[styles.footerButton, styles.footerButtonLeft]}
-                        textStyle={{ color: secondaryTextColor }}
+                        textStyle={{ color: colors.placeholderText }}
                     />
 
                     <AudioButton

@@ -271,6 +271,7 @@ export const useReply = (
       // Add audio metadata if present
       if (audio) {
         json_metadata.audio = { platform: '3speak', url: audio };
+        // Note: Duration would be tracked separately when audio is uploaded
       }
 
       // Post to Hive blockchain

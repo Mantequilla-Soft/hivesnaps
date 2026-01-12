@@ -47,14 +47,29 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
+            // Stop any active recording
+            if (recordingRef.current && isRecording) {
+                recordingRef.current.stopAndUnloadAsync().catch((e) => {
+                    if (__DEV__) console.debug('[useAudioRecorder] Error stopping recording on unmount:', e);
+                });
+                recordingRef.current = null;
+            }
+
+            // Clear timer
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+
+            // Unload sound
             if (soundRef.current) {
                 soundRef.current.unloadAsync().catch((e) => {
                     if (__DEV__) console.debug('[useAudioRecorder] Cleanup error:', e);
                 });
+                soundRef.current = null;
             }
         };
-    }, []);
+    }, [isRecording]);
 
     const startRecording = async () => {
         try {

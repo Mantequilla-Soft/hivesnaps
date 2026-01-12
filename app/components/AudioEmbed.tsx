@@ -6,16 +6,17 @@
  * - Fixed height to match 3Speak compact player dimensions
  * - overflow: hidden prevents player from exceeding container
  * - mode=compact&iframe=1 URL parameters for minimal UI
- * - CSS injection to properly size player within viewport
+ * - CSS injection to properly size player without clipping
+ * - onError callback handles network/loading failures gracefully
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { 
-  AUDIO_PLAYER_HEIGHT, 
-  AUDIO_PLAYER_MARGIN_VERTICAL, 
-  AUDIO_PLAYER_BORDER_RADIUS 
+import {
+  AUDIO_PLAYER_HEIGHT,
+  AUDIO_PLAYER_MARGIN_VERTICAL,
+  AUDIO_PLAYER_BORDER_RADIUS
 } from '../constants/ui';
 
 interface AudioEmbedProps {
@@ -23,17 +24,46 @@ interface AudioEmbedProps {
 }
 
 const AudioEmbed: React.FC<AudioEmbedProps> = ({ embedUrl }) => {
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
   // Ensure URL has compact mode parameters
-  const compactEmbedUrl = embedUrl.includes('mode=compact') 
-    ? embedUrl 
+  const compactEmbedUrl = embedUrl.includes('mode=compact')
+    ? embedUrl
     : `${embedUrl}&mode=compact`;
-  
+
   const finalEmbedUrl = compactEmbedUrl.includes('iframe=1')
     ? compactEmbedUrl
     : `${compactEmbedUrl}&iframe=1`;
 
+  const handleWebViewError = () => {
+    setHasError(true);
+    console.warn('[AudioEmbed] Failed to load audio player:', finalEmbedUrl);
+  };
+
+  const handleLoadStart = () => {
+    setIsLoading(true);
+  };
+
+  const handleLoadEnd = () => {
+    setIsLoading(false);
+  };
+
+  if (hasError) {
+    return (
+      <View style={[styles.container, styles.errorContainer]}>
+        <Text style={styles.errorText}>Unable to load audio player</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="small" color="#999" />
+        </View>
+      )}
       <WebView
         source={{ uri: finalEmbedUrl }}
         style={styles.webview}
@@ -41,7 +71,10 @@ const AudioEmbed: React.FC<AudioEmbedProps> = ({ embedUrl }) => {
         scalesPageToFit={false}
         javaScriptEnabled
         domStorageEnabled
-        startInLoadingState={false}
+        startInLoadingState={true}
+        onError={handleWebViewError}
+        onLoadStart={handleLoadStart}
+        onLoadEnd={handleLoadEnd}
         // Inject CSS to properly size the player without clipping
         injectedJavaScript={`
           (function() {
@@ -108,6 +141,29 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: 'transparent',
+  },
+  errorContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  errorText: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    zIndex: 10,
   },
 });
 

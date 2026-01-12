@@ -698,7 +698,11 @@ export function useCompose({
                     ? { platform: '3speak', url: video.videoEmbedUrl, uploadUrl: video.uploadUrl }
                     : undefined,
                 audio: state.audioEmbedUrl
-                    ? { platform: '3speak', url: state.audioEmbedUrl }
+                    ? {
+                        platform: '3speak',
+                        url: state.audioEmbedUrl,
+                        duration: state.audioDuration
+                    }
                     : undefined,
             });
 
