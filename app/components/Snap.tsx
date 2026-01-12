@@ -19,6 +19,7 @@ import { Clipboard } from 'react-native';
 import { extractImageUrls } from '../../utils/extractImageUrls';
 import { stripImageTags } from '../../utils/stripImageTags';
 import { extractVideoInfo, removeVideoUrls, removeInstagramUrls } from '../../utils/extractVideoInfo';
+import { detectMediaInBody, AUDIO_URL_PATTERN } from '../../utils/mediaDetection';
 import { buildSnapieUrl } from '../../utils/snapieUrlBuilder';
 import IPFSVideoPlayer from './IPFSVideoPlayer';
 import { WebView } from 'react-native-webview';
@@ -33,6 +34,7 @@ import SpoilerText from './SpoilerText';
 import TwitterEmbed from './TwitterEmbed';
 import YouTubeEmbed from './YouTubeEmbed';
 import ThreeSpeakEmbed from './ThreeSpeakEmbed';
+import AudioEmbed from './AudioEmbed';
 import InstagramEmbed from './InstagramEmbed';
 import { extractBlogPostUrls } from '../../utils/extractHivePostInfo';
 import { OptimizedHivePostPreviewRenderer } from '../../components/OptimizedHivePostPreviewRenderer';
@@ -242,6 +244,7 @@ const Snap: React.FC<SnapProps> = ({
   const imageUrls = extractImageUrls(body);
   const rawImageUrls = extractRawImageUrlsUtil(body);
   const embeddedContent = extractVideoInfo(body); // Renamed from videoInfo to be more accurate
+  const mediaInfo = detectMediaInBody(body); // Detect audio and video media
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
   const router = useRouter(); // For navigation in reply mode
 
@@ -436,6 +439,18 @@ const Snap: React.FC<SnapProps> = ({
   }
   if (rawImageUrls.length > 0) {
     textBody = removeRawImageUrlsUtil(textBody);
+  }
+
+  // Remove 3Speak audio URLs from text body to avoid showing raw URLs
+  // (they're rendered as audio embeds)
+  if (AUDIO_URL_PATTERN.test(textBody)) {
+    textBody = textBody.replace(AUDIO_URL_PATTERN, '').trim();
+    // Clean up extra whitespace
+    textBody = textBody
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map(l => l.replace(/[ \t]{2,}/g, ' ').replace(/ +$/, ''))
+      .join('\n');
   }
 
   // Remove Hive post URLs from text body to avoid showing raw URLs
@@ -703,6 +718,13 @@ const Snap: React.FC<SnapProps> = ({
                 isDark={isDark}
               />
             ) : null}
+          </View>
+        )}
+
+        {/* Audio embeds from 3Speak Audio */}
+        {mediaInfo.hasAudio && mediaInfo.audioUrl && (
+          <View style={{ marginBottom: 8 }}>
+            <AudioEmbed embedUrl={mediaInfo.audioUrl} />
           </View>
         )}
 

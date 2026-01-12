@@ -45,6 +45,7 @@ interface UseReplyReturn extends ReplyState {
     images?: string[];
     gifs?: string[];
     video?: string | null;
+    audio?: string | null;
   }) => Promise<void>;
   addImage: (mode: 'reply') => Promise<void>;
   addGif: (gifUrl: string) => void;
@@ -181,6 +182,7 @@ export const useReply = (
     images?: string[];
     gifs?: string[];
     video?: string | null; // 3speak video embed URL
+    audio?: string | null; // 3speak audio embed URL
   }) => {
     // Use overrides if provided, otherwise fall back to state
     const target = overrides?.target || state.replyTarget;
@@ -188,6 +190,7 @@ export const useReply = (
     const images = overrides?.images ?? state.replyImages;
     const gifs = overrides?.gifs ?? state.replyGifs;
     const video = overrides?.video ?? null;
+    const audio = overrides?.audio ?? null;
 
     // Validate and throw errors instead of silently returning
     if (!target) {
@@ -195,8 +198,8 @@ export const useReply = (
       setState(prev => ({ ...prev, error: error.message, posting: false }));
       throw error;
     }
-    if (!text.trim() && images.length === 0 && gifs.length === 0 && !video) {
-      const error = new Error('Reply cannot be empty. Please add text, images, GIFs, or video.');
+    if (!text.trim() && images.length === 0 && gifs.length === 0 && !video && !audio) {
+      const error = new Error('Reply cannot be empty. Please add text, images, GIFs, video, or audio.');
       setState(prev => ({ ...prev, error: error.message, posting: false }));
       throw error;
     }
@@ -233,6 +236,11 @@ export const useReply = (
         body += `\n${video}`;
       }
 
+      // Add audio embed URL if present
+      if (audio) {
+        body += `\n${audio}`;
+      }
+
       const parent_author = target.author;
       const parent_permlink = target.permlink;
       const author = currentUsername;
@@ -258,6 +266,12 @@ export const useReply = (
       // Add video metadata if present
       if (video) {
         json_metadata.video = { platform: '3speak', url: video };
+      }
+
+      // Add audio metadata if present
+      if (audio) {
+        json_metadata.audio = { platform: '3speak', url: audio };
+        // Note: Duration would be tracked separately when audio is uploaded
       }
 
       // Post to Hive blockchain

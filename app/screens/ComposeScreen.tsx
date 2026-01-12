@@ -23,6 +23,8 @@ import { GifPickerModal } from '../../components/GifPickerModalV2';
 import { SnapData } from '../../hooks/useConversationData';
 import Preview from '../components/Preview';
 import { useCompose } from '../../hooks/useCompose';
+import AudioRecorderModal from '../components/AudioRecorderModal';
+import AudioPreview from '../components/AudioPreview';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
@@ -626,6 +628,16 @@ export default function ComposeScreen() {
             </View>
           )}
 
+          {/* Audio Preview */}
+          {compose.state.audioEmbedUrl && (
+            <AudioPreview
+              isUploading={compose.state.audioUploading}
+              onRemove={compose.removeAudio}
+              durationSeconds={compose.state.audioDuration}
+              colors={colors}
+            />
+          )}
+
           {/* Action buttons */}
           <View style={styles.actions}>
             {/* Markdown formatting toolbar */}
@@ -774,6 +786,31 @@ export default function ComposeScreen() {
                   </View>
                 )}
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: colors.inputBg, marginLeft: 12 },
+                ]}
+                onPress={compose.openAudioRecorder}
+                disabled={compose.state.audioEmbedUrl !== null || compose.state.audioUploading}
+              >
+                <FontAwesome
+                  name="microphone"
+                  size={20}
+                  color={compose.state.audioEmbedUrl !== null || compose.state.audioUploading ? colors.info : colors.button}
+                />
+                {compose.state.audioEmbedUrl && (
+                  <View
+                    style={[
+                      styles.imageBadge,
+                      { backgroundColor: colors.button },
+                    ]}
+                  >
+                    <Text style={styles.imageBadgeText}>♪</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
 
             {compose.state.images.length >= 10 && (
@@ -823,6 +860,13 @@ export default function ComposeScreen() {
           inputBorder: colors.inputBorder,
           button: colors.button,
         }}
+      />
+
+      {/* Audio Recorder Modal */}
+      <AudioRecorderModal
+        isVisible={compose.state.audioRecorderVisible}
+        onClose={compose.closeAudioRecorder}
+        onAudioRecorded={compose.handleAudioRecorded}
       />
 
       {/* Spoiler Modal */}
