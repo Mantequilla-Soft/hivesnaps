@@ -177,6 +177,13 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 await soundRef.current.playAsync();
                 setIsPlaying(true);
             } else if (!soundRef.current) {
+                // Set audio mode for playback - route to speaker on iOS
+                await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true,
+                    staysActiveInBackground: false,
+                });
+
                 // Convert blob to data URI for playback
                 const reader = new FileReader();
                 reader.onload = async () => {
