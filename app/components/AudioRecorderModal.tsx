@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import AudioButton from './AudioButton';
+import ProgressBar from './ProgressBar';
 import { audioRecorderModalStyles as styles } from './AudioRecorderModal.styles';
 import { useAppColors } from '../styles/colors';
 
@@ -90,25 +91,18 @@ const AudioRecorderModal: React.FC<AudioRecorderModalProps> = ({
                         </Text>
 
                         {/* Progress Bar */}
-                        <View
-                            style={[
-                                styles.progressBar,
-                                { backgroundColor: colors.border },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.progressFill,
-                                    {
-                                        width: `${(recorder.duration / recorder.maxDuration) * 100}%`,
-                                        backgroundColor:
-                                            recorder.duration >= recorder.maxDuration
-                                                ? '#ff4444'
-                                                : colors.icon,
-                                    },
-                                ]}
-                            />
-                        </View>
+                        <ProgressBar
+                            progress={(recorder.duration / recorder.maxDuration) * 100}
+                            backgroundColor={colors.border}
+                            fillColor={
+                                recorder.duration >= recorder.maxDuration
+                                    ? '#ff4444'
+                                    : colors.icon
+                            }
+                            height={8}
+                            borderRadius={4}
+                            style={{ marginTop: 12 }}
+                        />
                     </View>
 
                     {/* Controls */}

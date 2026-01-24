@@ -25,6 +25,7 @@ import Preview from '../components/Preview';
 import { useCompose } from '../../hooks/useCompose';
 import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
+import ProgressBar from '../components/ProgressBar';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
@@ -545,28 +546,17 @@ export default function ComposeScreen() {
                 </View>
 
                 {compose.video.uploading && compose.video.uploadProgress && (
-                  <View style={{ marginTop: 12 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ color: colors.text, fontSize: 12 }}>
-                        Uploading...
-                      </Text>
-                      <Text style={{ color: colors.text, fontSize: 12 }}>
-                        {compose.video.uploadProgress.percentage}%
-                      </Text>
-                    </View>
-                    <View style={{
-                      height: 4,
-                      backgroundColor: colors.inputBorder,
-                      borderRadius: 2,
-                      overflow: 'hidden'
-                    }}>
-                      <View style={{
-                        height: 4,
-                        width: `${compose.video.uploadProgress.percentage}%`,
-                        backgroundColor: colors.button,
-                      }} />
-                    </View>
-                  </View>
+                  <ProgressBar
+                    progress={compose.video.uploadProgress.percentage}
+                    backgroundColor={colors.inputBorder}
+                    fillColor={colors.button}
+                    height={4}
+                    borderRadius={2}
+                    label="Uploading..."
+                    showPercentage
+                    textColor={colors.text}
+                    style={{ marginTop: 12 }}
+                  />
                 )}
 
                 {compose.video.error && (
