@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Client } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile } from '../store/context';
+import { vestsToHp } from '../utils/hiveCalculations';
 
 // Profile data interface
 export interface ProfileData {
@@ -28,39 +29,6 @@ const HIVE_NODES = [
   'https://api.openhive.network',
 ];
 const client = new Client(HIVE_NODES);
-
-// Helper function to convert VESTS to Hive Power
-const vestsToHp = (
-  vests: number,
-  totalVestingFundHive: any,
-  totalVestingShares: any
-): number => {
-  // Handle both string and Asset types from global props
-  const totalVestingFundHiveStr =
-    typeof totalVestingFundHive === 'string'
-      ? totalVestingFundHive
-      : totalVestingFundHive.toString();
-  const totalVestingSharesStr =
-    typeof totalVestingShares === 'string'
-      ? totalVestingShares
-      : totalVestingShares.toString();
-
-  const totalVestingFundHiveNum = parseFloat(
-    totalVestingFundHiveStr.replace(' HIVE', '')
-  );
-  const totalVestingSharesNum = parseFloat(
-    totalVestingSharesStr.replace(' VESTS', '')
-  );
-
-  if (totalVestingSharesNum === 0) {
-    return 0;
-  }
-
-  const hivePerVests = totalVestingFundHiveNum / totalVestingSharesNum;
-  const hp = vests * hivePerVests;
-
-  return hp;
-};
 
 export const useProfileData = (username: string | undefined) => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -308,7 +276,7 @@ export const useProfileData = (username: string | undefined) => {
             setProfile(prev => (prev ? { ...prev, avatarUrl: url } : prev));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
 
       // Fetch accurate follow counts using the proper API
       try {

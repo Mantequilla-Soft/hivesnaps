@@ -31,6 +31,7 @@ import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
+import { vestsToHp } from '../../utils/hiveCalculations';
 // useEdit removed - now using ComposeScreen for edit
 
 const ProfileScreen = () => {
@@ -149,38 +150,6 @@ const ProfileScreen = () => {
     mutedButton: '#E74C3C',
     followButton: '#1DA1F2',
     unfollowButton: '#8B9DC3',
-  };
-
-  // Helper function to convert VESTS to Hive Power (needed for UI display)
-  const vestsToHp = (
-    vests: number,
-    totalVestingFundHive: any,
-    totalVestingShares: any
-  ): number => {
-    const totalVestingFundHiveStr =
-      typeof totalVestingFundHive === 'string'
-        ? totalVestingFundHive
-        : totalVestingFundHive.toString();
-    const totalVestingSharesStr =
-      typeof totalVestingShares === 'string'
-        ? totalVestingShares
-        : totalVestingShares.toString();
-
-    const totalVestingFundHiveNum = parseFloat(
-      totalVestingFundHiveStr.replace(' HIVE', '')
-    );
-    const totalVestingSharesNum = parseFloat(
-      totalVestingSharesStr.replace(' VESTS', '')
-    );
-
-    if (totalVestingSharesNum === 0) {
-      return 0;
-    }
-
-    const hivePerVests = totalVestingFundHiveNum / totalVestingSharesNum;
-    const hp = vests * hivePerVests;
-
-    return hp;
   };
 
   // Handle snap bubble press (navigate to conversation)
