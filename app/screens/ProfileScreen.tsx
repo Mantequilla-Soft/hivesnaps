@@ -5,11 +5,9 @@ import {
   Text,
   TouchableOpacity,
   useColorScheme,
-  Image,
   ScrollView,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
 import Snap from '../components/Snap';
@@ -21,6 +19,9 @@ import { SocialStatItem } from '../components/profile/SocialStatItem';
 import { LoadingState } from '../components/profile/LoadingState';
 import { EditAvatarModal } from '../components/profile/EditAvatarModal';
 import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
+import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { RewardsSection } from '../components/profile/RewardsSection';
+import { ProfileSnaps } from '../components/profile/ProfileSnaps';
 // ContentModal removed - now using ComposeScreen for edit
 
 // Import custom hooks
@@ -32,7 +33,6 @@ import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
-import { vestsToHp } from '../../utils/hiveCalculations';
 // useEdit removed - now using ComposeScreen for edit
 
 const ProfileScreen = () => {
@@ -228,50 +228,15 @@ const ProfileScreen = () => {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Profile Info Section */}
           <View style={styles.profileSection}>
-            {/* Username */}
-            <Text style={[styles.username, { color: colors.text }]}>
-              @{profile.username}
-            </Text>
-
-            {/* Avatar */}
-            <View style={styles.avatarContainer}>
-              {profile.avatarUrl ? (
-                <Image
-                  source={{ uri: profile.avatarUrl }}
-                  style={styles.largeAvatar}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.largeAvatar,
-                    styles.defaultAvatar,
-                    { backgroundColor: colors.bubble },
-                  ]}
-                >
-                  <FontAwesome name='user' size={60} color={colors.icon} />
-                </View>
-              )}
-            </View>
-
-            {/* Edit Profile Image Button (Only for own profile) */}
-            {isOwnProfile && (
-              <TouchableOpacity
-                style={styles.editAvatarButton}
-                onPress={handleEditAvatarPress}
-              >
-                <FontAwesome name='camera' size={16} color={colors.icon} />
-                <Text style={[styles.editAvatarText, { color: colors.icon }]}>
-                  Edit Profile Image
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Display Name */}
-            {profile.displayName && (
-              <Text style={[styles.displayName, { color: colors.text }]}>
-                {profile.displayName}
-              </Text>
-            )}
+            <ProfileHeader
+              username={profile.username}
+              avatarUrl={profile.avatarUrl}
+              displayName={profile.displayName}
+              isOwnProfile={isOwnProfile}
+              colors={colors}
+              styles={styles}
+              onEditAvatarPress={handleEditAvatarPress}
+            />
 
             {/* Follower/Following Counts */}
             <View style={styles.socialStats}>
@@ -362,78 +327,17 @@ const ProfileScreen = () => {
               />
             </View>
 
-            {/* Unclaimed Rewards Section - Only show for own profile with unclaimed rewards */}
-            {isOwnProfile &&
-              profile.unclaimedHive !== undefined &&
-              profile.unclaimedHbd !== undefined &&
-              profile.unclaimedVests !== undefined &&
-              (profile.unclaimedHive > 0 ||
-                profile.unclaimedHbd > 0 ||
-                profile.unclaimedVests > 0) && (
-                <View
-                  style={[
-                    styles.unclaimedSection,
-                    {
-                      backgroundColor: colors.bubble,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.unclaimedTitle, { color: colors.text }]}>
-                    Unclaimed Rewards
-                  </Text>
-
-                  <View style={styles.unclaimedRewards}>
-                    {profile.unclaimedVests > 0 && (
-                      <Text
-                        style={[styles.unclaimedText, { color: colors.payout }]}
-                      >
-                        {vestsToHp(
-                          profile.unclaimedVests,
-                          globalProps?.total_vesting_fund_hive,
-                          globalProps?.total_vesting_shares
-                        ).toFixed(3)}{' '}
-                        HP
-                      </Text>
-                    )}
-                    {profile.unclaimedHbd > 0 && (
-                      <Text
-                        style={[styles.unclaimedText, { color: colors.payout }]}
-                      >
-                        {profile.unclaimedHbd.toFixed(3)} HBD
-                      </Text>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.claimButton,
-                      { backgroundColor: colors.icon },
-                    ]}
-                    onPress={handleClaimRewards}
-                    disabled={claimLoading || processing}
-                  >
-                    {claimLoading ? (
-                      <FontAwesome
-                        name='hourglass-half'
-                        size={16}
-                        color='#fff'
-                      />
-                    ) : processing ? (
-                      <FontAwesome name='refresh' size={16} color='#fff' />
-                    ) : (
-                      <FontAwesome name='dollar' size={16} color='#fff' />
-                    )}
-                    <Text style={styles.claimButtonText}>
-                      {claimLoading
-                        ? 'Claiming...'
-                        : processing
-                          ? 'Processing...'
-                          : 'CLAIM NOW'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+            {/* Unclaimed Rewards Section */}
+            <RewardsSection
+              isOwnProfile={isOwnProfile}
+              profile={profile}
+              globalProps={globalProps}
+              claimLoading={claimLoading}
+              processing={processing}
+              colors={colors}
+              styles={styles}
+              handleClaimRewards={handleClaimRewards}
+            />
 
             {/* Additional Info */}
             {(profile.location || profile.website) && (
@@ -458,207 +362,31 @@ const ProfileScreen = () => {
             )}
 
             {/* Recent Snaps Section */}
-            <View style={styles.snapsSection}>
-              <Text style={[styles.snapsSectionTitle, { color: colors.text }]}>
-                Recent Snaps
-              </Text>
-
-              {!snapsLoaded ? (
-                <TouchableOpacity
-                  style={[
-                    styles.loadSnapsButton,
-                    { backgroundColor: colors.button },
-                  ]}
-                  onPress={fetchUserSnaps}
-                  disabled={snapsLoading}
-                  activeOpacity={0.8}
-                >
-                  {snapsLoading ? (
-                    <>
-                      <FontAwesome
-                        name='hourglass-half'
-                        size={16}
-                        color={colors.buttonText}
-                      />
-                      <Text
-                        style={[
-                          styles.loadSnapsButtonText,
-                          { color: colors.buttonText },
-                        ]}
-                      >
-                        Loading...
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <FontAwesome
-                        name='comment'
-                        size={16}
-                        color={colors.buttonText}
-                      />
-                      <Text
-                        style={[
-                          styles.loadSnapsButtonText,
-                          { color: colors.buttonText },
-                        ]}
-                      >
-                        Show Recent Snaps
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <View style={styles.snapsSectionHeader}>
-                    <TouchableOpacity
-                      style={styles.refreshButton}
-                      onPress={fetchUserSnaps}
-                      disabled={snapsLoading}
-                    >
-                      <FontAwesome
-                        name='refresh'
-                        size={16}
-                        color={colors.icon}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {snapsError ? (
-                    <View style={styles.snapsErrorContainer}>
-                      <FontAwesome
-                        name='exclamation-triangle'
-                        size={24}
-                        color='#E74C3C'
-                      />
-                      <Text
-                        style={[styles.snapsErrorText, { color: colors.text }]}
-                      >
-                        {snapsError}
-                      </Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.retryButton,
-                          { backgroundColor: colors.button },
-                        ]}
-                        onPress={fetchUserSnaps}
-                        disabled={snapsLoading}
-                      >
-                        <Text
-                          style={[
-                            styles.retryButtonText,
-                            { color: colors.buttonText },
-                          ]}
-                        >
-                          Try Again
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : userSnaps.length === 0 ? (
-                    <View style={styles.snapsEmptyContainer}>
-                      <FontAwesome
-                        name='comment-o'
-                        size={32}
-                        color={colors.buttonInactive}
-                      />
-                      <Text
-                        style={[styles.snapsEmptyText, { color: colors.text }]}
-                      >
-                        No recent snaps found
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.verticalFeedContainer}>
-                      {/* Display snaps using the existing Snap component */}
-                      {userSnaps
-                        .slice(0, displayedSnapsCount)
-                        .map((userSnap, index) => {
-                          const snapProps = convertUserSnapToSnapProps(
-                            userSnap,
-                            currentUsername
-                          );
-
-                          return (
-                            <Snap
-                              key={`${userSnap.author}-${userSnap.permlink}`}
-                              snap={snapProps}
-                              onUpvotePress={snap =>
-                                openUpvoteModal({
-                                  author: snap.author,
-                                  permlink: snap.permlink,
-                                  snap,
-                                })
-                              }
-                              onSpeechBubblePress={() =>
-                                handleSnapReply(userSnap)
-                              }
-                              onContentPress={() => handleSnapPress(userSnap)}
-                              showAuthor={true} // Show author for consistency with other feeds
-                              onEditPress={handleEditPress}
-                              onResnapPress={(author, permlink) => {
-                                const snapUrl = `https://hive.blog/@${author}/${permlink}`;
-                                router.push({
-                                  pathname: '/screens/ComposeScreen',
-                                  params: { resnapUrl: snapUrl },
-                                });
-                              }}
-                              currentUsername={currentUsername}
-                            />
-                          );
-                        })}
-
-                      {/* Load More Button */}
-                      {displayedSnapsCount < userSnaps.length && (
-                        <TouchableOpacity
-                          style={[
-                            styles.loadMoreButton,
-                            { backgroundColor: colors.buttonInactive },
-                          ]}
-                          onPress={loadMoreSnaps}
-                          disabled={loadMoreLoading}
-                          activeOpacity={0.8}
-                        >
-                          {loadMoreLoading ? (
-                            <>
-                              <FontAwesome
-                                name='hourglass-half'
-                                size={16}
-                                color={colors.text}
-                              />
-                              <Text
-                                style={[
-                                  styles.loadMoreButtonText,
-                                  { color: colors.text },
-                                ]}
-                              >
-                                Loading...
-                              </Text>
-                            </>
-                          ) : (
-                            <>
-                              <FontAwesome
-                                name='chevron-down'
-                                size={16}
-                                color={colors.text}
-                              />
-                              <Text
-                                style={[
-                                  styles.loadMoreButtonText,
-                                  { color: colors.text },
-                                ]}
-                              >
-                                Load More (
-                                {userSnaps.length - displayedSnapsCount}{' '}
-                                remaining)
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
+            <ProfileSnaps
+              snapsLoaded={snapsLoaded}
+              snapsLoading={snapsLoading}
+              snapsError={snapsError}
+              userSnaps={userSnaps}
+              displayedSnapsCount={displayedSnapsCount}
+              loadMoreLoading={loadMoreLoading}
+              currentUsername={currentUsername}
+              colors={colors}
+              styles={styles}
+              fetchUserSnaps={fetchUserSnaps}
+              loadMoreSnaps={loadMoreSnaps}
+              convertUserSnapToSnapProps={convertUserSnapToSnapProps}
+              openUpvoteModal={openUpvoteModal}
+              handleSnapReply={handleSnapReply}
+              handleSnapPress={handleSnapPress}
+              handleEditPress={handleEditPress}
+              onResnapPress={(author, permlink) => {
+                const snapUrl = `https://hive.blog/@${author}/${permlink}`;
+                router.push({
+                  pathname: '/screens/ComposeScreen',
+                  params: { resnapUrl: snapUrl },
+                });
+              }}
+            />
 
             {/* Logout Button - Only show for own profile */}
             {isOwnProfile && (
