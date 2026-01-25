@@ -690,67 +690,77 @@ export default function ComposeScreen() {
 
             {/* Image and GIF buttons */}
             <View style={styles.mediaButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg },
-                ]}
-                onPress={compose.addImage}
-                disabled={compose.state.uploading || compose.state.images.length >= 10}
-              >
-                {compose.state.uploading ? (
-                  <ActivityIndicator size='small' color={colors.button} />
-                ) : (
-                  <>
-                    <FontAwesome
-                      name='image'
-                      size={20}
-                      color={compose.state.images.length >= 10 ? colors.info : colors.button}
-                    />
-                    {compose.state.images.length > 0 && (
-                      <View
-                        style={[
-                          styles.imageBadge,
-                          { backgroundColor: colors.button },
-                        ]}
-                      >
-                        <Text style={styles.imageBadgeText}>
-                          {compose.state.images.length}
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg, marginLeft: 12 },
-                ]}
-                onPress={compose.gifPicker.openPicker}
-                disabled={compose.state.gifs.length >= 5}
-              >
-                <Text
-                  style={{
-                    fontSize: 18,
-                    color: compose.state.gifs.length >= 5 ? colors.info : colors.button,
-                    fontWeight: 'bold',
-                  }}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg },
+                  ]}
+                  onPress={compose.addImage}
+                  disabled={compose.state.uploading || compose.state.images.length >= 10}
                 >
-                  GIF
+                  {compose.state.uploading ? (
+                    <ActivityIndicator size='small' color={colors.button} />
+                  ) : (
+                    <>
+                      <FontAwesome
+                        name='image'
+                        size={20}
+                        color={compose.state.images.length >= 10 ? colors.info : colors.button}
+                      />
+                      {compose.state.images.length > 0 && (
+                        <View
+                          style={[
+                            styles.imageBadge,
+                            { backgroundColor: colors.button },
+                          ]}
+                        >
+                          <Text style={styles.imageBadgeText}>
+                            {compose.state.images.length}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+                <Text style={[styles.buttonLabel, { color: compose.state.images.length >= 10 ? colors.info : colors.text }]}>
+                  {compose.state.images.length}/10
                 </Text>
-                {compose.state.gifs.length > 0 && (
-                  <View
-                    style={[
-                      styles.imageBadge,
-                      { backgroundColor: colors.button },
-                    ]}
+              </View>
+
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg, marginLeft: 12 },
+                  ]}
+                  onPress={compose.gifPicker.openPicker}
+                  disabled={compose.state.gifs.length >= 5}
+                >
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      color: compose.state.gifs.length >= 5 ? colors.info : colors.button,
+                      fontWeight: 'bold',
+                    }}
                   >
-                    <Text style={styles.imageBadgeText}>{compose.state.gifs.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+                    GIF
+                  </Text>
+                  {compose.state.gifs.length > 0 && (
+                    <View
+                      style={[
+                        styles.imageBadge,
+                        { backgroundColor: colors.button },
+                      ]}
+                    >
+                      <Text style={styles.imageBadgeText}>{compose.state.gifs.length}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <Text style={[styles.buttonLabel, { color: compose.state.gifs.length >= 5 ? colors.info : colors.text }]}>
+                  {compose.state.gifs.length}/5
+                </Text>
+              </View>
 
               <TouchableOpacity
                 style={[
@@ -803,14 +813,19 @@ export default function ComposeScreen() {
               </TouchableOpacity>
             </View>
 
+            {compose.state.images.length === 0 && !compose.state.uploading && (
+              <Text style={[styles.hintText, { color: colors.info }]}>
+                💡 Select up to 10 images at once from gallery
+              </Text>
+            )}
             {compose.state.images.length >= 10 && (
-              <Text style={[styles.limitText, { color: colors.info }]}>
-                Maximum 10 images
+              <Text style={[styles.limitText, { color: '#f39c12' }]}>
+                ⚠️ Maximum 10 images reached
               </Text>
             )}
             {compose.state.gifs.length >= 5 && (
-              <Text style={[styles.limitText, { color: colors.info }]}>
-                Maximum 5 GIFs
+              <Text style={[styles.limitText, { color: '#f39c12' }]}>
+                ⚠️ Maximum 5 GIFs reached
               </Text>
             )}
           </View>
@@ -1146,9 +1161,21 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: 'bold',
   },
+  buttonLabel: {
+    fontSize: 11,
+    marginTop: 4,
+    fontWeight: '500',
+  },
   limitText: {
     fontSize: 12,
+    marginTop: 8,
     marginLeft: 8,
+  },
+  hintText: {
+    fontSize: 12,
+    marginTop: 8,
+    marginLeft: 8,
+    fontStyle: 'italic',
   },
   sharedIndicator: {
     flexDirection: 'row',
