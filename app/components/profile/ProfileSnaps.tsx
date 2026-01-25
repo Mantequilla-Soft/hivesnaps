@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import Snap from '../Snap';
+import { SnapData } from '../../../hooks/useConversationData';
 
 interface ColorScheme {
     text: string;
@@ -11,22 +12,30 @@ interface ColorScheme {
     icon: string;
 }
 
+interface UserSnap {
+    author: string;
+    permlink: string;
+    body: string;
+    [key: string]: unknown;
+}
+
 interface ProfileSnapsProps {
     snapsLoaded: boolean;
     snapsLoading: boolean;
     snapsError: string | null;
-    userSnaps: any[];
+    userSnaps: UserSnap[];
     displayedSnapsCount: number;
     loadMoreLoading: boolean;
     currentUsername: string | null;
     colors: ColorScheme;
+    /** Styles object created by createProfileScreenStyles - typed as any due to dynamic creation */
     styles: any;
     fetchUserSnaps: () => void;
     loadMoreSnaps: () => void;
-    convertUserSnapToSnapProps: (userSnap: any, currentUsername: string | null) => any;
-    openUpvoteModal: (params: { author: string; permlink: string; snap: any }) => void;
-    handleSnapReply: (snap: any) => void;
-    handleSnapPress: (snap: any) => void;
+    convertUserSnapToSnapProps: (userSnap: UserSnap, currentUsername: string | null) => SnapData;
+    openUpvoteModal: (params: { author: string; permlink: string; snap: SnapData }) => void;
+    handleSnapReply: (snap: UserSnap) => void;
+    handleSnapPress: (snap: UserSnap) => void;
     handleEditPress: (snapData: { author: string; permlink: string; body: string }) => void;
     onResnapPress: (author: string, permlink: string) => void;
 }
@@ -178,7 +187,7 @@ export const ProfileSnaps: React.FC<ProfileSnapsProps> = ({
                                                 openUpvoteModal({
                                                     author: snap.author,
                                                     permlink: snap.permlink,
-                                                    snap,
+                                                    snap: snapProps,
                                                 })
                                             }
                                             onSpeechBubblePress={() =>

@@ -15,8 +15,8 @@
  */
 export function vestsToHp(
     vests: number,
-    totalVestingFundHive: any,
-    totalVestingShares: any
+    totalVestingFundHive: string | number | { toString(): string } | undefined,
+    totalVestingShares: string | number | { toString(): string } | undefined
 ): number {
     // Handle both string and Asset types from global props
     const totalVestingFundHiveStr =

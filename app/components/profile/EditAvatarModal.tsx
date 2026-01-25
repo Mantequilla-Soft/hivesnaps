@@ -138,7 +138,7 @@ export const EditAvatarModal: React.FC<EditAvatarModalProps> = ({
                             <Pressable
                                 style={[styles.actionButton, { backgroundColor: colors.buttonInactive }]}
                                 onPress={onClose}
-                                disabled={avatarUpdateLoading || avatarUploading}
+                                disabled={avatarUploading}
                             >
                                 <Text style={[styles.actionButtonText, { color: colors.text }]}>
                                     Cancel

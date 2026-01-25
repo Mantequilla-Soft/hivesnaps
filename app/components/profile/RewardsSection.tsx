@@ -25,6 +25,7 @@ interface RewardsSectionProps {
     claimLoading: boolean;
     processing: boolean;
     colors: ColorScheme;
+    /** Styles object created by createProfileScreenStyles - typed as any due to dynamic creation */
     styles: any;
     handleClaimRewards: () => void;
 }

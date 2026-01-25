@@ -1,9 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { ComponentProps } from 'react';
+
+type FontAwesomeIconName = ComponentProps<typeof FontAwesome>['name'];
 
 interface InfoRowProps {
-    icon: string;
+    icon: FontAwesomeIconName;
     text: string;
     iconColor: string;
     textColor: string;
@@ -21,7 +24,7 @@ export const InfoRow: React.FC<InfoRowProps> = ({
 }) => {
     return (
         <View style={styles.infoRow}>
-            <FontAwesome name={icon as any} size={16} color={iconColor} />
+            <FontAwesome name={icon} size={16} color={iconColor} />
             <Text style={[styles.infoText, { color: textColor }]}>{text}</Text>
         </View>
     );

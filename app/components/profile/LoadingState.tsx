@@ -1,12 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { ComponentProps } from 'react';
+
+type FontAwesomeIconName = ComponentProps<typeof FontAwesome>['name'];
 
 interface LoadingStateProps {
     message?: string;
     iconColor: string;
     textColor: string;
-    icon?: string;
+    icon?: FontAwesomeIconName;
     iconSize?: number;
 }
 
@@ -24,7 +27,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
     return (
         <View style={styles.loadingContainer}>
             <FontAwesome
-                name={icon as any}
+                name={icon}
                 size={iconSize}
                 color={iconColor}
                 style={styles.icon}

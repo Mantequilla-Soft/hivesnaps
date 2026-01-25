@@ -14,6 +14,7 @@ interface ProfileHeaderProps {
     displayName?: string;
     isOwnProfile: boolean;
     colors: ColorScheme;
+    /** Styles object created by createProfileScreenStyles - typed as any due to dynamic creation */
     styles: any;
     onEditAvatarPress: () => void;
 }

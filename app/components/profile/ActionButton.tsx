@@ -1,9 +1,12 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { ComponentProps } from 'react';
+
+type FontAwesomeIconName = ComponentProps<typeof FontAwesome>['name'];
 
 interface ActionButtonProps {
-    icon: string;
+    icon: FontAwesomeIconName;
     label: string;
     onPress: () => void;
     loading?: boolean;
@@ -37,7 +40,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
             disabled={disabled || loading}
         >
             <FontAwesome
-                name={loading ? 'hourglass-half' : (icon as any)}
+                name={loading ? 'hourglass-half' : icon}
                 size={16}
                 color={textColor}
             />
