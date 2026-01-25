@@ -20,6 +20,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
 import Snap from '../components/Snap';
 import UpvoteModal from '../../components/UpvoteModal';
+import { ActionButton } from '../components/profile/ActionButton';
+import { StatItem } from '../components/profile/StatItem';
+import { InfoRow } from '../components/profile/InfoRow';
+import { SocialStatItem } from '../components/profile/SocialStatItem';
+import { LoadingState } from '../components/profile/LoadingState';
 // ContentModal removed - now using ComposeScreen for edit
 
 // Import custom hooks
@@ -217,15 +222,12 @@ const ProfileScreen = () => {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <FontAwesome
-            name='hourglass-half'
-            size={48}
-            color={colors.icon}
-            style={{ marginBottom: 12 }}
-          />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
+        <LoadingState
+          message="Loading profile..."
+          iconColor={colors.icon}
+          textColor={colors.text}
+          iconSize={48}
+        />
       ) : profile ? (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Profile Info Section */}
@@ -277,133 +279,56 @@ const ProfileScreen = () => {
 
             {/* Follower/Following Counts */}
             <View style={styles.socialStats}>
-              <View style={styles.socialStatItem}>
-                <Text style={[styles.socialStatNumber, { color: colors.text }]}>
-                  {(profile.followersCount || 0).toLocaleString()}
-                </Text>
-                <Text style={[styles.socialStatLabel, { color: colors.text }]}>
-                  Followers
-                </Text>
-              </View>
-              <View style={styles.socialStatItem}>
-                <Text style={[styles.socialStatNumber, { color: colors.text }]}>
-                  {(profile.followingCount || 0).toLocaleString()}
-                </Text>
-                <Text style={[styles.socialStatLabel, { color: colors.text }]}>
-                  Following
-                </Text>
-              </View>
+              <SocialStatItem
+                count={profile.followersCount || 0}
+                label="Followers"
+                textColor={colors.text}
+              />
+              <SocialStatItem
+                count={profile.followingCount || 0}
+                label="Following"
+                textColor={colors.text}
+              />
             </View>
 
             {/* Action Buttons */}
             {!isOwnProfile && (
               <View style={styles.actionButtons}>
                 {isFollowing ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      {
-                        backgroundColor: colors.unfollowButton,
-                        opacity: followLoading ? 0.6 : 1,
-                      },
-                    ]}
+                  <ActionButton
+                    icon="user-times"
+                    label={followLoading ? 'Unfollowing...' : 'Unfollow'}
                     onPress={handleUnfollow}
-                    disabled={followLoading}
-                  >
-                    {followLoading ? (
-                      <FontAwesome
-                        name='hourglass-half'
-                        size={16}
-                        color='#fff'
-                      />
-                    ) : (
-                      <FontAwesome name='user-times' size={16} color='#fff' />
-                    )}
-                    <Text style={styles.buttonText}>
-                      {followLoading ? 'Unfollowing...' : 'Unfollow'}
-                    </Text>
-                  </TouchableOpacity>
+                    loading={followLoading}
+                    backgroundColor={colors.unfollowButton}
+                  />
                 ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      {
-                        backgroundColor: colors.followButton,
-                        opacity: followLoading ? 0.6 : 1,
-                      },
-                    ]}
+                  <ActionButton
+                    icon="user-plus"
+                    label={followLoading ? 'Following...' : 'Follow'}
                     onPress={handleFollow}
-                    disabled={followLoading}
-                  >
-                    {followLoading ? (
-                      <FontAwesome
-                        name='hourglass-half'
-                        size={16}
-                        color='#fff'
-                      />
-                    ) : (
-                      <FontAwesome name='user-plus' size={16} color='#fff' />
-                    )}
-                    <Text style={styles.buttonText}>
-                      {followLoading ? 'Following...' : 'Follow'}
-                    </Text>
-                  </TouchableOpacity>
+                    loading={followLoading}
+                    backgroundColor={colors.followButton}
+                  />
                 )}
 
                 {isMuted ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      {
-                        backgroundColor: colors.buttonInactive,
-                        opacity: muteLoading ? 0.6 : 1,
-                      },
-                    ]}
+                  <ActionButton
+                    icon="volume-up"
+                    label={muteLoading ? 'Unblocking...' : 'Unblock'}
                     onPress={handleUnmute}
-                    disabled={muteLoading}
-                  >
-                    {muteLoading ? (
-                      <FontAwesome
-                        name='hourglass-half'
-                        size={16}
-                        color={colors.text}
-                      />
-                    ) : (
-                      <FontAwesome
-                        name='volume-up'
-                        size={16}
-                        color={colors.text}
-                      />
-                    )}
-                    <Text style={[styles.buttonText, { color: colors.text }]}>
-                      {muteLoading ? 'Unblocking...' : 'Unblock'}
-                    </Text>
-                  </TouchableOpacity>
+                    loading={muteLoading}
+                    backgroundColor={colors.buttonInactive}
+                    textColor={colors.text}
+                  />
                 ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      {
-                        backgroundColor: colors.mutedButton,
-                        opacity: muteLoading ? 0.6 : 1,
-                      },
-                    ]}
+                  <ActionButton
+                    icon="volume-off"
+                    label={muteLoading ? 'Blocking...' : 'Block'}
                     onPress={handleMute}
-                    disabled={muteLoading}
-                  >
-                    {muteLoading ? (
-                      <FontAwesome
-                        name='hourglass-half'
-                        size={16}
-                        color='#fff'
-                      />
-                    ) : (
-                      <FontAwesome name='volume-off' size={16} color='#fff' />
-                    )}
-                    <Text style={styles.buttonText}>
-                      {muteLoading ? 'Blocking...' : 'Block'}
-                    </Text>
-                  </TouchableOpacity>
+                    loading={muteLoading}
+                    backgroundColor={colors.mutedButton}
+                  />
                 )}
               </View>
             )}
@@ -421,32 +346,24 @@ const ProfileScreen = () => {
             <View
               style={[styles.statsSection, { backgroundColor: colors.bubble }]}
             >
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text }]}>
-                  Reputation
-                </Text>
-                <Text style={[styles.statValue, { color: colors.payout }]}>
-                  {profile.reputation}
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text }]}>
-                  Hive Power
-                </Text>
-                <Text style={[styles.statValue, { color: colors.payout }]}>
-                  {profile.hivePower.toLocaleString()} HP
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.text }]}>
-                  HBD
-                </Text>
-                <Text style={[styles.statValue, { color: colors.payout }]}>
-                  ${profile.hbd.toFixed(2)}
-                </Text>
-              </View>
+              <StatItem
+                label="Reputation"
+                value={profile.reputation}
+                textColor={colors.text}
+                valueColor={colors.payout}
+              />
+              <StatItem
+                label="Hive Power"
+                value={`${profile.hivePower.toLocaleString()} HP`}
+                textColor={colors.text}
+                valueColor={colors.payout}
+              />
+              <StatItem
+                label="HBD"
+                value={`$${profile.hbd.toFixed(2)}`}
+                textColor={colors.text}
+                valueColor={colors.payout}
+              />
             </View>
 
             {/* Unclaimed Rewards Section - Only show for own profile with unclaimed rewards */}
@@ -526,25 +443,20 @@ const ProfileScreen = () => {
             {(profile.location || profile.website) && (
               <View style={styles.additionalInfo}>
                 {profile.location && (
-                  <View style={styles.infoRow}>
-                    <FontAwesome
-                      name='map-marker'
-                      size={16}
-                      color={colors.icon}
-                    />
-                    <Text style={[styles.infoText, { color: colors.text }]}>
-                      {profile.location}
-                    </Text>
-                  </View>
+                  <InfoRow
+                    icon="map-marker"
+                    text={profile.location}
+                    iconColor={colors.icon}
+                    textColor={colors.text}
+                  />
                 )}
-
                 {profile.website && (
-                  <View style={styles.infoRow}>
-                    <FontAwesome name='link' size={16} color={colors.icon} />
-                    <Text style={[styles.infoText, { color: colors.icon }]}>
-                      {profile.website}
-                    </Text>
-                  </View>
+                  <InfoRow
+                    icon="link"
+                    text={profile.website}
+                    iconColor={colors.icon}
+                    textColor={colors.icon}
+                  />
                 )}
               </View>
             )}
