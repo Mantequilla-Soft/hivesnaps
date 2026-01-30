@@ -43,12 +43,13 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     const recordingRef = useRef<Audio.Recording | null>(null);
     const soundRef = useRef<Audio.Sound | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const durationRef = useRef<number>(0);
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
             // Stop any active recording
-            if (recordingRef.current && isRecording) {
+            if (recordingRef.current) {
                 recordingRef.current.stopAndUnloadAsync().catch((e) => {
                     if (__DEV__) console.debug('[useAudioRecorder] Error stopping recording on unmount:', e);
                 });
@@ -69,10 +70,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 soundRef.current = null;
             }
         };
-    }, [isRecording]);
+    }, []); // Empty deps - only cleanup on unmount
 
     const startRecording = async () => {
         try {
+            if (__DEV__) console.log('[useAudioRecorder] Starting recording...');
             const { granted } = await Audio.requestPermissionsAsync();
             if (!granted) {
                 Alert.alert('Permission Required', 'Microphone permission is required to record audio.');
@@ -94,17 +96,25 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             setIsRecording(true);
             setDuration(0);
             setAudioBlob(null);
+            durationRef.current = 0;
+            if (__DEV__) console.log('[useAudioRecorder] Recording started, starting timer...');
 
-            // Start timer
+            // Start timer - updates every second
             timerRef.current = setInterval(() => {
-                setDuration((prev) => {
-                    const newDuration = prev + 1;
-                    if (newDuration >= MAX_DURATION) {
-                        stopRecording();
-                    }
-                    return newDuration;
-                });
+                durationRef.current += 1;
+                const newDuration = durationRef.current;
+
+                if (__DEV__) console.log('[useAudioRecorder] Duration update:', newDuration);
+
+                setDuration(newDuration);
+
+                if (newDuration >= MAX_DURATION) {
+                    if (__DEV__) console.log('[useAudioRecorder] Max duration reached, stopping...');
+                    stopRecording();
+                }
             }, 1000) as unknown as NodeJS.Timeout;
+
+            if (__DEV__) console.log('[useAudioRecorder] Timer started');
         } catch (error) {
             console.error('[useAudioRecorder] Error starting recording:', error);
             Alert.alert('Recording Error', 'Failed to start recording. Please try again.');
@@ -115,6 +125,8 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         if (!recordingRef.current || !isRecording) return;
 
         try {
+            const finalDuration = durationRef.current;
+            if (__DEV__) console.log('[useAudioRecorder] Stopping recording, duration:', finalDuration);
             await recordingRef.current.stopAndUnloadAsync();
             const uri = recordingRef.current.getURI();
 
@@ -130,9 +142,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             // Read audio file as blob
             const blob = await uriToBlob(uri);
             setAudioBlob(blob);
+            if (__DEV__) console.log('[useAudioRecorder] Blob created, size:', blob.size, 'duration:', finalDuration);
 
             recordingRef.current = null;
             setIsRecording(false);
+            // Duration state is preserved - don't reset it
         } catch (error) {
             console.error('[useAudioRecorder] Error stopping recording:', error);
             Alert.alert('Error', 'Failed to stop recording');
@@ -158,7 +172,18 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             if (isPlaying && soundRef.current) {
                 await soundRef.current.pauseAsync();
                 setIsPlaying(false);
+            } else if (soundRef.current && !isPlaying) {
+                // Resume playback
+                await soundRef.current.playAsync();
+                setIsPlaying(true);
             } else if (!soundRef.current) {
+                // Set audio mode for playback - route to speaker on iOS
+                await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true,
+                    staysActiveInBackground: false,
+                });
+
                 // Convert blob to data URI for playback
                 const reader = new FileReader();
                 reader.onload = async () => {
@@ -189,9 +214,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                     Alert.alert('Playback Error', `Failed to read audio file: ${errorMessage}`);
                 };
                 reader.readAsDataURL(audioBlob);
-            } else {
-                await soundRef.current.playAsync();
-                setIsPlaying(true);
             }
         } catch (error) {
             console.error('[useAudioRecorder] Error during playback:', error);
@@ -208,6 +230,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     const reset = () => {
         deleteRecording();
         setDuration(0);
+        durationRef.current = 0;
         setIsUploading(false);
     };
 
