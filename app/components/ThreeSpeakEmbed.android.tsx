@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, useColorScheme, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
+import { useKeepAwake } from 'expo-keep-awake';
 
 interface ThreeSpeakEmbedProps {
     embedUrl: string;
@@ -27,6 +28,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     const { width } = useWindowDimensions();
     const webViewRef = useRef<WebView>(null);
     const [showPlayButton, setShowPlayButton] = useState(false);
+
+    // Keep screen awake while 3speak video is displayed
+    useKeepAwake();
 
     // Calculate responsive height based on screen width (1:1 square)
     // Assumes some padding/margins in the parent container

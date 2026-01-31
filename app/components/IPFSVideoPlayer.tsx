@@ -4,10 +4,11 @@
  * Only loads the actual video when user clicks play
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Text, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { FontAwesome } from '@expo/vector-icons';
+import { useKeepAwake } from 'expo-keep-awake';
 
 interface IPFSVideoPlayerProps {
   ipfsUrl: string;
@@ -20,6 +21,13 @@ const IPFSVideoPlayer: React.FC<IPFSVideoPlayerProps> = ({
 }) => {
   const [showVideo, setShowVideo] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Keep screen awake while video is playing
+  useEffect(() => {
+    if (showVideo) {
+      useKeepAwake();
+    }
+  }, [showVideo]);
 
   const handlePlayPress = () => {
     setIsLoading(true);
