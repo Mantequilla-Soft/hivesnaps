@@ -20,29 +20,7 @@ import { Client, PrivateKey } from '@hiveio/dhive';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppStore } from '../../store/context';
-
-const twitterColors = {
-  light: {
-    background: '#FFFFFF',
-    text: '#0F1419',
-    inputBg: '#F7F9F9',
-    inputBorder: '#CFD9DE',
-    button: '#1DA1F2',
-    buttonText: '#FFFFFF',
-    info: '#536471',
-    footer: '#AAB8C2',
-  },
-  dark: {
-    background: '#15202B',
-    text: '#D7DBDC',
-    inputBg: '#22303C',
-    inputBorder: '#38444D',
-    button: '#1DA1F2',
-    buttonText: '#FFFFFF',
-    info: '#8899A6',
-    footer: '#38444D',
-  },
-};
+import { getTheme, palette } from '../../constants/Colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FIELD_WIDTH = SCREEN_WIDTH * 0.8;
@@ -61,7 +39,18 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [autoLoading, setAutoLoading] = useState(true); // New state for auto-login loading
   const colorScheme = useColorScheme() || 'light';
-  const colors = twitterColors[colorScheme];
+  const isDark = colorScheme === 'dark';
+  const theme = getTheme(isDark ? 'dark' : 'light');
+  const colors = {
+    background: theme.background,
+    text: theme.text,
+    inputBg: theme.bubble,
+    inputBorder: theme.inputBorder,
+    button: theme.button,
+    buttonText: theme.buttonText,
+    info: theme.textSecondary,
+    footer: isDark ? theme.border : palette.lightTabIcon,
+  };
   const router = useRouter();
   const { authenticate } = useAuth();
   const { setCurrentUser } = useAppStore();
@@ -380,7 +369,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-    color: twitterColors.light.footer, // fallback, will be overridden inline
+    color: palette.lightTabIcon, // fallback, will be overridden inline
     textAlign: 'center',
     width: '100%',
   },

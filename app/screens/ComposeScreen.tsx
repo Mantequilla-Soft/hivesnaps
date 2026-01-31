@@ -26,6 +26,7 @@ import { useCompose } from '../../hooks/useCompose';
 import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
+import { getTheme } from '../../constants/Colors';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
@@ -60,17 +61,20 @@ export default function ComposeScreen() {
   // UI-only refs
   const textInputRef = useRef<TextInput>(null);
 
-  // Memoized colors based on theme
-  const colors = useMemo(() => ({
-    background: isDark ? '#15202B' : '#fff',
-    text: isDark ? '#D7DBDC' : '#0F1419',
-    inputBg: isDark ? '#22303C' : '#F7F9F9',
-    inputBorder: isDark ? '#38444D' : '#CFD9DE',
-    button: '#1DA1F2',
-    buttonText: '#FFFFFF',
-    buttonInactive: isDark ? '#22303C' : '#E1E8ED',
-    info: isDark ? '#8899A6' : '#536471',
-  }), [isDark]);
+  // Memoized colors based on theme from centralized Colors
+  const colors = useMemo(() => {
+    const theme = getTheme(isDark ? 'dark' : 'light');
+    return {
+      background: theme.background,
+      text: theme.text,
+      inputBg: theme.bubble,
+      inputBorder: theme.inputBorder,
+      button: theme.button,
+      buttonText: theme.buttonText,
+      buttonInactive: theme.buttonInactive,
+      info: theme.textSecondary,
+    };
+  }, [isDark]);
 
   // Handle shared content when component mounts
   useEffect(() => {

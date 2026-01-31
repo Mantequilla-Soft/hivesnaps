@@ -42,6 +42,14 @@ This project is a React Native app using Expo (managed workflow) and TypeScript.
   - Hooks should never contain JSX or UI-related code
   - Components should be "dumb" - they receive props and render UI
 
+### Theming & Colors (MUST FOLLOW)
+- **NO hardcoded colors**: Never use hex values like `#1DA1F2` or `#15202B` directly in components or styles
+- **Use the centralized theme**: Import colors from `constants/Colors.ts`
+  - In components/screens: `import { useTheme } from '../hooks/useTheme'` then `const theme = useTheme()`
+  - In style factories: `import { getTheme } from '../constants/Colors'` then `const theme = getTheme(isDark ? 'dark' : 'light')`
+  - For raw palette colors (rare): `import { palette } from '../constants/Colors'`
+- **Adding new colors**: If a new color is needed, add it to `constants/Colors.ts` in the `palette` object and update the `Theme` interface if it's a semantic color
+
 ### Mobile UI Guidelines
 - Design for both iOS and Android platforms
 - Consider different screen sizes and orientations
