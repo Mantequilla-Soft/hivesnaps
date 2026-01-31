@@ -47,21 +47,4 @@ export function vestsToHp(
     return hp;
 }
 
-/**
- * Calculate reputation score from raw reputation value
- * Based on Hive's reputation algorithm
- * 
- * @param rawReputation - Raw reputation value from blockchain
- * @returns Formatted reputation score (0-100)
- */
-export function calculateReputation(rawReputation: number | string): number {
-    const rep = typeof rawReputation === 'string' ? parseInt(rawReputation, 10) : rawReputation;
 
-    if (rep === 0) return 25;
-
-    const neg = rep < 0;
-    const reputation = Math.log10(Math.abs(rep));
-    const out = reputation * 9 + 25;
-
-    return neg ? Math.max(out * -1, 0) : Math.min(out, 100);
-}

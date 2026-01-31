@@ -67,16 +67,27 @@ export const useProfileData = (username: string | undefined) => {
 
       const account = accounts[0];
 
-      // Method 2: Fetch reputation using syncad.com API (much more reliable!)
+      // Method 2: Fetch reputation with fallback
       let reputation = 25; // fallback
       try {
         console.log(
-          'Fetching reputation from syncad.com API for:',
+          'Fetching reputation from Hive API for:',
           username
         );
-        const reputationResponse = await fetch(
-          `https://api.syncad.com/reputation-api/accounts/${username}/reputation`
+        let reputationResponse = await fetch(
+          `https://api.hive.blog/reputation-api/accounts/${username}/reputation`
         );
+
+        // If primary fails, try fallback
+        if (!reputationResponse.ok) {
+          console.log(
+            'Primary API failed, trying fallback syncad.com API'
+          );
+          reputationResponse = await fetch(
+            `https://api.syncad.com/reputation-api/accounts/${username}/reputation`
+          );
+        }
+
         if (reputationResponse.ok) {
           const reputationText = await reputationResponse.text();
           const reputationNumber = parseInt(reputationText.trim(), 10);
@@ -94,8 +105,8 @@ export const useProfileData = (username: string | undefined) => {
           }
         } else {
           console.log(
-            'Failed to fetch reputation from API, status:',
-            reputationResponse.status
+            'Failed to fetch reputation from both APIs, using fallback:',
+            reputation
           );
         }
       } catch (reputationError) {
@@ -276,7 +287,7 @@ export const useProfileData = (username: string | undefined) => {
             setProfile(prev => (prev ? { ...prev, avatarUrl: url } : prev));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
 
       // Fetch accurate follow counts using the proper API
       try {
