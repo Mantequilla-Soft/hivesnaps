@@ -276,7 +276,7 @@ export const useProfileData = (username: string | undefined) => {
             setProfile(prev => (prev ? { ...prev, avatarUrl: url } : prev));
           }
         })
-        .catch(() => { });
+        .catch(() => {});
 
       // Fetch accurate follow counts using the proper API
       try {
