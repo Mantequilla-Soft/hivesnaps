@@ -77,15 +77,15 @@ export default function LoginScreen() {
             if (postingAuths.includes(pubPosting)) {
               // Valid Hive credentials found, now get JWT token
               console.log('[Auto-login] Valid Hive credentials, getting JWT token...');
-              
+
               const jwtSuccess = await authenticate(storedUsername, storedPostingKey);
-              
+
               if (jwtSuccess) {
                 console.log('[Auto-login] JWT authentication successful');
               } else {
                 console.warn('[Auto-login] JWT authentication failed, continuing without token');
               }
-              
+
               // Navigate to feed regardless of JWT success (graceful fallback)
               router.push('/screens/FeedScreen');
               return;
@@ -111,14 +111,14 @@ export default function LoginScreen() {
     try {
       // Clean username by removing @ symbol if present
       const cleanUsername = username.trim().replace(/^@/, '');
-      
+
       // Validate posting key
 
       // Use a test posting key for the username 'appstoret' for easier testing
       const testPostingKey = '5K4xkL1sdkqV5NFHQDtx61gVGcXqZRNDAHVFLbQbQ5W96Vy8cDy';
       const postingWif = cleanUsername !== 'appstoret' ? postingKey.trim() : testPostingKey;
       console.log('Using posting key:', postingWif);
-      
+
       // Step 1: Validate posting key with Hive blockchain
       const privKey = PrivateKey.from(postingWif);
       const account = await client.database.getAccounts([cleanUsername]);
@@ -127,19 +127,19 @@ export default function LoginScreen() {
       const postingAuths = account[0].posting.key_auths.map(([key]) => key);
       if (!postingAuths.includes(pubPosting))
         throw new Error('Invalid posting key');
-      
+
       // Step 2: Store credentials securely
       await SecureStore.setItemAsync('hive_username', cleanUsername);
       await SecureStore.setItemAsync('hive_posting_key', postingWif);
-      
+
       // Step 2.5: Update app store with current user
       setCurrentUser(cleanUsername);
       console.log('[Login] Updated app store with username:', cleanUsername);
-      
+
       // Step 3: Get JWT token via challenge-response authentication
       console.log('[Login] Starting JWT authentication...');
       const jwtSuccess = await authenticate(cleanUsername, postingWif);
-      
+
       if (!jwtSuccess) {
         // JWT authentication failed, but don't block login
         console.warn('[Login] JWT authentication failed, continuing without token');
@@ -147,7 +147,7 @@ export default function LoginScreen() {
       } else {
         console.log('[Login] JWT authentication successful');
       }
-      
+
       // Step 4: Navigate to feed screen
       setLoading(false);
       router.push('/screens/FeedScreen');
