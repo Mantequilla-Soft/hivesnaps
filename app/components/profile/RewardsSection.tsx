@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { vestsToHp } from '../../../utils/hiveCalculations';
+import { createProfileScreenStyles } from '../../../styles/ProfileScreenStyles';
 
 interface ColorScheme {
     text: string;
@@ -25,8 +26,7 @@ interface RewardsSectionProps {
     claimLoading: boolean;
     processing: boolean;
     colors: ColorScheme;
-    /** Styles object created by createProfileScreenStyles - typed as any due to dynamic creation */
-    styles: any;
+    styles: ReturnType<typeof createProfileScreenStyles>;
     handleClaimRewards: () => void;
 }
 

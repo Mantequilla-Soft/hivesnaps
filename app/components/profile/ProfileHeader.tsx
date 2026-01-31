@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { createProfileScreenStyles } from '../../../styles/ProfileScreenStyles';
 
 interface ColorScheme {
     text: string;
@@ -14,8 +15,7 @@ interface ProfileHeaderProps {
     displayName?: string;
     isOwnProfile: boolean;
     colors: ColorScheme;
-    /** Styles object created by createProfileScreenStyles - typed as any due to dynamic creation */
-    styles: any;
+    styles: ReturnType<typeof createProfileScreenStyles>;
     onEditAvatarPress: () => void;
 }
 

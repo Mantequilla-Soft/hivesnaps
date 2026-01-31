@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import Snap from '../Snap';
 import { SnapData } from '../../../hooks/useConversationData';
+import { createProfileScreenStyles } from '../../../styles/ProfileScreenStyles';
 
 interface ColorScheme {
     text: string;
@@ -28,8 +29,7 @@ interface ProfileSnapsProps {
     loadMoreLoading: boolean;
     currentUsername: string | null;
     colors: ColorScheme;
-    /** Styles object created by createProfileScreenStyles - typed as any due to dynamic creation */
-    styles: any;
+    styles: ReturnType<typeof createProfileScreenStyles>;
     fetchUserSnaps: () => void;
     loadMoreSnaps: () => void;
     convertUserSnapToSnapProps: (userSnap: UserSnap, currentUsername: string | null) => SnapData;
