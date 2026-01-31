@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { SafeAreaView as SafeAreaViewSA } from 'react-native-safe-area-context';
 import {
   View,
@@ -154,7 +154,7 @@ const ProfileScreen = () => {
   };
 
   // Handle snap bubble press (navigate to conversation)
-  const handleSnapPress = (snap: any) => {
+  const handleSnapPress = useCallback((snap: any) => {
     router.push({
       pathname: '/screens/ConversationScreen',
       params: {
@@ -162,10 +162,10 @@ const ProfileScreen = () => {
         permlink: snap.permlink,
       },
     });
-  };
+  }, [router]);
 
   // Handle reply to profile snap bubble
-  const handleSnapReply = (snap: any) => {
+  const handleSnapReply = useCallback((snap: any) => {
     router.push({
       pathname: '/screens/ConversationScreen',
       params: {
@@ -173,10 +173,10 @@ const ProfileScreen = () => {
         permlink: snap.permlink,
       },
     });
-  };
+  }, [router]);
 
   // Handle edit press
-  const handleEditPress = (snapData: {
+  const handleEditPress = useCallback((snapData: {
     author: string;
     permlink: string;
     body: string;
@@ -190,7 +190,16 @@ const ProfileScreen = () => {
         initialText: snapData.body
       }
     });
-  };
+  }, [router]);
+
+  // Handle resnap press
+  const handleResnapPress = useCallback((author: string, permlink: string) => {
+    const snapUrl = `https://hive.blog/@${author}/${permlink}`;
+    router.push({
+      pathname: '/screens/ComposeScreen',
+      params: { resnapUrl: snapUrl },
+    });
+  }, [router]);
 
   const handleBack = () => {
     router.back();
@@ -379,13 +388,7 @@ const ProfileScreen = () => {
               handleSnapReply={handleSnapReply}
               handleSnapPress={handleSnapPress}
               handleEditPress={handleEditPress}
-              onResnapPress={(author, permlink) => {
-                const snapUrl = `https://hive.blog/@${author}/${permlink}`;
-                router.push({
-                  pathname: '/screens/ComposeScreen',
-                  params: { resnapUrl: snapUrl },
-                });
-              }}
+              onResnapPress={handleResnapPress}
             />
 
             {/* Logout Button - Only show for own profile */}

@@ -20,7 +20,7 @@ interface ActionButtonProps {
  * Reusable action button component for ProfileScreen
  * Used for Follow/Unfollow/Block/Unblock actions
  */
-export const ActionButton: React.FC<ActionButtonProps> = ({
+export const ActionButton = React.memo<ActionButtonProps>(({
     icon,
     label,
     onPress,
@@ -47,7 +47,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
             <Text style={[styles.buttonText, { color: textColor }]}>{label}</Text>
         </TouchableOpacity>
     );
-};
+});
 
 const styles = StyleSheet.create({
     actionButton: {

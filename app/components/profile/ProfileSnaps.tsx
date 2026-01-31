@@ -4,6 +4,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import Snap from '../Snap';
 import { SnapData } from '../../../hooks/useConversationData';
 import { createProfileScreenStyles } from '../../../styles/ProfileScreenStyles';
+import { UserSnap } from '../../../hooks/useUserSnaps';
 
 interface ColorScheme {
     text: string;
@@ -11,13 +12,6 @@ interface ColorScheme {
     buttonText: string;
     buttonInactive: string;
     icon: string;
-}
-
-interface UserSnap {
-    author: string;
-    permlink: string;
-    body: string;
-    [key: string]: unknown;
 }
 
 interface ProfileSnapsProps {
