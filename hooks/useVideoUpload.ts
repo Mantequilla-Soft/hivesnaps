@@ -329,11 +329,24 @@ export function useVideoUpload(currentUsername: string | null) {
             const pickedVideo = result.assets[0];
             if (!pickedVideo?.uri) throw new Error('Unable to access selected video.');
 
-            const preparedAsset = await prepareLocalVideoAsset(pickedVideo.uri, {
-                filename: pickedVideo.fileName || `snapie-video-${Date.now()}.mp4`,
-                mimeType: pickedVideo.mimeType || 'video/mp4',
-                durationMs: typeof pickedVideo.duration === 'number' ? Math.round(pickedVideo.duration * 1000) : undefined,
-            });
+            // Prepare the video asset with better error handling for iCloud videos
+            let preparedAsset: LocalVideoAsset;
+            try {
+                preparedAsset = await prepareLocalVideoAsset(pickedVideo.uri, {
+                    filename: pickedVideo.fileName || `snapie-video-${Date.now()}.mp4`,
+                    mimeType: pickedVideo.mimeType || 'video/mp4',
+                    durationMs: typeof pickedVideo.duration === 'number' ? Math.round(pickedVideo.duration * 1000) : undefined,
+                });
+            } catch (prepareError: any) {
+                // Handle iCloud photo library errors specifically
+                const errorMsg = prepareError?.message || String(prepareError);
+                if (errorMsg.includes('PHPhotos') || errorMsg.includes('iCloud')) {
+                    throw new Error(
+                        'The selected video appears to be stored in iCloud. Please download it to your device first by ensuring it is fully saved locally. You can try: Settings > Photos > Download and Keep Originals.'
+                    );
+                }
+                throw prepareError;
+            }
 
             let thumbnail: VideoThumbnail | null = null;
             try {
@@ -379,15 +392,28 @@ export function useVideoUpload(currentUsername: string | null) {
                         return null;
                     }
                 })();
-            } catch (thumbnailError) {
-                console.warn('Failed to generate video thumbnail', thumbnailError);
+            } catch (thumbnailError: any) {
+                // Handle thumbnail generation errors gracefully - don't fail if thumbnail fails
+                const errorMsg = thumbnailError?.message || String(thumbnailError);
+                console.warn('Failed to generate video thumbnail:', errorMsg);
+                // Continue without thumbnail - it's not critical
             }
 
             dispatch({ type: 'SET_ASSET', payload: { asset: preparedAsset, thumbnail } });
             await startUpload(preparedAsset);
         } catch (error: any) {
             console.error('Video picker error:', error);
-            Alert.alert('Video Error', error instanceof Error ? error.message : 'Failed to add video. Please try again.');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to add video. Please try again.';
+
+            // Provide more context for specific errors
+            let userFriendlyMessage = errorMessage;
+            if (errorMessage.includes('iCloud') || errorMessage.includes('Download')) {
+                userFriendlyMessage = 'Video Access Issue\n\nThe video you selected may need to be downloaded locally. Try:\n\n1. Go to Settings > Photos\n2. Select "Download and Keep Originals"\n3. Try selecting the video again';
+            } else if (errorMessage.includes('PHPhotos')) {
+                userFriendlyMessage = 'This video format may not be supported. Try re-recording the video in-app or converting it to MP4 format first.';
+            }
+
+            Alert.alert('Video Error', userFriendlyMessage);
         }
     }, [state.uploading, state.asset, state.assetId, startUpload]);
 
