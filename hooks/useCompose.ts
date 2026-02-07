@@ -6,7 +6,7 @@ import { Client, PrivateKey } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { postSnapWithBeneficiaries } from '../services/snapPostingService';
-import { convertMultipleToJPEG } from '../utils/imageConverter';
+import { convertImageSmart } from '../utils/imageConverter';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import { useVideoUpload } from './useVideoUpload';
 import { useReply } from './useReply';
@@ -381,16 +381,13 @@ export function useCompose({
 
             dispatch({ type: 'SET_UPLOADING', payload: true });
             try {
-                const convertedImages = await convertMultipleToJPEG(
-                    result.assets.map(asset => asset.uri),
-                    0.8
-                );
-
-                const uploadPromises = convertedImages.map(async (converted, index) => {
+                // Convert each image smartly - only converts HEIC, preserves GIF/PNG
+                const uploadPromises = result.assets.map(async (asset, index) => {
+                    const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
                     const fileToUpload = {
                         uri: converted.uri,
-                        name: `compose-${Date.now()}-${index}.jpg`,
-                        type: 'image/jpeg',
+                        name: converted.name,
+                        type: converted.type,
                     };
                     const uploadResult = await uploadImageSmart(fileToUpload, state.currentUsername);
                     console.log(`[useCompose] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
