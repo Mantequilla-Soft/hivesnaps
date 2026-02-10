@@ -11,7 +11,7 @@ import {
     VideoThumbnail,
     VideoUploadProgress,
 } from '../services/threeSpeakUploadService';
-import { uploadThumbnailToIPFS } from '../utils/ipfsUpload';
+import { uploadImage, getHiveCredentials } from '../utils/imageUploadService';
 
 /**
  * Single state object for all video upload state
@@ -21,7 +21,7 @@ import { uploadThumbnailToIPFS } from '../utils/ipfsUpload';
 interface VideoUploadState {
     asset: LocalVideoAsset | null;
     thumbnail: VideoThumbnail | null;
-    thumbnailIpfsUrl: string | null;
+    thumbnailUrl: string | null;
     uploadProgress: VideoUploadProgress | null;
     uploading: boolean;
     error: string | null;
@@ -35,13 +35,13 @@ type VideoUploadAction =
     | { type: 'UPLOAD_PROGRESS'; payload: VideoUploadProgress }
     | { type: 'UPLOAD_SUCCESS'; payload: { assetId: string; uploadUrl: string } }
     | { type: 'UPLOAD_ERROR'; payload: string }
-    | { type: 'THUMBNAIL_IPFS_UPLOADED'; payload: string }
+    | { type: 'THUMBNAIL_UPLOADED'; payload: string }
     | { type: 'CLEAR' };
 
 const initialState: VideoUploadState = {
     asset: null,
     thumbnail: null,
-    thumbnailIpfsUrl: null,
+    thumbnailUrl: null,
     uploadProgress: null,
     uploading: false,
     error: null,
@@ -99,10 +99,10 @@ function videoUploadReducer(state: VideoUploadState, action: VideoUploadAction):
                 error: action.payload,
                 uploadProgress: null,
             };
-        case 'THUMBNAIL_IPFS_UPLOADED':
+        case 'THUMBNAIL_UPLOADED':
             return {
                 ...state,
-                thumbnailIpfsUrl: action.payload,
+                thumbnailUrl: action.payload,
             };
         case 'CLEAR':
             // Single action clears ALL 8 state variables - impossible to forget one
@@ -194,26 +194,26 @@ export function useVideoUpload(currentUsername: string | null) {
                 payload: { assetId: result.embedUrl, uploadUrl: result.uploadUrl },
             });
 
-            // Wait for thumbnail IPFS upload and set on 3Speak
+            // Wait for thumbnail upload and set on 3Speak
             if (thumbnailIpfsUploadPromiseRef.current && result.embedUrl) {
                 try {
-                    console.log('⏳ Waiting for thumbnail IPFS upload to complete...');
-                    const ipfsUrl = await thumbnailIpfsUploadPromiseRef.current;
+                    if (__DEV__) console.log('⏳ Waiting for thumbnail upload to complete...');
+                    const thumbnailUrl = await thumbnailIpfsUploadPromiseRef.current;
 
                     // Check if still mounted before making API call
                     if (!isMountedRef.current) return;
 
-                    if (ipfsUrl) {
-                        console.log('✅ Thumbnail IPFS upload complete, setting on 3Speak...');
+                    if (thumbnailUrl) {
+                        if (__DEV__) console.log('✅ Thumbnail upload complete, setting on 3Speak...');
                         const permlink = extractPermlinkFromEmbedUrl(result.embedUrl);
                         if (permlink) {
-                            await uploadThumbnailToThreeSpeak(permlink, ipfsUrl);
-                            console.log('✅ Thumbnail set on 3Speak for permlink:', permlink);
+                            await uploadThumbnailToThreeSpeak(permlink, thumbnailUrl);
+                            if (__DEV__) console.log('✅ Thumbnail set on 3Speak for permlink:', permlink);
                         } else {
-                            console.error('❌ Could not extract permlink from embedUrl:', result.embedUrl);
+                            if (__DEV__) console.error('❌ Could not extract permlink from embedUrl:', result.embedUrl);
                         }
                     } else {
-                        console.warn('⚠️ Thumbnail IPFS upload failed, skipping 3Speak thumbnail');
+                        if (__DEV__) console.warn('⚠️ Thumbnail upload failed, skipping 3Speak thumbnail');
                     }
                 } catch (thumbnailError) {
                     console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
@@ -339,19 +339,43 @@ export function useVideoUpload(currentUsername: string | null) {
             try {
                 thumbnail = await generateVideoThumbnail(pickedVideo.uri);
 
-                // Start uploading thumbnail to IPFS in parallel with video upload
-                console.log('Starting thumbnail upload to IPFS...');
+                // Start uploading thumbnail to images.hive.blog in parallel with video upload
+                if (__DEV__) console.log('Starting thumbnail upload to images.hive.blog...');
                 thumbnailIpfsUploadPromiseRef.current = (async () => {
                     try {
-                        const ipfsUrl = await uploadThumbnailToIPFS(thumbnail.uri);
+                        if (!currentUsername) {
+                            if (__DEV__) console.warn('⚠️ No username available, skipping thumbnail upload');
+                            return null;
+                        }
+
+                        const credentials = await getHiveCredentials(currentUsername);
+                        if (!credentials) {
+                            if (__DEV__) console.warn('⚠️ No Hive credentials, skipping thumbnail upload');
+                            return null;
+                        }
+
+                        const fileToUpload = {
+                            uri: thumbnail.uri,
+                            name: `video-thumbnail-${Date.now()}.jpg`,
+                            type: 'image/jpeg',
+                        };
+
+                        const result = await uploadImage(fileToUpload, {
+                            provider: 'hive',
+                            username: credentials.username,
+                            privateKey: credentials.privateKey,
+                            fallbackToCloudinary: false,
+                        });
+
+                        const thumbnailUrl = result.url;
                         // Only update state if component is still mounted
                         if (isMountedRef.current) {
-                            dispatch({ type: 'THUMBNAIL_IPFS_UPLOADED', payload: ipfsUrl });
-                            console.log('✅ Thumbnail uploaded to IPFS:', ipfsUrl);
+                            dispatch({ type: 'THUMBNAIL_UPLOADED', payload: thumbnailUrl });
+                            if (__DEV__) console.log('✅ Thumbnail uploaded to images.hive.blog:', thumbnailUrl);
                         }
-                        return ipfsUrl;
-                    } catch (ipfsError) {
-                        console.error('❌ Failed to upload thumbnail to IPFS:', ipfsError);
+                        return thumbnailUrl;
+                    } catch (uploadError) {
+                        if (__DEV__) console.error('❌ Failed to upload thumbnail:', uploadError);
                         return null;
                     }
                 })();
@@ -417,7 +441,7 @@ export function useVideoUpload(currentUsername: string | null) {
         // State
         asset: state.asset,
         thumbnail: state.thumbnail,
-        thumbnailIpfsUrl: state.thumbnailIpfsUrl,
+        thumbnailUrl: state.thumbnailUrl,
         uploadProgress: state.uploadProgress,
         uploading: state.uploading,
         error: state.error,
