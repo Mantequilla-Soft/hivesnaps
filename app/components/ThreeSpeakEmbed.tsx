@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, useColorScheme, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 interface ThreeSpeakEmbedProps {
   embedUrl: string;
@@ -23,8 +23,12 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const themeIsDark = isDark ?? colorScheme === 'dark';
   const { width } = useWindowDimensions();
 
-  // Keep screen awake while 3speak video is displayed
-  useKeepAwake();
+  // Deactivate keep-awake on unmount to prevent battery drain
+  useEffect(() => {
+    return () => {
+      deactivateKeepAwake('video-playback');
+    };
+  }, []);
 
   // Calculate responsive height based on screen width (1:1 square)
   const containerWidth = width - 32;
@@ -47,6 +51,37 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         javaScriptEnabled={true}
         domStorageEnabled={true}
         mixedContentMode="compatibility"
+        injectedJavaScript={`
+          (function() {
+            const video = document.querySelector('video');
+            if (video) {
+              video.addEventListener('play', () => {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'video-play' }));
+              });
+              video.addEventListener('pause', () => {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'video-pause' }));
+              });
+              video.addEventListener('ended', () => {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'video-pause' }));
+              });
+            }
+          })();
+          true;
+        `}
+        onMessage={(event) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === 'video-play') {
+              activateKeepAwakeAsync('video-playback').catch((err) => {
+                console.warn('[ThreeSpeakEmbed] Failed to activate keep-awake:', err);
+              });
+            } else if (data.type === 'video-pause') {
+              deactivateKeepAwake('video-playback');
+            }
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }}
       />
     </View>
   );

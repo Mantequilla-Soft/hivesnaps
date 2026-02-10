@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Text, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { FontAwesome } from '@expo/vector-icons';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 interface IPFSVideoPlayerProps {
   ipfsUrl: string;
@@ -25,8 +25,16 @@ const IPFSVideoPlayer: React.FC<IPFSVideoPlayerProps> = ({
   // Keep screen awake while video is playing
   useEffect(() => {
     if (showVideo) {
-      useKeepAwake();
+      activateKeepAwakeAsync('ipfs-video-playback').catch((err) => {
+        console.warn('[IPFSVideoPlayer] Failed to activate keep-awake:', err);
+      });
     }
+
+    return () => {
+      if (showVideo) {
+        deactivateKeepAwake('ipfs-video-playback');
+      }
+    };
   }, [showVideo]);
 
   const handlePlayPress = () => {
