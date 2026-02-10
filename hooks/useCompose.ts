@@ -6,7 +6,7 @@ import { Client, PrivateKey } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { postSnapWithBeneficiaries } from '../services/snapPostingService';
-import { convertImageSmart } from '../utils/imageConverter';
+import { convertImageSmart, convertToJPEG } from '../utils/imageConverter';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import { useVideoUpload } from './useVideoUpload';
 import { useReply } from './useReply';
@@ -382,15 +382,25 @@ export function useCompose({
             dispatch({ type: 'SET_UPLOADING', payload: true });
             try {
                 // Convert each image smartly - only converts HEIC, preserves GIF/PNG
+                // Recompress JPEGs to bound upload size when selecting multiple images
                 const uploadPromises = result.assets.map(async (asset, index) => {
                     const converted = await convertImageSmart(asset.uri, undefined, 0.8);
+
+                    // For JPEGs, recompress to quality 0.8 to keep upload size bounded
+                    let fileUri = converted.uri;
+                    let fileType = converted.type;
+                    if (converted.type === 'image/jpeg') {
+                        const recompressed = await convertToJPEG(converted.uri, 0.8);
+                        fileUri = recompressed.uri;
+                    }
+
                     // Extract file extension from converted name to maintain proper type
                     const extension = converted.name.split('.').pop() || 'jpg';
                     const fileToUpload = {
-                        uri: converted.uri,
+                        uri: fileUri,
                         // Ensure unique names for parallel uploads by including index and timestamp
                         name: `compose-${Date.now()}-${index}.${extension}`,
-                        type: converted.type,
+                        type: fileType,
                     };
                     const uploadResult = await uploadImageSmart(fileToUpload, state.currentUsername);
                     console.log(`[useCompose] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
