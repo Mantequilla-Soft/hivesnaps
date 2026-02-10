@@ -410,7 +410,7 @@ export function useVideoUpload(currentUsername: string | null) {
             if (errorMessage.includes('iCloud') || errorMessage.includes('Download')) {
                 userFriendlyMessage = 'Video Access Issue\n\nThe video you selected may need to be downloaded locally. Try:\n\n1. Go to Settings > Photos\n2. Select "Download and Keep Originals"\n3. Try selecting the video again';
             } else if (errorMessage.includes('PHPhotos')) {
-                userFriendlyMessage = 'This video format may not be supported. Try re-recording the video in-app or converting it to MP4 format first.';
+                userFriendlyMessage = 'Photos Access Issue\n\nWe could not access this video from your Photos library. It may still be stored in iCloud. Try opening the video in the Photos app to fully download it to your device, then return to HiveSnaps and select it again.';
             }
 
             Alert.alert('Video Error', userFriendlyMessage);
