@@ -383,7 +383,7 @@ export function useCompose({
             try {
                 // Convert each image smartly - only converts HEIC, preserves GIF/PNG
                 const uploadPromises = result.assets.map(async (asset, index) => {
-                    const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
+                    const converted = await convertImageSmart(asset.uri, undefined, 0.8);
                     const fileToUpload = {
                         uri: converted.uri,
                         name: converted.name,
