@@ -73,6 +73,8 @@ export default function ComposeScreen() {
       buttonText: theme.buttonText,
       buttonInactive: theme.buttonInactive,
       info: theme.textSecondary,
+      warning: theme.warning,
+      danger: theme.error,
     };
   }, [isDark]);
 
@@ -352,9 +354,9 @@ export default function ComposeScreen() {
                 {
                   color:
                     compose.state.text.length > 260
-                      ? '#e74c3c'
+                      ? colors.danger
                       : compose.state.text.length > 240
-                        ? '#f39c12'
+                        ? colors.warning
                         : colors.info,
                 },
               ]}
@@ -727,7 +729,10 @@ export default function ComposeScreen() {
                     </>
                   )}
                 </TouchableOpacity>
-                <Text style={[styles.buttonLabel, { color: compose.state.images.length >= 10 ? colors.info : colors.text }]}>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.state.images.length >= 10 ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.state.images.length} images selected out of 10 maximum`}
+                >
                   {compose.state.images.length}/10
                 </Text>
               </View>
@@ -761,7 +766,10 @@ export default function ComposeScreen() {
                     </View>
                   )}
                 </TouchableOpacity>
-                <Text style={[styles.buttonLabel, { color: compose.state.gifs.length >= 5 ? colors.info : colors.text }]}>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.state.gifs.length >= 5 ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.state.gifs.length} GIFs selected out of 5 maximum`}
+                >
                   {compose.state.gifs.length}/5
                 </Text>
               </View>
@@ -818,17 +826,26 @@ export default function ComposeScreen() {
             </View>
 
             {compose.state.images.length === 0 && !compose.state.uploading && (
-              <Text style={[styles.hintText, { color: colors.info }]}>
+              <Text
+                style={[styles.hintText, { color: colors.info }]}
+                accessibilityLabel="Tip: Select up to 10 images at once from gallery"
+              >
                 💡 Select up to 10 images at once from gallery
               </Text>
             )}
             {compose.state.images.length >= 10 && (
-              <Text style={[styles.limitText, { color: '#f39c12' }]}>
+              <Text
+                style={[styles.limitText, { color: colors.warning }]}
+                accessibilityLabel="Warning: Maximum 10 images reached"
+              >
                 ⚠️ Maximum 10 images reached
               </Text>
             )}
             {compose.state.gifs.length >= 5 && (
-              <Text style={[styles.limitText, { color: '#f39c12' }]}>
+              <Text
+                style={[styles.limitText, { color: colors.warning }]}
+                accessibilityLabel="Warning: Maximum 5 GIFs reached"
+              >
                 ⚠️ Maximum 5 GIFs reached
               </Text>
             )}
