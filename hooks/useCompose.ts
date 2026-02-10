@@ -384,9 +384,12 @@ export function useCompose({
                 // Convert each image smartly - only converts HEIC, preserves GIF/PNG
                 const uploadPromises = result.assets.map(async (asset, index) => {
                     const converted = await convertImageSmart(asset.uri, undefined, 0.8);
+                    // Extract file extension from converted name to maintain proper type
+                    const extension = converted.name.split('.').pop() || 'jpg';
                     const fileToUpload = {
                         uri: converted.uri,
-                        name: converted.name,
+                        // Ensure unique names for parallel uploads by including index and timestamp
+                        name: `compose-${Date.now()}-${index}.${extension}`,
                         type: converted.type,
                     };
                     const uploadResult = await uploadImageSmart(fileToUpload, state.currentUsername);
