@@ -20,7 +20,7 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
     },
     postButton: {
-        // Additional styles for post button
+        paddingHorizontal: 20,
     },
     headerButtonText: {
         fontSize: 16,
