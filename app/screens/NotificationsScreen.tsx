@@ -48,6 +48,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   onMarkAsRead,
   isDark,
 }) => {
+  // Compute theme once per render
+  const theme = getTheme(isDark ? 'dark' : 'light');
+
   // Convert UTC timestamp to local time before formatting
   const rawTimestamp = notification.date;
   // Parse as UTC and let JS handle local conversion
@@ -70,11 +73,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
         styles.notificationItem,
         {
           backgroundColor: notification.read
-            ? getTheme(isDark ? 'dark' : 'light').background
+            ? theme.background
             : isDark
-              ? '#1C2938'
-              : '#F0F8FF',
-          borderBottomColor: getTheme(isDark ? 'dark' : 'light').border,
+              ? palette.darkBubbleHighlight
+              : palette.lightBackgroundHighlight,
+          borderBottomColor: theme.border,
         },
       ]}
       onPress={handlePress}
@@ -102,7 +105,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
               style={[
                 styles.notificationMessage,
                 {
-                  color: getTheme(isDark ? 'dark' : 'light').text,
+                  color: theme.text,
                   fontWeight: notification.read ? 'normal' : '600',
                 },
               ]}
@@ -123,7 +126,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
             <Text
               style={[
                 styles.timeText,
-                { color: getTheme(isDark ? 'dark' : 'light').textSecondary },
+                { color: theme.textSecondary },
               ]}
             >
               {translatedTimestamp}
