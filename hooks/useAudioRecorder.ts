@@ -176,7 +176,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             if (isPlaying && soundRef.current) {
                 await soundRef.current.pauseAsync();
                 setIsPlaying(false);
-            } else if (soundRef.current && !isPlaying) {
+            } else if (soundRef.current) {
                 // Resume playback
                 await soundRef.current.playAsync();
                 setIsPlaying(true);
