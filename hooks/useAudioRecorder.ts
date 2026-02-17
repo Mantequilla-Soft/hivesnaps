@@ -110,7 +110,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
                 if (newDuration >= MAX_DURATION) {
                     if (__DEV__) console.log('[useAudioRecorder] Max duration reached, stopping...');
-                    stopRecording();
+                    if (timerRef.current) {
+                        clearInterval(timerRef.current);
+                        timerRef.current = null;
+                    }
+                    void stopRecording();
                 }
             }, 1000) as unknown as NodeJS.Timeout;
 
