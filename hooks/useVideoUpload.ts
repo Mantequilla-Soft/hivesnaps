@@ -216,13 +216,13 @@ export function useVideoUpload(currentUsername: string | null) {
                         if (__DEV__) console.warn('⚠️ Thumbnail upload failed, skipping 3Speak thumbnail');
                     }
                 } catch (thumbnailError) {
-                    console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
+                    if (__DEV__) console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
                 } finally {
                     // Always clear promise reference after completion/error
                     thumbnailIpfsUploadPromiseRef.current = null;
                 }
             } else {
-                console.warn('⚠️ No thumbnail upload in progress');
+                if (__DEV__) console.warn('⚠️ No thumbnail upload in progress');
             }
         } catch (error: any) {
             // Only update state if component is still mounted
@@ -231,7 +231,7 @@ export function useVideoUpload(currentUsername: string | null) {
             if (cancelRequestedRef.current) {
                 dispatch({ type: 'CLEAR' });
             } else {
-                console.error('3Speak video upload failed:', error);
+                if (__DEV__) console.error('3Speak video upload failed:', error);
                 const message = error instanceof Error ? error.message : 'Failed to upload video. Please try again.';
                 dispatch({ type: 'UPLOAD_ERROR', payload: message });
             }

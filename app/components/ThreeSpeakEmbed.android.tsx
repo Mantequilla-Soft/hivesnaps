@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, useColorScheme, useWindowDimensions, TouchableOpacity } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, useColorScheme, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
 
 interface ThreeSpeakEmbedProps {
     embedUrl: string;
@@ -26,219 +25,95 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     const themeIsDark = isDark ?? colorScheme === 'dark';
     const { width } = useWindowDimensions();
     const webViewRef = useRef<WebView>(null);
-    const [showPlayButton, setShowPlayButton] = useState(false);
 
     // Calculate responsive height based on screen width (1:1 square)
-    // Assumes some padding/margins in the parent container
-    const containerWidth = width - 32; // Account for horizontal padding
-    const videoHeight = containerWidth; // Square aspect ratio
+    const containerWidth = width - 32;
+    const videoHeight = containerWidth;
 
-    // Handle play button tap - re-enter fullscreen or play if paused
-    const handlePlayButtonPress = () => {
-        setShowPlayButton(false);
-        // Inject JS to request fullscreen (and play if paused) with error handling
-        webViewRef.current?.injectJavaScript(`
-            (function() {
-                const video = document.querySelector('video');
-                if (!video) {
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({
-                        type: 'fullscreen-error',
-                        message: 'Video element not found'
-                    }));
-                    return;
-                }
-                
-                // If paused, play first
-                if (video.paused) {
-                    video.play().catch(err => {
-                        console.error('Play failed:', err);
-                    });
-                }
-                
-                // Request fullscreen with error handling
-                setTimeout(() => {
-                    let fullscreenPromise = null;
-                    
-                    if (video.requestFullscreen) {
-                        fullscreenPromise = video.requestFullscreen();
-                    } else if (video.webkitRequestFullscreen) {
-                        fullscreenPromise = video.webkitRequestFullscreen();
-                    } else if (video.mozRequestFullScreen) {
-                        fullscreenPromise = video.mozRequestFullScreen();
-                    }
-                    
-                    if (fullscreenPromise && typeof fullscreenPromise.catch === 'function') {
-                        fullscreenPromise.catch(err => {
-                            console.error('Fullscreen request failed:', err);
-                            window.ReactNativeWebView?.postMessage(JSON.stringify({
-                                type: 'fullscreen-error',
-                                message: 'Fullscreen not supported or denied'
-                            }));
-                        });
-                    } else if (!fullscreenPromise) {
-                        window.ReactNativeWebView?.postMessage(JSON.stringify({
-                            type: 'fullscreen-error',
-                            message: 'Fullscreen API not available'
-                        }));
-                    }
-                }, 100);
-            })();
-            true;
-        `);
-    };
+    // Add controls=0 to hide native controls
+    const modifiedEmbedUrl = embedUrl.includes('?')
+        ? `${embedUrl}&controls=0`
+        : `${embedUrl}?controls=0`;
 
-    // JavaScript to auto-trigger fullscreen when video plays on Android
+    // Direct video element control (no iframe)
     const injectedJavaScript = `
         (function() {
-            const processedVideos = new WeakSet(); // Track videos that already have listeners
-            let fullscreenListenersAdded = false; // Ensure document listeners added only once
-            
-            // Function to attempt fullscreen on a video element
-            function requestFullscreen(video) {
-                if (!video) return false;
-                
-                try {
-                    // Standard fullscreen APIs for Android
-                    if (video.requestFullscreen) {
-                        video.requestFullscreen();
-                        return true;
-                    } else if (video.webkitRequestFullscreen) {
-                        video.webkitRequestFullscreen();
-                        return true;
-                    } else if (video.mozRequestFullScreen) {
-                        video.mozRequestFullScreen();
-                        return true;
-                    }
-                } catch (e) {
-                    console.log('Fullscreen request failed:', e);
-                }
-                return false;
+            if (window.__threespeakInit) return;
+            window.__threespeakInit = true;
+
+            const log = (msg) => window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'log', msg }));
+            log('🎥 Init');
+
+            let previewOverlay = null;
+            let fullscreenOverlay = null;
+            let video = null;
+
+            function createOverlay() {
+                const o = document.createElement('div');
+                o.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;z-index:999999;';
+                const b = document.createElement('div');
+                b.innerHTML = '▶';
+                b.style.cssText = 'width:80px;height:80px;background:rgba(255,255,255,0.9);border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:40px;color:#000;';
+                b.onclick = (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    log('▶️ Clicked');
+                    o.style.display = 'none';
+                    video.play();
+                    setTimeout(() => {
+                        if (video.requestFullscreen) video.requestFullscreen();
+                        else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+                    }, 100);
+                };
+                o.appendChild(b);
+                return o;
             }
-            
-            // Setup document-level fullscreen exit detection (called once)
-            function setupDocumentFullscreenListeners() {
-                if (fullscreenListenersAdded) return; // Already added
-                fullscreenListenersAdded = true;
-                
-                // Standard fullscreen change events
-                document.addEventListener('fullscreenchange', () => {
-                    if (!document.fullscreenElement) {
-                        const video = document.querySelector('video');
-                        window.ReactNativeWebView?.postMessage(JSON.stringify({
-                            type: 'fullscreen-exit',
-                            paused: video ? video.paused : false
-                        }));
-                    }
-                });
-                
-                document.addEventListener('webkitfullscreenchange', () => {
-                    if (!document.webkitFullscreenElement) {
-                        const video = document.querySelector('video');
-                        window.ReactNativeWebView?.postMessage(JSON.stringify({
-                            type: 'fullscreen-exit',
-                            paused: video ? video.paused : false
-                        }));
-                    }
-                });
-            }
-            
-            // Notify React Native when video exits fullscreen
-            function setupFullscreenExitDetection(video) {
+
+            function setup() {
+                video = document.querySelector('video');
+                log('Video: ' + !!video);
                 if (!video) return;
-                
-                // Setup document-level listeners once
-                setupDocumentFullscreenListeners();
-            }
-            
-            // Attach listeners to a video element (only once per video)
-            function attachVideoListeners(video) {
-                if (!video || processedVideos.has(video)) {
-                    return; // Already processed this video
-                }
-                
-                processedVideos.add(video);
-                setupFullscreenExitDetection(video);
-                
-                let isFirstPlay = true;
-                video.addEventListener('play', () => {
-                    if (isFirstPlay) {
-                        isFirstPlay = false;
-                        // Wait for video to be properly rendered before fullscreen
-                        setTimeout(() => {
-                            // Double-check video has dimensions before going fullscreen
-                            if (video.videoWidth > 0 && video.videoHeight > 0) {
-                                requestFullscreen(video);
-                            } else {
-                                // If dimensions not ready, wait a bit more and try again
-                                setTimeout(() => {
-                                    if (video.videoWidth > 0 && video.videoHeight > 0) {
-                                        requestFullscreen(video);
-                                    } else {
-                                        // Video dimensions still not ready - likely a loading issue
-                                        console.error('Video dimensions not available after retries:', {
-                                            videoWidth: video.videoWidth,
-                                            videoHeight: video.videoHeight,
-                                            readyState: video.readyState
-                                        });
-                                        window.ReactNativeWebView?.postMessage(JSON.stringify({
-                                            type: 'fullscreen-error',
-                                            message: 'Video dimensions not loaded'
-                                        }));
-                                    }
-                                }, 200);
-                            }
-                        }, 300);
-                    }
-                });
-            }
-            
-            // Check for video in main document
-            function checkMainVideo() {
-                const video = document.querySelector('video');
-                if (video) {
-                    attachVideoListeners(video);
-                    return video.videoWidth > 0 && video.videoHeight > 0;
-                }
-                return false;
-            }
-            
-            // Check for video in iframes (3Speak may use iframe-based player)
-            function checkIframeVideos() {
-                const iframes = document.querySelectorAll('iframe');
-                let foundWithDimensions = false;
-                
-                iframes.forEach((iframe) => {
-                    try {
-                        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                        if (iframeDoc) {
-                            const video = iframeDoc.querySelector('video');
-                            if (video) {
-                                attachVideoListeners(video);
-                                if (video.videoWidth > 0 && video.videoHeight > 0) {
-                                    foundWithDimensions = true;
-                                }
-                            }
+
+                const container = video.parentElement;
+                container.style.position = 'relative';
+
+                previewOverlay = createOverlay();
+                container.appendChild(previewOverlay);
+                log('✅ Ready');
+
+                video.onclick = (e) => {
+                    const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+                    if (fs && !video.paused) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        video.pause();
+                        if (!fullscreenOverlay) {
+                            fullscreenOverlay = createOverlay();
+                            container.appendChild(fullscreenOverlay);
                         }
-                    } catch (e) {
-                        console.warn('ThreeSpeakEmbed: Unable to access iframe content (likely cross-origin). Video inside iframe may not be detected.', e);
+                        fullscreenOverlay.style.display = 'flex';
                     }
-                });
-                
-                return foundWithDimensions;
+                };
+
+                const exitFS = () => {
+                    if (!(document.fullscreenElement || document.webkitFullscreenElement)) {
+                        video.pause();
+                        if (fullscreenOverlay) fullscreenOverlay.remove();
+                        previewOverlay.style.display = 'flex';
+                    }
+                };
+
+                document.addEventListener('fullscreenchange', exitFS);
+                document.addEventListener('webkitfullscreenchange', exitFS);
             }
-            
-            // Poll for video elements with timeout protection
-            let checks = 0;
-            const maxChecks = 50; // 5 seconds max at 100ms interval
-            const checkVideo = setInterval(() => {
-                const mainReady = checkMainVideo();
-                const iframeReady = checkIframeVideos();
-                
-                // Stop polling when video is found AND has dimensions, or timeout
-                if ((mainReady || iframeReady) || ++checks >= maxChecks) {
-                    clearInterval(checkVideo);
+
+            let c = 0;
+            const check = setInterval(() => {
+                if (document.querySelector('video') || ++c > 20) {
+                    clearInterval(check);
+                    setup();
                 }
-            }, 100);
+            }, 200);
         })();
         true;
     `;
@@ -255,7 +130,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         >
             <WebView
                 ref={webViewRef}
-                source={{ uri: embedUrl }}
+                source={{ uri: modifiedEmbedUrl }}
                 style={{ flex: 1, backgroundColor: themeIsDark ? '#000' : '#fff' }}
                 allowsFullscreenVideo={true}
                 allowsInlineMediaPlayback={false}
@@ -267,51 +142,24 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
                 onMessage={(event) => {
                     try {
                         const data = JSON.parse(event.nativeEvent.data);
-                        if (data.type === 'fullscreen-exit') {
-                            // Android: Always show overlay after exiting fullscreen.
-                            // Unlike the iOS implementation (ThreeSpeakEmbed.ios.tsx), which uses native
-                            // fullscreen that typically auto-pauses on exit, Android videos can continue
-                            // playing in the WebView without accessible controls after exiting.
-                            // The overlay is therefore required to re-enter fullscreen on Android,
-                            // regardless of the video's play state. This comment explains the
-                            // behavioral difference between platforms; iOS logic lives in its own file.
-                            setShowPlayButton(true);
-                        } else if (data.type === 'fullscreen-error') {
-                            // Fullscreen failed, show overlay again to allow retry
-                            console.warn('[ThreeSpeakEmbed] Fullscreen error:', data.message);
-                            setShowPlayButton(true);
+                        if (data.type === 'log') {
+                            console.log('[3Speak WebView]', data.msg);
                         }
                     } catch (e) {
-                        // Ignore parsing errors
+                        // Ignore
                     }
                 }}
                 onShouldStartLoadWithRequest={request => {
-                    // Allow 3Speak URLs (legacy and new play subdomain), block others
                     try {
                         const parsedUrl = new URL(request.url);
                         const hostname = parsedUrl.hostname.toLowerCase();
                         const allowedHosts = new Set(['3speak.tv', '3speak.online', 'play.3speak.tv']);
                         return allowedHosts.has(hostname);
                     } catch {
-                        // If the URL cannot be parsed, block the navigation
                         return false;
                     }
                 }}
             />
-            {/* Overlay after exiting fullscreen - tap to re-enter fullscreen */}
-            {showPlayButton && (
-                <TouchableOpacity
-                    style={styles.playButtonOverlay}
-                    onPress={handlePlayButtonPress}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Play 3Speak video"
-                >
-                    <View style={styles.playButtonContainer}>
-                        <Ionicons name="play-circle" size={80} color="rgba(255,255,255,0.9)" />
-                    </View>
-                </TouchableOpacity>
-            )}
             {/* 3Speak type indicator */}
             <View
                 style={[styles.indicator, { backgroundColor: 'rgba(0,123,255,0.8)' }]}
@@ -334,16 +182,6 @@ const styles = StyleSheet.create({
     indicatorText: {
         fontSize: 10,
         fontWeight: 'bold',
-    },
-    playButtonOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.3)',
-    },
-    playButtonContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
     },
 });
 
