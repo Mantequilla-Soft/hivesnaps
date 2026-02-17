@@ -28,13 +28,11 @@ const IPFSVideoPlayer: React.FC<IPFSVideoPlayerProps> = ({
       activateKeepAwakeAsync('ipfs-video-playback').catch((err) => {
         console.warn('[IPFSVideoPlayer] Failed to activate keep-awake:', err);
       });
-    }
 
-    return () => {
-      if (showVideo) {
+      return () => {
         deactivateKeepAwake('ipfs-video-playback');
-      }
-    };
+      };
+    }
   }, [showVideo]);
 
   const handlePlayPress = () => {
