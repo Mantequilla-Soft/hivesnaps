@@ -17,6 +17,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import Modal from 'react-native-modal';
+import { getTheme, palette } from '../../constants/Colors';
 
 import {
   formatNotificationTime,
@@ -47,6 +48,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   onMarkAsRead,
   isDark,
 }) => {
+  // Compute theme once per render
+  const theme = getTheme(isDark ? 'dark' : 'light');
+
   // Convert UTC timestamp to local time before formatting
   const rawTimestamp = notification.date;
   // Parse as UTC and let JS handle local conversion
@@ -69,13 +73,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
         styles.notificationItem,
         {
           backgroundColor: notification.read
-            ? isDark
-              ? '#15202B'
-              : '#fff'
+            ? theme.background
             : isDark
-              ? '#1C2938'
-              : '#F0F8FF',
-          borderBottomColor: isDark ? '#38444D' : '#E1E8ED',
+              ? palette.darkBubbleHighlight
+              : palette.lightBackgroundHighlight,
+          borderBottomColor: theme.border,
         },
       ]}
       onPress={handlePress}
@@ -103,7 +105,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
               style={[
                 styles.notificationMessage,
                 {
-                  color: isDark ? '#D7DBDC' : '#0F1419',
+                  color: theme.text,
                   fontWeight: notification.read ? 'normal' : '600',
                 },
               ]}
@@ -124,13 +126,13 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
             <Text
               style={[
                 styles.timeText,
-                { color: isDark ? '#8899A6' : '#657786' },
+                { color: theme.textSecondary },
               ]}
             >
               {translatedTimestamp}
             </Text>
             {notification.amount && (
-              <Text style={[styles.amountText, { color: '#17BF63' }]}>
+              <Text style={[styles.amountText, { color: palette.success }]}>
                 {notification.amount}
               </Text>
             )}
@@ -162,13 +164,14 @@ const NotificationsScreen = () => {
     updateSettings,
   } = useNotifications(currentUsername);
 
+  const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
-    background: isDark ? '#15202B' : '#fff',
-    text: isDark ? '#D7DBDC' : '#0F1419',
-    subtext: isDark ? '#8899A6' : '#657786',
-    border: isDark ? '#38444D' : '#E1E8ED',
-    cardBackground: isDark ? '#1C2938' : '#F8F9FA',
-    buttonBackground: isDark ? '#1DA1F2' : '#1DA1F2',
+    background: theme.background,
+    text: theme.text,
+    subtext: theme.textSecondary,
+    border: theme.border,
+    cardBackground: isDark ? palette.darkBubbleHighlight : palette.lightBubble,
+    buttonBackground: theme.button,
   };
 
   // Load username on mount

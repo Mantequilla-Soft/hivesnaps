@@ -30,6 +30,7 @@ import { useMutedList } from '../../store/context';
 import Snap from '../components/Snap';
 // ContentModal and GifPickerModal removed - now using ComposeScreen
 import genericAvatar from '../../assets/images/generic-avatar.png';
+import { getTheme } from '../../constants/Colors';
 
 const HivePostScreen = () => {
   const { author, permlink } = useLocalSearchParams<{
@@ -139,15 +140,16 @@ const HivePostScreen = () => {
 
   // Removed handleOpenGifPicker and handleSelectGif - now handled in ComposeScreen
 
+  const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
-    background: isDark ? '#15202B' : '#fff',
-    text: isDark ? '#D7DBDC' : '#0F1419',
-    border: isDark ? '#38444D' : '#E1E8ED',
-    icon: isDark ? '#8899A6' : '#657786',
-    button: isDark ? '#1DA1F2' : '#1DA1F2',
-    buttonText: '#FFFFFF',
-    buttonInactive: isDark ? '#38444D' : '#E1E8ED',
-    payout: '#17BF63',
+    background: theme.background,
+    text: theme.text,
+    border: theme.border,
+    icon: theme.textSecondary,
+    button: theme.button,
+    buttonText: theme.buttonText,
+    buttonInactive: theme.buttonInactive,
+    payout: theme.payout,
   };
 
   const windowWidth = Dimensions.get('window').width;

@@ -1,29 +1,20 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, useColorScheme } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-
-const twitterColors = {
-  light: {
-    background: '#FFFFFF',
-    text: '#0F1419',
-    bubble: '#F7F9F9',
-    border: '#CFD9DE',
-    icon: '#1DA1F2',
-    payout: '#17BF63',
-  },
-  dark: {
-    background: '#15202B',
-    text: '#D7DBDC',
-    bubble: '#22303C',
-    border: '#38444D',
-    icon: '#1DA1F2',
-    payout: '#17BF63',
-  },
-};
+import { getTheme } from '../../constants/Colors';
 
 export default function SnapMock() {
   const colorScheme = useColorScheme() || 'light';
-  const colors = twitterColors[colorScheme];
+  const isDark = colorScheme === 'dark';
+  const theme = getTheme(isDark ? 'dark' : 'light');
+  const colors = {
+    background: theme.background,
+    text: theme.text,
+    bubble: theme.bubble,
+    border: theme.border,
+    icon: theme.icon,
+    payout: theme.payout,
+  };
 
   return (
     <View

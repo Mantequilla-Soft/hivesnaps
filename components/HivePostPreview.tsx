@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { HivePostInfo } from '../utils/extractHivePostInfo';
 import { formatDistanceToNow } from 'date-fns';
 import { getHivePostPreviewNavigationInfo } from '../utils/extractHivePostInfo';
+import { getTheme, palette } from '../constants/Colors';
 
 interface HivePostPreviewProps {
   postInfo: HivePostInfo;
@@ -33,14 +34,15 @@ export const HivePostPreview: React.FC<HivePostPreviewProps> = ({
   const router = useRouter();
   const windowWidth = Dimensions.get('window').width;
 
+  const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
-    background: isDark ? '#22303C' : '#f7f9f9',
-    border: isDark ? '#38444D' : '#e1e8ed',
-    text: isDark ? '#D7DBDC' : '#0F1419',
-    textSecondary: isDark ? '#8B98A5' : '#536471',
-    icon: '#1DA1F2',
-    payout: '#17BF63',
-    accent: isDark ? '#1A8CD8' : '#1DA1F2',
+    background: theme.bubble,
+    border: theme.border,
+    text: theme.text,
+    textSecondary: theme.textSecondary,
+    icon: theme.icon,
+    payout: theme.payout,
+    accent: isDark ? palette.primaryDark : palette.primary,
   };
 
   // Format relative time

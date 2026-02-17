@@ -49,6 +49,7 @@ import StaticContentModal from '../../components/StaticContentModal';
 import UpvoteModal from '../../components/UpvoteModal';
 import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
+import { getTheme } from '../../constants/Colors';
 
 
 // Modal content constants
@@ -100,25 +101,6 @@ const EMPTY_STATE_MESSAGES = {
   newest: "No snaps to display.",
 } as const;
 
-const twitterColors = {
-  light: {
-    background: '#FFFFFF',
-    text: '#0F1419',
-    button: '#1DA1F2',
-    buttonText: '#FFFFFF',
-    buttonInactive: '#E1E8ED',
-    icon: '#1DA1F2',
-  },
-  dark: {
-    background: '#15202B',
-    text: '#D7DBDC',
-    button: '#1DA1F2',
-    buttonText: '#FFFFFF',
-    buttonInactive: '#22303C',
-    icon: '#1DA1F2',
-  },
-};
-
 const FeedScreenRefactored = () => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -130,21 +112,16 @@ const FeedScreenRefactored = () => {
   const currentUser = useCurrentUser();
   const { cacheStats, isAnyLoading: isAppLoading } = useAppDebug();
 
-  // Theme colors
+  // Theme colors from centralized theme
+  const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
-    background: isDark
-      ? twitterColors.dark.background
-      : twitterColors.light.background,
-    text: isDark ? twitterColors.dark.text : twitterColors.light.text,
-    button: isDark ? twitterColors.dark.button : twitterColors.light.button,
-    buttonText: isDark
-      ? twitterColors.dark.buttonText
-      : twitterColors.light.buttonText,
-    buttonInactive: isDark
-      ? twitterColors.dark.buttonInactive
-      : twitterColors.light.buttonInactive,
-    icon: isDark ? twitterColors.dark.icon : twitterColors.light.icon,
-    bubble: isDark ? '#192734' : '#f0f0f0',
+    background: theme.background,
+    text: theme.text,
+    button: theme.button,
+    buttonText: theme.buttonText,
+    buttonInactive: theme.buttonInactive,
+    icon: theme.icon,
+    bubble: theme.bubble,
   };
 
   // Initialize styles

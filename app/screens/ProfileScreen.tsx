@@ -10,6 +10,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
+import { getTheme } from '../../constants/Colors';
 import Snap from '../components/Snap';
 import UpvoteModal from '../../components/UpvoteModal';
 import { ActionButton } from '../components/profile/ActionButton';
@@ -137,20 +138,21 @@ const ProfileScreen = () => {
   // Initialize styles
   const styles = createProfileScreenStyles(isDark);
 
-  // Colors for JSX elements (using the same theme as styles)
+  // Colors for JSX elements from centralized theme
+  const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
-    background: isDark ? '#15202B' : '#fff',
-    text: isDark ? '#D7DBDC' : '#0F1419',
-    bubble: isDark ? '#22303C' : '#f7f9f9',
-    border: isDark ? '#38444D' : '#eee',
-    icon: '#1DA1F2',
-    payout: '#17BF63',
-    button: '#1DA1F2',
-    buttonText: '#fff',
-    buttonInactive: isDark ? '#22303C' : '#E1E8ED',
-    mutedButton: '#E74C3C',
-    followButton: '#1DA1F2',
-    unfollowButton: '#8B9DC3',
+    background: theme.background,
+    text: theme.text,
+    bubble: theme.bubble,
+    border: theme.border,
+    icon: theme.icon,
+    payout: theme.payout,
+    button: theme.button,
+    buttonText: theme.buttonText,
+    buttonInactive: theme.buttonInactive,
+    mutedButton: theme.mutedButton,
+    followButton: theme.followButton,
+    unfollowButton: theme.unfollowButton,
   };
 
   // Handle snap bubble press (navigate to conversation)
