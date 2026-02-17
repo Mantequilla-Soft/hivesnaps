@@ -695,7 +695,7 @@ export default function ComposeScreen() {
 
             {/* Image and GIF buttons */}
             <View style={styles.mediaButtons}>
-              <View style={{ alignItems: 'center' }}>
+              <View style={styles.mediaButtonWrapper}>
                 <TouchableOpacity
                   style={[
                     styles.actionButton,
@@ -736,7 +736,7 @@ export default function ComposeScreen() {
                 </Text>
               </View>
 
-              <View style={{ alignItems: 'center' }}>
+              <View style={styles.mediaButtonWrapper}>
                 <TouchableOpacity
                   style={[
                     styles.actionButton,

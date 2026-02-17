@@ -150,6 +150,9 @@ export const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    mediaButtonWrapper: {
+        alignItems: 'center',
+    },
     actionButton: {
         width: 44,
         height: 44,
