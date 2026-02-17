@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Client } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile } from '../store/context';
+import { vestsToHp } from '../utils/hiveCalculations';
 
 // Profile data interface
 export interface ProfileData {
@@ -28,39 +29,6 @@ const HIVE_NODES = [
   'https://api.openhive.network',
 ];
 const client = new Client(HIVE_NODES);
-
-// Helper function to convert VESTS to Hive Power
-const vestsToHp = (
-  vests: number,
-  totalVestingFundHive: any,
-  totalVestingShares: any
-): number => {
-  // Handle both string and Asset types from global props
-  const totalVestingFundHiveStr =
-    typeof totalVestingFundHive === 'string'
-      ? totalVestingFundHive
-      : totalVestingFundHive.toString();
-  const totalVestingSharesStr =
-    typeof totalVestingShares === 'string'
-      ? totalVestingShares
-      : totalVestingShares.toString();
-
-  const totalVestingFundHiveNum = parseFloat(
-    totalVestingFundHiveStr.replace(' HIVE', '')
-  );
-  const totalVestingSharesNum = parseFloat(
-    totalVestingSharesStr.replace(' VESTS', '')
-  );
-
-  if (totalVestingSharesNum === 0) {
-    return 0;
-  }
-
-  const hivePerVests = totalVestingFundHiveNum / totalVestingSharesNum;
-  const hp = vests * hivePerVests;
-
-  return hp;
-};
 
 export const useProfileData = (username: string | undefined) => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -99,16 +67,27 @@ export const useProfileData = (username: string | undefined) => {
 
       const account = accounts[0];
 
-      // Method 2: Fetch reputation using syncad.com API (much more reliable!)
+      // Method 2: Fetch reputation with fallback
       let reputation = 25; // fallback
       try {
         console.log(
-          'Fetching reputation from syncad.com API for:',
+          'Fetching reputation from Hive API for:',
           username
         );
-        const reputationResponse = await fetch(
-          `https://api.syncad.com/reputation-api/accounts/${username}/reputation`
+        let reputationResponse = await fetch(
+          `https://api.hive.blog/reputation-api/accounts/${username}/reputation`
         );
+
+        // If primary fails, try fallback
+        if (!reputationResponse.ok) {
+          console.log(
+            'Primary API failed, trying fallback syncad.com API'
+          );
+          reputationResponse = await fetch(
+            `https://api.syncad.com/reputation-api/accounts/${username}/reputation`
+          );
+        }
+
         if (reputationResponse.ok) {
           const reputationText = await reputationResponse.text();
           const reputationNumber = parseInt(reputationText.trim(), 10);
@@ -126,8 +105,8 @@ export const useProfileData = (username: string | undefined) => {
           }
         } else {
           console.log(
-            'Failed to fetch reputation from API, status:',
-            reputationResponse.status
+            'Failed to fetch reputation from both APIs, using fallback:',
+            reputation
           );
         }
       } catch (reputationError) {
@@ -308,7 +287,7 @@ export const useProfileData = (username: string | undefined) => {
             setProfile(prev => (prev ? { ...prev, avatarUrl: url } : prev));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
 
       // Fetch accurate follow counts using the proper API
       try {
