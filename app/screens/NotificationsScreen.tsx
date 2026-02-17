@@ -170,7 +170,7 @@ const NotificationsScreen = () => {
     text: theme.text,
     subtext: theme.textSecondary,
     border: theme.border,
-    cardBackground: isDark ? '#1C2938' : '#F8F9FA',
+    cardBackground: isDark ? palette.darkBubbleHighlight : palette.lightBubble,
     buttonBackground: theme.button,
   };
 
