@@ -49,6 +49,7 @@ import StaticContentModal from '../../components/StaticContentModal';
 import UpvoteModal from '../../components/UpvoteModal';
 import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
+import { getTheme } from '../../constants/Colors';
 
 
 // Modal content constants
@@ -99,9 +100,6 @@ const EMPTY_STATE_MESSAGES = {
   trending: "Nothing trending right now. Be the first to create something!",
   newest: "No snaps to display.",
 } as const;
-
-// Import centralized theme
-import { getTheme } from '../../constants/Colors';
 
 const FeedScreenRefactored = () => {
   const colorScheme = useColorScheme();
