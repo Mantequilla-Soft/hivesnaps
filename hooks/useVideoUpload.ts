@@ -116,7 +116,7 @@ export function useVideoUpload(currentUsername: string | null) {
     const [state, dispatch] = useReducer(videoUploadReducer, initialState);
     const uploadControllerRef = useRef<AbortController | null>(null);
     const cancelRequestedRef = useRef(false);
-    const thumbnailIpfsUploadPromiseRef = useRef<Promise<string | null> | null>(null);
+    const thumbnailUploadPromiseRef = useRef<Promise<string | null> | null>(null);
     const isMountedRef = useRef(true);
 
     // Cleanup on unmount: abort requests, clear refs, prevent memory leaks
@@ -133,7 +133,7 @@ export function useVideoUpload(currentUsername: string | null) {
             // Clear all refs
             uploadControllerRef.current = null;
             cancelRequestedRef.current = false;
-            thumbnailIpfsUploadPromiseRef.current = null;
+            thumbnailUploadPromiseRef.current = null;
         };
     }, []);
 
@@ -148,7 +148,7 @@ export function useVideoUpload(currentUsername: string | null) {
         }
         uploadControllerRef.current = null;
         cancelRequestedRef.current = false;
-        thumbnailIpfsUploadPromiseRef.current = null;
+        thumbnailUploadPromiseRef.current = null;
         dispatch({ type: 'CLEAR' });
     }, []);
 
@@ -195,10 +195,10 @@ export function useVideoUpload(currentUsername: string | null) {
             });
 
             // Wait for thumbnail upload and set on 3Speak
-            if (thumbnailIpfsUploadPromiseRef.current && result.embedUrl) {
+            if (thumbnailUploadPromiseRef.current && result.embedUrl) {
                 try {
                     if (__DEV__) console.log('⏳ Waiting for thumbnail upload to complete...');
-                    const thumbnailUrl = await thumbnailIpfsUploadPromiseRef.current;
+                    const thumbnailUrl = await thumbnailUploadPromiseRef.current;
 
                     // Check if still mounted before making API call
                     if (!isMountedRef.current) return;
@@ -219,7 +219,7 @@ export function useVideoUpload(currentUsername: string | null) {
                     if (__DEV__) console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
                 } finally {
                     // Always clear promise reference after completion/error
-                    thumbnailIpfsUploadPromiseRef.current = null;
+                    thumbnailUploadPromiseRef.current = null;
                 }
             } else {
                 if (__DEV__) console.warn('⚠️ No thumbnail upload in progress');
@@ -238,7 +238,7 @@ export function useVideoUpload(currentUsername: string | null) {
         } finally {
             uploadControllerRef.current = null;
             cancelRequestedRef.current = false;
-            thumbnailIpfsUploadPromiseRef.current = null;
+            thumbnailUploadPromiseRef.current = null;
         }
     }, [currentUsername]);
 
@@ -341,7 +341,7 @@ export function useVideoUpload(currentUsername: string | null) {
 
                 // Start uploading thumbnail to images.hive.blog in parallel with video upload
                 if (__DEV__) console.log('Starting thumbnail upload to images.hive.blog...');
-                thumbnailIpfsUploadPromiseRef.current = (async () => {
+                thumbnailUploadPromiseRef.current = (async () => {
                     try {
                         if (!currentUsername) {
                             if (__DEV__) console.warn('⚠️ No username available, skipping thumbnail upload');
