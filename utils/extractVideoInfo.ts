@@ -199,8 +199,8 @@ export function removeVideoUrls(text: string): string {
         /<iframe[^>]+src=["']https:\/\/3speak\.tv\/embed\?v=[^"']*["'][^>]*><\/iframe>/gi,
         ''
       )
-      // Remove play.3speak.tv direct URLs
-      .replace(/https:\/\/play\.3speak\.tv\/embed\?v=[^\/\s&]+\/[a-zA-Z0-9_-]+/gi, '')
+      // Remove play.3speak.tv direct URLs (both /embed and /watch paths)
+      .replace(/https:\/\/play\.3speak\.tv\/(?:embed|watch)\?v=[^\/\s&]+\/[a-zA-Z0-9_-]+/gi, '')
       // Remove legacy 3speak direct URLs (supports both ?v= and ?=)
       .replace(/https:\/\/3speak\.tv\/watch\?v?=[^\/\s]+\/[a-zA-Z0-9_-]+/gi, '')
       // Remove IPFS iframe tags
