@@ -309,6 +309,8 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             onPress={handleCloseModal}
             style={styles.closeButton}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close video"
           >
             <Ionicons name="close-circle" size={32} color="#fff" />
           </TouchableOpacity>
