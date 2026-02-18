@@ -27,12 +27,12 @@ export interface ThreeSpeakVideoInfo {
  * Builds the Snapie API info URL from a detected 3Speak embedUrl or originalUrl.
  *
  * Handles all URL forms produced by extractVideoInfo.ts:
- *   https://play.3speak.tv/watch?v=user/id&mode=iframe&layout=mobile
- *   https://play.3speak.tv/embed?v=user/id&mode=iframe&layout=mobile
  *   https://play.3speak.tv/watch?v=user/id
  *   https://play.3speak.tv/embed?v=user/id
  *
- * Strips mode/layout params and appends &info=true.
+ * Converts to API endpoint and appends &info=true:
+ *   https://play.3speak.tv/api/watch?v=user/id&info=true
+ *   https://play.3speak.tv/api/embed?v=user/id&info=true
  */
 export function buildInfoUrl(embedUrl: string): string | null {
     try {
@@ -53,8 +53,11 @@ export function buildInfoUrl(embedUrl: string): string | null {
             return null;
         }
 
-        // Reconstruct clean URL with only the params we need
-        return `${SNAPIE_BASE_URL}${path}?v=${encodeURIComponent(v)}&info=true`;
+        // Determine the API endpoint based on the path
+        const apiPath = path.includes('/watch') ? '/api/watch' : '/api/embed';
+
+        // Construct API URL with info=true
+        return `${SNAPIE_BASE_URL}${apiPath}?v=${encodeURIComponent(v)}&info=true`;
     } catch {
         return null;
     }
@@ -76,6 +79,10 @@ export async function fetchThreeSpeakVideoInfo(
     }
 
     try {
+        if (__DEV__) {
+            console.log('[threeSpeakVideoService] Fetching from:', infoUrl);
+        }
+
         const response = await fetch(infoUrl, {
             method: 'GET',
             headers: { Accept: 'application/json' },
@@ -89,6 +96,15 @@ export async function fetchThreeSpeakVideoInfo(
         }
 
         const data = await response.json();
+
+        if (__DEV__) {
+            console.log('[threeSpeakVideoService] API response:', {
+                cid: data?.cid,
+                thumbnail: data?.thumbnail,
+                views: data?.views,
+                short: data?.short,
+            });
+        }
 
         if (!data?.cid || !data?.thumbnail) {
             console.warn('[threeSpeakVideoService] Unexpected response shape:', data);

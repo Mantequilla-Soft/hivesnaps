@@ -23,11 +23,12 @@ import {
   Image,
   StyleSheet,
   useColorScheme,
-  useWindowDimensions,
   StatusBar,
 } from "react-native";
 import Video from "react-native-video";
 import { Ionicons } from "@expo/vector-icons";
+import * as ScreenOrientation from "expo-screen-orientation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fetchThreeSpeakVideoInfo } from "../../services/threeSpeakVideoService";
 import { useTheme } from "../../hooks/useTheme";
@@ -45,7 +46,6 @@ const DEFAULT_VIDEO_URL: string =
 // --- Constants ----------------------------------------------------------------
 
 const CONTAINER_BORDER_RADIUS = 12;
-const HORIZONTAL_PADDING = 32; // must match parent container padding
 
 // --- Types --------------------------------------------------------------------
 
@@ -69,9 +69,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const colorScheme = useColorScheme();
   const themeIsDark = isDark ?? colorScheme === "dark";
   const theme = useTheme();
-  const { width } = useWindowDimensions();
-
-  const containerSize = width - HORIZONTAL_PADDING; // 1:1 side length
+  const insets = useSafeAreaInsets();
 
   const [videoState, setVideoState] = useState<VideoState>({
     cid: null,
@@ -81,6 +79,48 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isVideoBuffering, setIsVideoBuffering] = useState(true);
 
+  // -- Screen Orientation ------------------------------------------------------
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const handleOrientationChange = async () => {
+      if (isModalVisible) {
+        // Unlock orientation when video modal opens - allow rotation
+        try {
+          await ScreenOrientation.unlockAsync();
+          if (__DEV__) {
+            console.log('[ThreeSpeakEmbed] Orientation unlocked');
+          }
+        } catch (err) {
+          console.warn('[ThreeSpeakEmbed] Failed to unlock orientation:', err);
+        }
+      } else {
+        // Lock back to portrait when modal closes - with a delay to avoid race conditions
+        timeoutId = setTimeout(async () => {
+          try {
+            await ScreenOrientation.lockAsync(
+              ScreenOrientation.OrientationLock.PORTRAIT_UP
+            );
+            if (__DEV__) {
+              console.log('[ThreeSpeakEmbed] Orientation locked to portrait');
+            }
+          } catch (err) {
+            console.warn('[ThreeSpeakEmbed] Failed to lock orientation:', err);
+          }
+        }, 300); // Small delay to ensure modal animation completes
+      }
+    };
+
+    handleOrientationChange();
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isModalVisible]);
+
   // -- Fetch metadata ----------------------------------------------------------
 
   useEffect(() => {
@@ -89,11 +129,22 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     const load = async () => {
       setVideoState({ cid: null, thumbnail: null, isLoading: true });
 
+      if (__DEV__) {
+        console.log('[ThreeSpeakEmbed] Loading video for embedUrl:', embedUrl);
+      }
+
       const info = await fetchThreeSpeakVideoInfo(embedUrl);
 
       if (cancelled) return;
 
       if (info) {
+        if (__DEV__) {
+          console.log('[ThreeSpeakEmbed] Video info loaded:', {
+            cid: info.cid,
+            hasThumbnail: !!info.thumbnail,
+            views: info.views,
+          });
+        }
         setVideoState({
           cid: info.cid,
           thumbnail: info.thumbnail,
@@ -101,6 +152,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         });
       } else {
         // Network error or API unavailable - use the fallback video
+        console.warn('[ThreeSpeakEmbed] API failed, using fallback:', DEFAULT_VIDEO_URL);
         setVideoState({
           cid: DEFAULT_VIDEO_URL || null,
           thumbnail: null,
@@ -119,16 +171,25 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 
   const handleThumbnailPress = useCallback(() => {
     if (videoState.cid) {
+      if (__DEV__) {
+        console.log('[ThreeSpeakEmbed] Opening video modal for CID:', videoState.cid);
+      }
       setIsVideoBuffering(true);
       setIsModalVisible(true);
     }
   }, [videoState.cid]);
 
   const handleCloseModal = useCallback(() => {
+    if (__DEV__) {
+      console.log('[ThreeSpeakEmbed] Closing video modal');
+    }
     setIsModalVisible(false);
   }, []);
 
   const handleVideoLoad = useCallback(() => {
+    if (__DEV__) {
+      console.log('[ThreeSpeakEmbed] Video loaded successfully');
+    }
     setIsVideoBuffering(false);
   }, []);
 
@@ -148,8 +209,6 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       style={[
         styles.container,
         {
-          width: containerSize,
-          height: containerSize,
           backgroundColor: themeIsDark ? "#000" : "#1a1a1a",
         },
       ]}
@@ -212,12 +271,12 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       statusBarTranslucent
     >
       <StatusBar hidden />
-      <View style={styles.modalContainer}>
-        {/* Native video player - fills entire screen, contain pillarboxes 16:9 */}
+      <View style={[styles.modalContainer, { paddingBottom: insets.bottom }]}>
+        {/* Native video player - fills available space, respecting safe areas */}
         {videoState.cid ? (
           <Video
             source={{ uri: videoState.cid }}
-            style={StyleSheet.absoluteFillObject}
+            style={styles.videoPlayer}
             controls
             resizeMode="contain"
             paused={false}
@@ -225,6 +284,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             onBuffer={handleVideoBuffer}
             onError={(err) => {
               console.warn("[ThreeSpeakEmbed] Video error:", err);
+              if (__DEV__) {
+                console.log('[ThreeSpeakEmbed] Video error details:', JSON.stringify(err, null, 2));
+              }
               setIsVideoBuffering(false);
             }}
             allowsExternalPlayback
@@ -267,6 +329,8 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    width: '100%',
+    aspectRatio: 1, // 1:1 square
     borderRadius: CONTAINER_BORDER_RADIUS,
     overflow: "hidden",
     justifyContent: "center",
@@ -307,6 +371,11 @@ const styles = StyleSheet.create({
   // -- Modal ------------------------------------------------------------------
   modalContainer: {
     flex: 1,
+    backgroundColor: "#000",
+  },
+  videoPlayer: {
+    flex: 1,
+    width: "100%",
     backgroundColor: "#000",
   },
   bufferingOverlay: {

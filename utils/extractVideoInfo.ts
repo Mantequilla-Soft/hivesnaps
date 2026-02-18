@@ -48,7 +48,7 @@ export function extractVideoInfo(text: string): VideoInfo | null {
       type: '3speak',
       username: playThreeSpeakIframeMatch[1],
       videoId: playThreeSpeakIframeMatch[2],
-      embedUrl: `https://play.3speak.tv/embed?v=${playThreeSpeakIframeMatch[1]}/${playThreeSpeakIframeMatch[2]}&mode=iframe&layout=mobile`,
+      embedUrl: `https://play.3speak.tv/embed?v=${playThreeSpeakIframeMatch[1]}/${playThreeSpeakIframeMatch[2]}`,
       originalUrl: playThreeSpeakIframeMatch[0],
     };
   }
@@ -62,7 +62,7 @@ export function extractVideoInfo(text: string): VideoInfo | null {
       type: '3speak',
       username: threeSpeakIframeMatch[1],
       videoId: threeSpeakIframeMatch[2],
-      embedUrl: `https://play.3speak.tv/embed?v=${threeSpeakIframeMatch[1]}/${threeSpeakIframeMatch[2]}&mode=iframe&layout=mobile`,
+      embedUrl: `https://play.3speak.tv/embed?v=${threeSpeakIframeMatch[1]}/${threeSpeakIframeMatch[2]}`,
       originalUrl: threeSpeakIframeMatch[0],
     };
   }
@@ -76,14 +76,28 @@ export function extractVideoInfo(text: string): VideoInfo | null {
       type: '3speak',
       username: playThreeSpeakDirectMatch[1],
       videoId: playThreeSpeakDirectMatch[2],
-      embedUrl: `https://play.3speak.tv/embed?v=${playThreeSpeakDirectMatch[1]}/${playThreeSpeakDirectMatch[2]}&mode=iframe&layout=mobile`,
+      embedUrl: `https://play.3speak.tv/embed?v=${playThreeSpeakDirectMatch[1]}/${playThreeSpeakDirectMatch[2]}`,
       originalUrl: playThreeSpeakDirectMatch[0],
     };
   }
 
-   // 3Speak direct URLs - legacy 3speak.tv/watch
+  // 3Speak direct URLs - play.3speak.tv/watch (new domain watch URLs)
+  const playThreeSpeakWatchMatch = text.match(
+    /https:\/\/play\.3speak\.tv\/watch\?v=([^\/\s&]+)\/([a-zA-Z0-9_-]+)/
+  );
+  if (playThreeSpeakWatchMatch) {
+    return {
+      type: '3speak',
+      username: playThreeSpeakWatchMatch[1],
+      videoId: playThreeSpeakWatchMatch[2],
+      embedUrl: `https://play.3speak.tv/watch?v=${playThreeSpeakWatchMatch[1]}/${playThreeSpeakWatchMatch[2]}`,
+      originalUrl: playThreeSpeakWatchMatch[0],
+    };
+  }
+
+  // 3Speak direct URLs - legacy 3speak.tv/watch
   // Converts legacy watch URLs to the new play.3speak.tv domain, preserving the watch path format.
-  
+
   const threeSpeakMatch = text.match(
     /https:\/\/3speak\.tv\/watch\?v?=([^\/\s]+)\/([a-zA-Z0-9_-]+)/
   );
@@ -92,7 +106,7 @@ export function extractVideoInfo(text: string): VideoInfo | null {
       type: '3speak',
       username: threeSpeakMatch[1],
       videoId: threeSpeakMatch[2],
-      embedUrl: `https://play.3speak.tv/watch?v=${threeSpeakMatch[1]}/${threeSpeakMatch[2]}&mode=iframe&layout=mobile`,
+      embedUrl: `https://play.3speak.tv/watch?v=${threeSpeakMatch[1]}/${threeSpeakMatch[2]}`,
       originalUrl: threeSpeakMatch[0],
     };
   }
