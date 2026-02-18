@@ -426,16 +426,6 @@ If issues arise:
 
 ---
 
-## Future Improvements
-
-- Advanced HLS features: adaptive bitrate monitoring, quality selection UI
-- Cache video metadata for offline playback (store CID + metadata in local DB)
-- Migrate `AudioEmbed.tsx` to native player using `expo-av`
-- Analytics: track video play events, completion rate, seek behavior, fullscreen usage
-- Picture-in-picture for multi-tasking
-- Subtitle/closed caption support (if HLS manifest includes)
-- Download for offline watching
-
 ---
 
 ## Key Implementation Notes
