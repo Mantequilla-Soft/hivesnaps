@@ -1,10 +1,12 @@
 # Native Video Player Migration (3Speak)
 
-**Status:** Ready for Implementation  
+**Status:** ✅ Implemented — Ready for Native Rebuild & Testing  
 **Date:** February 18, 2026  
 **Owner:** Video Team  
 **Priority:** High (Performance, UX improvement)  
-**API Status:** ✅ Deployed & Production-Ready
+**API Status:** ✅ Deployed & Production-Ready  
+**Branch:** `feat/native-video-player`  
+**Commit:** `4dd5889`
 
 ---
 
@@ -256,15 +258,15 @@ These files remain untouched:
 
 ### React Native App
 
-- [ ] Create a new git branch from `main` (e.g., `feat/native-video-player`)
-- [ ] Install `react-native-video` dependency (`npm install react-native-video`)
-- [ ] Create `services/threeSpeakVideoService.ts` with API fetch logic (no CID conversion needed)
-- [ ] Rewrite `app/components/ThreeSpeakEmbed.tsx` with native player
-- [ ] Update extraction logic to properly strip query params from `embedUrl` prop
-- [ ] Delete `app/components/ThreeSpeakEmbed.ios.tsx`
-- [ ] Delete `app/components/ThreeSpeakEmbed.android.tsx`
-- [ ] Add `EXPO_PUBLIC_DEFAULT_VIDEO_CID` to `.env` (full HTTPS URL format)
-- [ ] Rebuild native binaries: `npx expo run:ios` and `npx expo run:android`
+- [x] ✅ Create a new git branch from `main` (e.g., `feat/native-video-player`)
+- [x] ✅ Install `react-native-video` dependency (`npm install react-native-video`)
+- [x] ✅ Create `services/threeSpeakVideoService.ts` with API fetch logic (no CID conversion needed)
+- [x] ✅ Rewrite `app/components/ThreeSpeakEmbed.tsx` with native player
+- [x] ✅ Update extraction logic to properly strip query params from `embedUrl` prop
+- [x] ✅ Delete `app/components/ThreeSpeakEmbed.ios.tsx`
+- [x] ✅ Delete `app/components/ThreeSpeakEmbed.android.tsx`
+- [x] ✅ Add `EXPO_PUBLIC_DEFAULT_VIDEO_CID` to `.env` (full HTTPS URL format) — **⚠️ Replace PLACEHOLDER with real CID**
+- [ ] **→ NEXT:** Rebuild native binaries: `npx expo run:ios` and `npx expo run:android`
 - [ ] Test on iOS simulator
 - [ ] Test on Android emulator
 - [ ] Test fullscreen + orientation change
@@ -510,9 +512,96 @@ import { Video } from 'react-native-video';
 
 ---
 
-## Questions & Notes
+## ✅ Implementation Complete
 
-- Default video CID: Provide the AI-generated fallback video as a full HTTPS URL (e.g., `https://hotipfs-3speak-1.b-cdn.net/ipfs/QmXxx/manifest.m3u8`)
-- API is production-ready and deployed ✅
-- No client-side URL conversion needed ✅
-- Ready to start implementation whenever
+**Commit:** `4dd5889` on branch `feat/native-video-player`
+
+**Changes:**
+
+- ✅ Installed `react-native-video@6.19.0`
+- ✅ Created `services/threeSpeakVideoService.ts` (115 lines)
+- ✅ Rewrote `app/components/ThreeSpeakEmbed.tsx` (335 lines)
+- ✅ Deleted `app/components/ThreeSpeakEmbed.ios.tsx` (301 lines)
+- ✅ Deleted `app/components/ThreeSpeakEmbed.android.tsx` (350 lines)
+- ✅ Added `EXPO_PUBLIC_DEFAULT_VIDEO_CID` to `.env`
+
+**Net change:** +271 insertions, -651 deletions (380 lines removed)
+
+---
+
+## Next Steps
+
+### 1. Set the Default Fallback Video CID
+
+Edit `.env` and replace `PLACEHOLDER` with your AI-generated fallback video:
+
+```bash
+# Before:
+EXPO_PUBLIC_DEFAULT_VIDEO_CID=https://hotipfs-3speak-1.b-cdn.net/ipfs/PLACEHOLDER/manifest.m3u8
+
+# After (example):
+EXPO_PUBLIC_DEFAULT_VIDEO_CID=https://hotipfs-3speak-1.b-cdn.net/ipfs/QmXxxx.../manifest.m3u8
+```
+
+**Note:** `.env` is in `.gitignore` — this change stays local. Set the same value in production environment variables.
+
+### 2. Rebuild Native Binaries
+
+Since `react-native-video` links native code (ExoPlayer/AVPlayer), a rebuild is **required**:
+
+```bash
+# iOS
+npx expo run:ios
+
+# Android
+npx expo run:android
+```
+
+**Expo Go will NOT work** — the app must be built with dev client or production build.
+
+### 3. Test the Native Player
+
+Follow the [Testing & Verification](#testing--verification) checklist above. Key tests:
+
+- ✅ Open a post/snap with a 3Speak video → 1:1 thumbnail appears
+- ✅ Tap thumbnail → fullscreen modal opens with native controls
+- ✅ Video plays smoothly (no WebView lag)
+- ✅ Tap close button → returns to feed
+- ✅ Rotate device → video orientation adjusts (pillarbox if needed)
+- ✅ Disconnect network → fallback video plays instead of crash
+
+### 4. Compare Performance
+
+Profile memory usage before/after:
+
+- **Before:** WebView + injected JavaScript (typically 80-120 MB per video)
+- **Expected after:** Native player (40-60 MB per video)
+
+Use Xcode Instruments (iOS) or Android Studio Profiler to measure.
+
+### 5. Open Pull Request
+
+Once testing passes:
+
+```bash
+git push origin feat/native-video-player
+```
+
+Open a PR to `main` with the test results. Tag reviewers for final approval before merge.
+
+---
+
+## Rollback Plan (If Needed)
+
+If critical issues are found during testing:
+
+```bash
+# Revert to previous WebView implementation
+git checkout main
+git branch -D feat/native-video-player  # Delete branch
+
+# Or cherry-pick just the revert commit
+git revert 4dd5889
+```
+
+The old `.ios.tsx` and `.android.tsx` files are still in git history and can be restored if needed.
