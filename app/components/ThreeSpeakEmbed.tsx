@@ -32,7 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fetchThreeSpeakVideoInfo } from "../../services/threeSpeakVideoService";
 import { useTheme } from "../../hooks/useTheme";
-import { shadowUtilities } from "../../constants/Colors";
+import { shadowUtilities, palette } from "../../constants/Colors";
 
 // --- Env / config -------------------------------------------------------------
 
@@ -258,7 +258,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       ) : null}
 
       {/* 3Speak badge */}
-      <View style={styles.badge}>
+      <View style={[styles.badge, { backgroundColor: palette.badge3speak }]}>
         <Ionicons name="videocam" size={10} color="#fff" />
       </View>
     </TouchableOpacity>
@@ -371,7 +371,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: "#0057ff",
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 3,

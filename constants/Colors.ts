@@ -13,6 +13,9 @@ export const palette = {
   primary: '#1DA1F2',
   primaryDark: '#1A8CD8',
 
+  // 3Speak Colors
+  badge3speak: '#0057ff',
+
   // Status Colors
   success: '#17BF63',
   successAlt: '#51CF66',
