@@ -60,13 +60,6 @@ interface VideoState {
   isLoading: boolean;
 }
 
-interface VideoError {
-  type?: string;
-  code?: number;
-  localizedDescription?: string;
-  description?: string;
-}
-
 // --- Component ----------------------------------------------------------------
 
 const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
@@ -297,7 +290,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             paused={true}
             onLoad={handleVideoLoad}
             onBuffer={handleVideoBuffer}
-            onError={(err: VideoError) => {
+            onError={(err) => {
               console.warn("[ThreeSpeakEmbed] Video error:", err);
               if (__DEV__) {
                 console.log('[ThreeSpeakEmbed] Video error details:', JSON.stringify(err, null, 2));
