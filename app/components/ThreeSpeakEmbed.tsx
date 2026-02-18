@@ -118,6 +118,14 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+      // If component unmounts while modal is still open, restore portrait orientation
+      if (isModalVisible) {
+        ScreenOrientation.lockAsync(
+          ScreenOrientation.OrientationLock.PORTRAIT_UP
+        ).catch(err => {
+          console.warn('[ThreeSpeakEmbed] Failed to restore orientation on unmount:', err);
+        });
+      }
     };
   }, [isModalVisible]);
 
