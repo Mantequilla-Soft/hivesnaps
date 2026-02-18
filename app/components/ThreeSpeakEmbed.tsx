@@ -82,7 +82,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   // -- Screen Orientation ------------------------------------------------------
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const handleOrientationChange = async () => {
       if (isModalVisible) {
