@@ -32,6 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fetchThreeSpeakVideoInfo } from "../../services/threeSpeakVideoService";
 import { useTheme } from "../../hooks/useTheme";
+import { shadowUtilities } from "../../constants/Colors";
 
 // --- Env / config -------------------------------------------------------------
 
@@ -403,11 +404,7 @@ const styles = StyleSheet.create({
   closeButton: {
     margin: 12,
     alignSelf: "flex-start",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.8,
-    shadowRadius: 3,
-    elevation: 4,
+    ...shadowUtilities.subtle,
   },
 });
 

@@ -272,4 +272,18 @@ const Colors = {
   },
 };
 
+// ============================================================================
+// SHADOW UTILITIES - Centralized shadow styles for cross-platform consistency
+// ============================================================================
+export const shadowUtilities = {
+  // Subtle shadow for interactive elements like close buttons
+  subtle: {
+    shadowColor: palette.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+} as const;
+
 export default Colors;
