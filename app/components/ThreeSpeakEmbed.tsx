@@ -287,7 +287,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             style={styles.videoPlayer}
             controls
             resizeMode="contain"
-            paused={false}
+            paused={true}
             onLoad={handleVideoLoad}
             onBuffer={handleVideoBuffer}
             onError={(err) => {
