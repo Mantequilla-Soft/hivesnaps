@@ -426,17 +426,6 @@ If issues arise:
 
 ---
 
-## Rollback Plan
-
-If critical issues arise post-release:
-
-1. Temporarily revert to WebView by reverting commits to main
-2. Restore `ThreeSpeakEmbed.ios.tsx` and `ThreeSpeakEmbed.android.tsx` from git history
-3. Rebuild and deploy hotfix
-4. Investigate issue; fix and re-release native player version
-
----
-
 ## Future Improvements
 
 - Advanced HLS features: adaptive bitrate monitoring, quality selection UI
