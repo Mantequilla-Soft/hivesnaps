@@ -32,16 +32,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchThreeSpeakVideoInfo } from "../../services/threeSpeakVideoService";
 import { useTheme } from "../../hooks/useTheme";
 import { shadowUtilities, palette } from "../../constants/Colors";
+import offlineVideo from "../../assets/animation/offline.mp4";
 
 // --- Env / config -------------------------------------------------------------
 
 /**
- * Fallback HLS URL used when the Snapie API call fails entirely (network error).
- * Set EXPO_PUBLIC_DEFAULT_VIDEO_CID in your .env to a full HTTPS URL:
- *   https://hotipfs-3speak-1.b-cdn.net/ipfs/QmXxxx/manifest.m3u8
+ * Fallback video used when the Snapie API call fails entirely (network error).
+ * Uses a pre-bundled offline.mp4 video shipped with the app for a better UX
+ * when the device is offline or the API is unreachable.
  */
 const DEFAULT_VIDEO_URL: string =
   process.env.EXPO_PUBLIC_DEFAULT_VIDEO_CID ?? "";
+const OFFLINE_VIDEO = offlineVideo;
 
 // --- Constants ----------------------------------------------------------------
 
@@ -77,6 +79,8 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   });
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isVideoBuffering, setIsVideoBuffering] = useState(true);
+  const [useOfflineFallback, setUseOfflineFallback] = useState(false);
+  const [hasTriedFallback, setHasTriedFallback] = useState(false);
 
   // Ref kept in sync with isModalVisible so cleanup functions always read the
   // current value, not the stale closure value from when the effect ran.
@@ -99,7 +103,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             console.log('[ThreeSpeakEmbed] Orientation unlocked');
           }
         } catch (err) {
-          console.warn('[ThreeSpeakEmbed] Failed to unlock orientation:', err);
+          if (__DEV__) {
+            console.warn('[ThreeSpeakEmbed] Failed to unlock orientation:', err);
+          }
         }
       } else {
         // Lock back to portrait when modal closes - with a delay to avoid race conditions
@@ -112,7 +118,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
               console.log('[ThreeSpeakEmbed] Orientation locked to portrait');
             }
           } catch (err) {
-            console.warn('[ThreeSpeakEmbed] Failed to lock orientation:', err);
+            if (__DEV__) {
+              console.warn('[ThreeSpeakEmbed] Failed to lock orientation:', err);
+            }
           }
         }, 300); // Small delay to ensure modal animation completes
       }
@@ -131,7 +139,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         ScreenOrientation.lockAsync(
           ScreenOrientation.OrientationLock.PORTRAIT_UP
         ).catch(err => {
-          console.warn('[ThreeSpeakEmbed] Failed to restore orientation on unmount:', err);
+          if (__DEV__) {
+            console.warn('[ThreeSpeakEmbed] Failed to restore orientation on unmount:', err);
+          }
         });
       }
     };
@@ -167,10 +177,12 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
           isLoading: false,
         });
       } else {
-        // Network error or API unavailable - use the fallback video
-        console.warn('[ThreeSpeakEmbed] API failed, using fallback:', DEFAULT_VIDEO_URL);
+        // Network error or API unavailable - use the bundled offline video
+        if (__DEV__) {
+          console.warn('[ThreeSpeakEmbed] API failed, using offline fallback video');
+        }
         setVideoState({
-          cid: DEFAULT_VIDEO_URL || null,
+          cid: OFFLINE_VIDEO,
           thumbnail: null,
           isLoading: false,
         });
@@ -200,6 +212,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       console.log('[ThreeSpeakEmbed] Closing video modal');
     }
     setIsModalVisible(false);
+    // Reset fallback state for next play attempt
+    setUseOfflineFallback(false);
+    setHasTriedFallback(false);
   }, []);
 
   const handleVideoLoad = useCallback(() => {
@@ -217,12 +232,31 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   );
 
   const handleVideoError = useCallback((err: unknown) => {
-    console.warn("[ThreeSpeakEmbed] Video error:", err);
-    if (__DEV__) {
-      console.log('[ThreeSpeakEmbed] Video error details:', JSON.stringify(err, null, 2));
-    }
     setIsVideoBuffering(false);
-  }, []);
+
+    // Check if this is a network error and we haven't tried the fallback yet
+    const errorString = JSON.stringify(err).toLowerCase();
+    const isNetworkError =
+      errorString.includes('network') ||
+      errorString.includes('unknownhost') ||
+      errorString.includes('no address') ||
+      errorString.includes('connection') ||
+      errorString.includes('22001'); // ExoPlayer network error code
+
+    if (isNetworkError && !hasTriedFallback) {
+      if (__DEV__) {
+        console.log('[ThreeSpeakEmbed] 📡 Network unavailable, using offline video');
+      }
+      setUseOfflineFallback(true);
+      setHasTriedFallback(true);
+    } else if (!isNetworkError) {
+      // Only log detailed errors for non-network issues
+      if (__DEV__) {
+        console.warn("[ThreeSpeakEmbed] Video playback error:", err);
+        console.log('[ThreeSpeakEmbed] Error details:', JSON.stringify(err, null, 2));
+      }
+    }
+  }, [hasTriedFallback]);
 
   // -- Render: 1:1 thumbnail in feed -------------------------------------------
 
@@ -302,7 +336,8 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             background player instances and buffering spinner race conditions */}
         {isModalVisible && videoState.cid ? (
           <Video
-            source={{ uri: videoState.cid }}
+            key={useOfflineFallback ? 'offline' : 'online'}
+            source={useOfflineFallback ? offlineVideo : { uri: videoState.cid }}
             style={styles.videoPlayer}
             controls
             resizeMode="contain"
