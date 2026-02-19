@@ -13,7 +13,7 @@
  *   5. On error -> falls back to the default fallback video URL from env.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -23,16 +23,16 @@ import {
   Image,
   StyleSheet,
   StatusBar,
-} from "react-native";
-import Video from "react-native-video";
-import { Ionicons } from "@expo/vector-icons";
-import * as ScreenOrientation from "expo-screen-orientation";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
+import Video from 'react-native-video';
+import { Ionicons } from '@expo/vector-icons';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fetchThreeSpeakVideoInfo } from "../../services/threeSpeakVideoService";
-import { useTheme } from "../../hooks/useTheme";
-import { shadowUtilities, palette } from "../../constants/Colors";
-import offlineVideo from "../../assets/animation/offline.mp4";
+import { fetchThreeSpeakVideoInfo } from '../../services/threeSpeakVideoService';
+import { useTheme } from '../../hooks/useTheme';
+import { shadowUtilities, palette } from '../../constants/Colors';
+import offlineVideo from '../../assets/animation/offline.mp4';
 
 // --- Env / config -------------------------------------------------------------
 
@@ -42,7 +42,7 @@ import offlineVideo from "../../assets/animation/offline.mp4";
  * when the device is offline or the API is unreachable.
  */
 const DEFAULT_VIDEO_URL: string =
-  process.env.EXPO_PUBLIC_DEFAULT_VIDEO_CID ?? "";
+  process.env.EXPO_PUBLIC_DEFAULT_VIDEO_CID ?? '';
 const OFFLINE_VIDEO = offlineVideo;
 
 // --- Constants ----------------------------------------------------------------
@@ -84,8 +84,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 
   // Ref kept in sync with isModalVisible so cleanup functions always read the
   // current value, not the stale closure value from when the effect ran.
+  // Using useLayoutEffect ensures the ref is updated synchronously after render
+  // but before effect cleanup runs, preventing race conditions with orientation locking.
   const isModalVisibleRef = useRef(isModalVisible);
-  useEffect(() => {
+  useLayoutEffect(() => {
     isModalVisibleRef.current = isModalVisible;
   }, [isModalVisible]);
 
@@ -104,7 +106,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
           }
         } catch (err) {
           if (__DEV__) {
-            console.warn('[ThreeSpeakEmbed] Failed to unlock orientation:', err);
+            console.warn(
+              '[ThreeSpeakEmbed] Failed to unlock orientation:',
+              err
+            );
           }
         }
       } else {
@@ -119,7 +124,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             }
           } catch (err) {
             if (__DEV__) {
-              console.warn('[ThreeSpeakEmbed] Failed to lock orientation:', err);
+              console.warn(
+                '[ThreeSpeakEmbed] Failed to lock orientation:',
+                err
+              );
             }
           }
         }, 300); // Small delay to ensure modal animation completes
@@ -140,7 +148,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
           ScreenOrientation.OrientationLock.PORTRAIT_UP
         ).catch(err => {
           if (__DEV__) {
-            console.warn('[ThreeSpeakEmbed] Failed to restore orientation on unmount:', err);
+            console.warn(
+              '[ThreeSpeakEmbed] Failed to restore orientation on unmount:',
+              err
+            );
           }
         });
       }
@@ -179,7 +190,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       } else {
         // Network error or API unavailable - use the bundled offline video
         if (__DEV__) {
-          console.warn('[ThreeSpeakEmbed] API failed, using offline fallback video');
+          console.warn(
+            '[ThreeSpeakEmbed] API failed, using offline fallback video'
+          );
         }
         setVideoState({
           cid: OFFLINE_VIDEO,
@@ -200,7 +213,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const handleThumbnailPress = useCallback(() => {
     if (videoState.cid) {
       if (__DEV__) {
-        console.log('[ThreeSpeakEmbed] Opening video modal for CID:', videoState.cid);
+        console.log(
+          '[ThreeSpeakEmbed] Opening video modal for CID:',
+          videoState.cid
+        );
       }
       setIsVideoBuffering(true);
       setIsModalVisible(true);
@@ -228,35 +244,43 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     ({ isBuffering }: { isBuffering: boolean }) => {
       setIsVideoBuffering(isBuffering);
     },
-    [],
+    []
   );
 
-  const handleVideoError = useCallback((err: unknown) => {
-    setIsVideoBuffering(false);
+  const handleVideoError = useCallback(
+    (err: unknown) => {
+      setIsVideoBuffering(false);
 
-    // Check if this is a network error and we haven't tried the fallback yet
-    const errorString = JSON.stringify(err).toLowerCase();
-    const isNetworkError =
-      errorString.includes('network') ||
-      errorString.includes('unknownhost') ||
-      errorString.includes('no address') ||
-      errorString.includes('connection') ||
-      errorString.includes('22001'); // ExoPlayer network error code
+      // Check if this is a network error and we haven't tried the fallback yet
+      const errorString = JSON.stringify(err).toLowerCase();
+      const isNetworkError =
+        errorString.includes('network') ||
+        errorString.includes('unknownhost') ||
+        errorString.includes('no address') ||
+        errorString.includes('connection') ||
+        errorString.includes('22001'); // ExoPlayer network error code
 
-    if (isNetworkError && !hasTriedFallback) {
-      if (__DEV__) {
-        console.log('[ThreeSpeakEmbed] 📡 Network unavailable, using offline video');
+      if (isNetworkError && !hasTriedFallback) {
+        if (__DEV__) {
+          console.log(
+            '[ThreeSpeakEmbed] 📡 Network unavailable, using offline video'
+          );
+        }
+        setUseOfflineFallback(true);
+        setHasTriedFallback(true);
+      } else if (!isNetworkError) {
+        // Only log detailed errors for non-network issues
+        if (__DEV__) {
+          console.warn('[ThreeSpeakEmbed] Video playback error:', err);
+          console.log(
+            '[ThreeSpeakEmbed] Error details:',
+            JSON.stringify(err, null, 2)
+          );
+        }
       }
-      setUseOfflineFallback(true);
-      setHasTriedFallback(true);
-    } else if (!isNetworkError) {
-      // Only log detailed errors for non-network issues
-      if (__DEV__) {
-        console.warn("[ThreeSpeakEmbed] Video playback error:", err);
-        console.log('[ThreeSpeakEmbed] Error details:', JSON.stringify(err, null, 2));
-      }
-    }
-  }, [hasTriedFallback]);
+    },
+    [hasTriedFallback]
+  );
 
   // -- Render: 1:1 thumbnail in feed -------------------------------------------
 
@@ -264,13 +288,13 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={handleThumbnailPress}
-      accessibilityRole="button"
-      accessibilityLabel="Play 3Speak video"
-      accessibilityHint="Opens video player"
+      accessibilityRole='button'
+      accessibilityLabel='Play 3Speak video'
+      accessibilityHint='Opens video player'
       style={[
         styles.container,
         {
-          backgroundColor: themeIsDark ? "#000" : "#1a1a1a",
+          backgroundColor: theme.background,
         },
       ]}
     >
@@ -279,30 +303,35 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         <Image
           source={{ uri: videoState.thumbnail }}
           style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
+          resizeMode='cover'
         />
       ) : null}
 
       {/* Dark overlay for play button contrast */}
       {!videoState.isLoading && videoState.cid ? (
-        <View style={styles.overlay} />
+        <View style={[styles.overlay, { backgroundColor: theme.overlay }]} />
       ) : null}
 
       {/* Loading spinner */}
       {videoState.isLoading ? (
         <ActivityIndicator
-          size="large"
+          size='large'
           color={theme.tint}
           style={styles.centered}
         />
       ) : videoState.cid ? (
         /* Play button */
         <View style={styles.centered}>
-          <View style={styles.playButtonCircle}>
+          <View
+            style={[
+              styles.playButtonCircle,
+              { backgroundColor: palette.overlayDark },
+            ]}
+          >
             <Ionicons
-              name="play"
+              name='play'
               size={36}
-              color="#fff"
+              color={palette.white}
               style={styles.playIcon}
             />
           </View>
@@ -311,7 +340,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 
       {/* 3Speak badge */}
       <View style={[styles.badge, { backgroundColor: palette.badge3speak }]}>
-        <Ionicons name="videocam" size={10} color="#fff" />
+        <Ionicons name='videocam' size={10} color={palette.white} />
       </View>
     </TouchableOpacity>
   );
@@ -321,17 +350,22 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const renderModal = () => (
     <Modal
       visible={isModalVisible}
-      animationType="fade"
+      animationType='fade'
       supportedOrientations={[
-        "portrait",
-        "landscape",
-        "landscape-left",
-        "landscape-right",
+        'portrait',
+        'landscape',
+        'landscape-left',
+        'landscape-right',
       ]}
       onRequestClose={handleCloseModal}
       statusBarTranslucent
     >
-      <View style={[styles.modalContainer, { paddingBottom: insets.bottom }]}>
+      <View
+        style={[
+          styles.modalContainer,
+          { paddingBottom: insets.bottom, backgroundColor: palette.shadow },
+        ]}
+      >
         {/* Native video player - only mounted when modal is open to avoid
             background player instances and buffering spinner race conditions */}
         {isModalVisible && videoState.cid ? (
@@ -340,13 +374,13 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             source={useOfflineFallback ? offlineVideo : { uri: videoState.cid }}
             style={styles.videoPlayer}
             controls
-            resizeMode="contain"
+            resizeMode='contain'
             paused={false}
             onLoad={handleVideoLoad}
             onBuffer={handleVideoBuffer}
             onError={handleVideoError}
             allowsExternalPlayback
-            ignoreSilentSwitch="ignore"
+            ignoreSilentSwitch='ignore'
             playInBackground={false}
             playWhenInactive={false}
           />
@@ -354,21 +388,26 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 
         {/* Buffering spinner over video */}
         {isVideoBuffering ? (
-          <View style={styles.bufferingOverlay}>
-            <ActivityIndicator size="large" color="#fff" />
+          <View
+            style={[
+              styles.bufferingOverlay,
+              { backgroundColor: palette.overlayMedium },
+            ]}
+          >
+            <ActivityIndicator size='large' color={palette.white} />
           </View>
         ) : null}
 
         {/* Close button - top-left, safe area aware */}
-        <SafeAreaView style={styles.modalSafeArea} pointerEvents="box-none">
+        <SafeAreaView style={styles.modalSafeArea} pointerEvents='box-none'>
           <TouchableOpacity
             onPress={handleCloseModal}
             style={styles.closeButton}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Close video"
+            accessibilityRole='button'
+            accessibilityLabel='Close video'
           >
-            <Ionicons name="close-circle" size={32} color="#fff" />
+            <Ionicons name='close-circle' size={32} color={palette.white} />
           </TouchableOpacity>
         </SafeAreaView>
       </View>
@@ -391,66 +430,61 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1, // 1:1 square
     borderRadius: CONTAINER_BORDER_RADIUS,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
   },
   centered: {
-    position: "absolute",
-    justifyContent: "center",
-    alignItems: "center",
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   playButtonCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   playIcon: {
     marginLeft: 4, // optical centering for the play triangle
   },
   badge: {
-    position: "absolute",
+    position: 'absolute',
     top: 8,
     right: 8,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 3,
   },
   // -- Modal ------------------------------------------------------------------
   modalContainer: {
     flex: 1,
-    backgroundColor: "#000",
   },
   videoPlayer: {
     flex: 1,
-    width: "100%",
-    backgroundColor: "#000",
+    width: '100%',
   },
   bufferingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalSafeArea: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
   },
   closeButton: {
     margin: 12,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
     ...shadowUtilities.subtle,
   },
 });
