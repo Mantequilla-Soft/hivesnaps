@@ -53,11 +53,19 @@ export function buildInfoUrl(embedUrl: string): string | null {
             return null;
         }
 
+        // v is 'owner/permlink' — encode each segment separately so the
+        // structural slash is preserved. encodeURIComponent('/') → '%2F'
+        // which some server configs treat differently, causing silent 404s.
+        const [owner, permlink] = v.split('/');
+        if (!owner || !permlink) {
+            return null;
+        }
+
         // Determine the API endpoint based on the path
         const apiPath = path.includes('/watch') ? '/api/watch' : '/api/embed';
 
         // Construct API URL with info=true
-        return `${SNAPIE_BASE_URL}${apiPath}?v=${encodeURIComponent(v)}&info=true`;
+        return `${SNAPIE_BASE_URL}${apiPath}?v=${encodeURIComponent(owner)}/${encodeURIComponent(permlink)}&info=true`;
     } catch {
         return null;
     }

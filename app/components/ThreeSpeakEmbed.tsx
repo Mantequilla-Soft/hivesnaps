@@ -281,14 +281,15 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     >
       <StatusBar hidden />
       <View style={[styles.modalContainer, { paddingBottom: insets.bottom }]}>
-        {/* Native video player - fills available space, respecting safe areas */}
-        {videoState.cid ? (
+        {/* Native video player - only mounted when modal is open to avoid
+            background player instances and buffering spinner race conditions */}
+        {isModalVisible && videoState.cid ? (
           <Video
             source={{ uri: videoState.cid }}
             style={styles.videoPlayer}
             controls
             resizeMode="contain"
-            paused={true}
+            paused={false}
             onLoad={handleVideoLoad}
             onBuffer={handleVideoBuffer}
             onError={(err) => {
