@@ -134,7 +134,7 @@ Server automatically handles video state:
 Add to `package.json`:
 
 ```json
-"react-native-video": "^5.2.1"
+"react-native-video": "^6.19.0"
 ```
 
 **Build:** Will require rebuild (`npx expo run:ios` / `npx expo run:android`) as it links native code.
