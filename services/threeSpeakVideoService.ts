@@ -38,8 +38,9 @@ export function buildInfoUrl(embedUrl: string): string | null {
     try {
         const parsed = new URL(embedUrl);
 
-        // Must be play.3speak.tv
-        if (!parsed.hostname.includes('3speak.tv')) {
+        // Exact allowlist — .includes() would pass 'evil.3speak.tv.attacker.com'
+        const ALLOWED_HOSTNAMES = new Set(['play.3speak.tv', '3speak.tv', '3speak.online']);
+        if (!ALLOWED_HOSTNAMES.has(parsed.hostname)) {
             return null;
         }
 

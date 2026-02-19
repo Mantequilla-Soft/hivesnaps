@@ -13,7 +13,7 @@
  *   5. On error -> falls back to the default fallback video URL from env.
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   TouchableOpacity,
@@ -22,7 +22,6 @@ import {
   ActivityIndicator,
   Image,
   StyleSheet,
-  useColorScheme,
   StatusBar,
 } from "react-native";
 import Video from "react-native-video";
@@ -67,9 +66,8 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   embedUrl,
   isDark,
 }) => {
-  const colorScheme = useColorScheme();
-  const themeIsDark = isDark ?? colorScheme === "dark";
   const theme = useTheme();
+  const themeIsDark = isDark ?? theme.isDark;
   const insets = useSafeAreaInsets();
 
   const [videoState, setVideoState] = useState<VideoState>({
@@ -79,6 +77,13 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   });
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isVideoBuffering, setIsVideoBuffering] = useState(true);
+
+  // Ref kept in sync with isModalVisible so cleanup functions always read the
+  // current value, not the stale closure value from when the effect ran.
+  const isModalVisibleRef = useRef(isModalVisible);
+  useEffect(() => {
+    isModalVisibleRef.current = isModalVisible;
+  }, [isModalVisible]);
 
   // -- Screen Orientation ------------------------------------------------------
 
@@ -119,8 +124,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      // If component unmounts while modal is still open, restore portrait orientation
-      if (isModalVisible) {
+      // Use ref (not closed-over isModalVisible) so we always read the current
+      // value at unmount time, even if the component unmounts within the 300ms
+      // debounce window after the modal was closed.
+      if (isModalVisibleRef.current) {
         ScreenOrientation.lockAsync(
           ScreenOrientation.OrientationLock.PORTRAIT_UP
         ).catch(err => {
@@ -209,12 +216,23 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     [],
   );
 
+  const handleVideoError = useCallback((err: unknown) => {
+    console.warn("[ThreeSpeakEmbed] Video error:", err);
+    if (__DEV__) {
+      console.log('[ThreeSpeakEmbed] Video error details:', JSON.stringify(err, null, 2));
+    }
+    setIsVideoBuffering(false);
+  }, []);
+
   // -- Render: 1:1 thumbnail in feed -------------------------------------------
 
   const renderThumbnail = () => (
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={handleThumbnailPress}
+      accessibilityRole="button"
+      accessibilityLabel="Play 3Speak video"
+      accessibilityHint="Opens video player"
       style={[
         styles.container,
         {
@@ -279,7 +297,6 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       onRequestClose={handleCloseModal}
       statusBarTranslucent
     >
-      <StatusBar hidden />
       <View style={[styles.modalContainer, { paddingBottom: insets.bottom }]}>
         {/* Native video player - only mounted when modal is open to avoid
             background player instances and buffering spinner race conditions */}
@@ -292,13 +309,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             paused={false}
             onLoad={handleVideoLoad}
             onBuffer={handleVideoBuffer}
-            onError={(err) => {
-              console.warn("[ThreeSpeakEmbed] Video error:", err);
-              if (__DEV__) {
-                console.log('[ThreeSpeakEmbed] Video error details:', JSON.stringify(err, null, 2));
-              }
-              setIsVideoBuffering(false);
-            }}
+            onError={handleVideoError}
             allowsExternalPlayback
             ignoreSilentSwitch="ignore"
             playInBackground={false}
@@ -331,6 +342,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 
   return (
     <>
+      {isModalVisible && <StatusBar hidden />}
       {renderThumbnail()}
       {renderModal()}
     </>
@@ -408,4 +420,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ThreeSpeakEmbed;
+export default React.memo(ThreeSpeakEmbed);
