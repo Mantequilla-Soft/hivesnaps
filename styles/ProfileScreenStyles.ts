@@ -1,51 +1,15 @@
 import { StyleSheet } from 'react-native';
+import { Theme, getTheme } from '../constants/Colors';
 
-// Color theme definition
-const profileScreenColors = {
-  light: {
-    background: '#fff',
-    text: '#0F1419',
-    button: '#1DA1F2',
-    buttonText: '#fff',
-    buttonInactive: '#E1E8ED',
-    icon: '#1DA1F2',
-    border: '#eee',
-    bubble: '#f7f9f9',
-    payout: '#17BF63',
-    mutedButton: '#E74C3C',
-    followButton: '#1DA1F2',
-    unfollowButton: '#8B9DC3',
-  },
-  dark: {
-    background: '#15202B',
-    text: '#D7DBDC',
-    button: '#1DA1F2',
-    buttonText: '#fff',
-    buttonInactive: '#22303C',
-    icon: '#1DA1F2',
-    border: '#38444D',
-    bubble: '#22303C',
-    payout: '#17BF63',
-    mutedButton: '#E74C3C',
-    followButton: '#1DA1F2',
-    unfollowButton: '#8B9DC3',
-  },
-};
+/**
+ * ProfileScreen Styles
+ * 
+ * Uses centralized theme colors from constants/Colors.ts
+ * Pass isDark to get the appropriate themed styles.
+ */
 
-interface ProfileScreenColors {
-  background: string;
-  text: string;
-  button: string;
-  buttonText: string;
-  buttonInactive: string;
-  icon: string;
-  border: string;
-  bubble: string;
-  payout: string;
-  mutedButton: string;
-  followButton: string;
-  unfollowButton: string;
-  // Additional colors used in ProfileScreen
+interface ProfileScreenColors extends Theme {
+  // Extended colors derived from base theme
   safeAreaBackground: string;
   headerBorderColor: string;
   defaultAvatarBackground: string;
@@ -78,41 +42,41 @@ interface ProfileScreenColors {
 }
 
 export const createProfileScreenStyles = (isDark: boolean) => {
-  const colors = isDark ? profileScreenColors.dark : profileScreenColors.light;
+  const theme = getTheme(isDark ? 'dark' : 'light');
 
   // Create extended colors object with all the specific color mappings
   const extendedColors: ProfileScreenColors = {
-    ...colors,
-    // Additional colors for styles
-    safeAreaBackground: colors.background,
-    headerBorderColor: colors.border,
-    defaultAvatarBackground: colors.bubble,
-    editAvatarTextColor: colors.icon,
-    socialStatNumberColor: colors.text,
-    socialStatLabelColor: colors.text,
-    displayNameColor: colors.text,
-    aboutTextColor: colors.text,
-    statsSectionBackground: colors.bubble,
-    statLabelColor: colors.text,
-    statValueColor: colors.payout,
-    unclaimedSectionBackground: colors.bubble,
-    unclaimedSectionBorderColor: colors.border,
-    unclaimedTitleColor: colors.text,
-    unclaimedTextColor: colors.payout,
-    claimButtonBackground: colors.icon,
-    infoTextColor: colors.text,
-    infoTextIconColor: colors.icon,
-    snapsSectionTitleColor: colors.text,
-    loadSnapsButtonBackground: colors.button,
-    loadSnapsButtonTextColor: colors.buttonText,
-    snapsErrorTextColor: colors.text,
-    retryButtonBackground: colors.button,
-    retryButtonTextColor: colors.buttonText,
-    snapsEmptyTextColor: colors.text,
-    loadMoreButtonBackground: colors.buttonInactive,
-    loadMoreButtonTextColor: colors.text,
-    logoutButtonBackground: colors.mutedButton,
-    errorTextColor: colors.text,
+    ...theme,
+    // Additional colors for styles - derived from base theme
+    safeAreaBackground: theme.background,
+    headerBorderColor: theme.border,
+    defaultAvatarBackground: theme.bubble,
+    editAvatarTextColor: theme.icon,
+    socialStatNumberColor: theme.text,
+    socialStatLabelColor: theme.text,
+    displayNameColor: theme.text,
+    aboutTextColor: theme.text,
+    statsSectionBackground: theme.bubble,
+    statLabelColor: theme.text,
+    statValueColor: theme.payout,
+    unclaimedSectionBackground: theme.bubble,
+    unclaimedSectionBorderColor: theme.border,
+    unclaimedTitleColor: theme.text,
+    unclaimedTextColor: theme.payout,
+    claimButtonBackground: theme.icon,
+    infoTextColor: theme.text,
+    infoTextIconColor: theme.icon,
+    snapsSectionTitleColor: theme.text,
+    loadSnapsButtonBackground: theme.button,
+    loadSnapsButtonTextColor: theme.buttonText,
+    snapsErrorTextColor: theme.text,
+    retryButtonBackground: theme.button,
+    retryButtonTextColor: theme.buttonText,
+    snapsEmptyTextColor: theme.text,
+    loadMoreButtonBackground: theme.buttonInactive,
+    loadMoreButtonTextColor: theme.text,
+    logoutButtonBackground: theme.mutedButton,
+    errorTextColor: theme.text,
   };
 
   return StyleSheet.create({

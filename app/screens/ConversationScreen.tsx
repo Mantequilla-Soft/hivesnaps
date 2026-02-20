@@ -33,6 +33,7 @@ import {
 } from '../../utils/extractVideoInfo';
 import { Image as ExpoImage } from 'expo-image';
 import { Dimensions } from 'react-native';
+import { getTheme } from '../../constants/Colors';
 
 import { extractImageUrls } from '../../utils/extractImageUrls';
 import {
@@ -120,16 +121,18 @@ const ConversationScreenRefactored = () => {
 
   // Removed useReply and useEdit hooks - now using ComposeScreen for reply/edit
 
+  // Colors from centralized theme
+  const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
-    background: isDark ? '#15202B' : '#fff',
-    text: isDark ? '#D7DBDC' : '#0F1419',
-    bubble: isDark ? '#22303C' : '#f7f9f9',
-    border: isDark ? '#38444D' : '#eee',
-    icon: '#1DA1F2',
-    payout: '#17BF63',
-    button: '#1DA1F2',
-    buttonText: '#FFFFFF',
-    buttonInactive: isDark ? '#22303C' : '#E1E8ED',
+    background: theme.background,
+    text: theme.text,
+    bubble: theme.bubble,
+    border: theme.border,
+    icon: theme.icon,
+    payout: theme.payout,
+    button: theme.button,
+    buttonText: theme.buttonText,
+    buttonInactive: theme.buttonInactive,
   };
 
   // Color mapping for GIF picker modal

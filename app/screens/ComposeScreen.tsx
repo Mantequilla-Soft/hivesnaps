@@ -26,6 +26,7 @@ import { useCompose } from '../../hooks/useCompose';
 import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
+import { getTheme } from '../../constants/Colors';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
@@ -60,6 +61,7 @@ export default function ComposeScreen() {
   // UI-only refs
   const textInputRef = useRef<TextInput>(null);
 
+<<<<<<< ui/multi-image-discoverability
   // Memoized colors based on theme
   const colors = useMemo(() => ({
     background: isDark ? '#15202B' : '#fff',
@@ -73,6 +75,22 @@ export default function ComposeScreen() {
     warning: '#f39c12',
     danger: '#e74c3c',
   }), [isDark]);
+=======
+  // Memoized colors based on theme from centralized Colors
+  const colors = useMemo(() => {
+    const theme = getTheme(isDark ? 'dark' : 'light');
+    return {
+      background: theme.background,
+      text: theme.text,
+      inputBg: theme.bubble,
+      inputBorder: theme.inputBorder,
+      button: theme.button,
+      buttonText: theme.buttonText,
+      buttonInactive: theme.buttonInactive,
+      info: theme.textSecondary,
+    };
+  }, [isDark]);
+>>>>>>> main
 
   // Handle shared content when component mounts
   useEffect(() => {
