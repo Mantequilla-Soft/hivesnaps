@@ -12,6 +12,26 @@ const SALT_LENGTH = 16; // 128 bits
 const IV_LENGTH = 12; // 96 bits for GCM
 
 /**
+ * Convert bytes to base64 string (polyfill-safe)
+ * Uses Buffer which is available in React Native
+ * @param bytes - Uint8Array of bytes
+ * @returns Base64-encoded string
+ */
+function bytesToBase64(bytes: Uint8Array): string {
+    return Buffer.from(bytes).toString('base64');
+}
+
+/**
+ * Convert base64 string to bytes (polyfill-safe)
+ * Uses Buffer which is available in React Native
+ * @param base64 - Base64-encoded string
+ * @returns Uint8Array of decoded bytes
+ */
+function base64ToBytes(base64: string): Uint8Array {
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+}
+
+/**
  * Derives a cryptographic key from a PIN using PBKDF2
  * @param pin - 6-digit numeric PIN
  * @param salt - Base64-encoded salt
@@ -23,7 +43,7 @@ async function deriveKeyFromPin(pin: string, salt: string): Promise<CryptoKey> {
     const pinBytes = encoder.encode(pin);
 
     // Decode salt from base64
-    const saltBytes = Uint8Array.from(atob(salt), (c) => c.charCodeAt(0));
+    const saltBytes = base64ToBytes(salt);
 
     // Import PIN as raw key material
     const keyMaterial = await subtle.importKey(
@@ -68,11 +88,11 @@ export async function encryptWithPin(
 
     // Generate random salt
     const saltBytes = await Crypto.getRandomBytesAsync(SALT_LENGTH);
-    const salt = btoa(String.fromCharCode(...saltBytes));
+    const salt = bytesToBase64(saltBytes);
 
     // Generate random IV
     const ivBytes = await Crypto.getRandomBytesAsync(IV_LENGTH);
-    const iv = btoa(String.fromCharCode(...ivBytes));
+    const iv = bytesToBase64(ivBytes);
 
     // Derive key from PIN
     const key = await deriveKeyFromPin(pin, salt);
@@ -94,9 +114,7 @@ export async function encryptWithPin(
     );
 
     // Convert to base64
-    const encrypted = btoa(
-        String.fromCharCode(...new Uint8Array(encryptedBytes))
-    );
+    const encrypted = bytesToBase64(new Uint8Array(encryptedBytes));
 
     return { encrypted, salt, iv };
 }
@@ -126,10 +144,8 @@ export async function decryptWithPin(
         const key = await deriveKeyFromPin(pin, salt);
 
         // Decode encrypted data and IV from base64
-        const encryptedBytes = Uint8Array.from(atob(encrypted), (c) =>
-            c.charCodeAt(0)
-        );
-        const ivBytes = Uint8Array.from(atob(iv), (c) => c.charCodeAt(0));
+        const encryptedBytes = base64ToBytes(encrypted);
+        const ivBytes = base64ToBytes(iv);
 
         // Decrypt data
         const decryptedBytes = await subtle.decrypt(
