@@ -1,3 +1,7 @@
+// Polyfills must be imported first
+import 'react-native-get-random-values';
+import 'fast-text-encoding';
+
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import {
   DarkTheme,
@@ -82,6 +86,10 @@ function RootLayoutNav() {
             <TOSWrapper>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name='screens/LoginScreen' />
+                <Stack.Screen name='screens/AccountSelectionScreen' />
+                <Stack.Screen name='screens/PinEntryScreen' />
+                <Stack.Screen name='screens/MigrationScreen' />
+                <Stack.Screen name='screens/AddActiveKeyScreen' />
                 <Stack.Screen name='screens/FeedScreen' />
                 <Stack.Screen name='screens/NotificationsScreen' />
                 <Stack.Screen name='screens/ConversationScreen' />

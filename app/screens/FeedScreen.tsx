@@ -27,7 +27,8 @@ import ImageView from 'react-native-image-viewing';
 import { createFeedScreenStyles } from '../../styles/FeedScreenStyles';
 
 // Custom hooks for business logic
-import { useAuth } from '../../store/context';
+import { useAuth as useAuthContext } from '../../store/context';
+import { useAuth } from '../../hooks/useAuth';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
@@ -37,6 +38,7 @@ import { useVotingPower } from '../../hooks/useVotingPower';
 import { useResourceCredits } from '../../hooks/useResourceCredits';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { formatVotingPower } from '../../utils/calculateVotingPower';
+import { SessionService } from '../../services/SessionService';
 
 // Shared state management
 import { useAppStore, useCurrentUser, useAppDebug, useFollowCacheManagement } from '../../store/context';
@@ -130,7 +132,11 @@ const FeedScreenRefactored = () => {
   // Custom hooks for business logic
   // Always use the context username for all logic
   const username = useCurrentUser();
-  const { handleLogout: logout } = useAuth();
+  const { handleLogout: contextLogout } = useAuthContext();
+  const { authenticate, needsAuthentication } = useAuth();
+
+  // Wrap logout to use the context version
+  const logout = contextLogout;
 
   // User profile and voting power data
   const {
@@ -244,6 +250,39 @@ const FeedScreenRefactored = () => {
   // Refs
   const flatListRef = useRef<FlatList<any>>(null);
   const hasInitialFetch = useRef(false);
+  const hasAuthenticatedRef = useRef(false);
+
+  // Authenticate with backend on mount if needed
+  useEffect(() => {
+    const initializeAuthentication = async () => {
+      if (hasAuthenticatedRef.current) return;
+      if (!username) {
+        console.log('[FeedScreen] No username available yet for JWT authentication');
+        return;
+      }
+
+      // Check if we need to authenticate (no JWT token)
+      if (needsAuthentication) {
+        const postingKey = SessionService.getCurrentPostingKey();
+        if (postingKey) {
+          console.log('[FeedScreen] No JWT token found, authenticating user:', username);
+          hasAuthenticatedRef.current = true;
+          const success = await authenticate(username, postingKey);
+          if (success) {
+            console.log('[FeedScreen] ✅ JWT authentication successful');
+          } else {
+            console.error('[FeedScreen] ❌ JWT authentication failed');
+          }
+        } else {
+          console.error('[FeedScreen] No posting key available in session, cannot authenticate');
+        }
+      } else {
+        console.log('[FeedScreen] JWT token already available, skipping authentication');
+      }
+    };
+
+    initializeAuthentication();
+  }, [username, needsAuthentication, authenticate]);
 
   // Load recent searches on mount
   useEffect(() => {

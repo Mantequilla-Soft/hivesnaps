@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
+import { SessionService } from '../services/SessionService';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -173,10 +174,10 @@ export const useUpvote = (
     setUpvoteSuccess(false);
 
     try {
-      // Retrieve posting key from secure store
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Retrieve posting key from session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr)
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
       // Ecency-style weight: 1-100% slider maps to -10000 to 10000 (positive for upvote)

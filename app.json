@@ -36,7 +36,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.menobass.hivesnaps",
-      "versionCode": 1,
+      "versionCode": 25,
       "intentFilters": [
         {
           "action": "android.intent.action.SEND",

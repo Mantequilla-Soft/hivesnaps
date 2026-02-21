@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import Modal from 'react-native-modal';
 import { getTheme, palette } from '../../constants/Colors';
+import { useCurrentUser } from '../../store/context';
 
 import {
   formatNotificationTime,
@@ -148,7 +149,8 @@ const NotificationsScreen = () => {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
 
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  // Get current user from context (managed by PIN system)
+  const currentUsername = useCurrentUser();
   const [settingsVisible, setSettingsVisible] = useState(false);
 
   // Use the notifications hook which handles settings persistence
@@ -173,19 +175,6 @@ const NotificationsScreen = () => {
     cardBackground: isDark ? palette.darkBubbleHighlight : palette.lightBubble,
     buttonBackground: theme.button,
   };
-
-  // Load username on mount
-  useEffect(() => {
-    const loadUsername = async () => {
-      try {
-        const username = await SecureStore.getItemAsync('hive_username');
-        setCurrentUsername(username);
-      } catch (error) {
-        console.error('Error loading username:', error);
-      }
-    };
-    loadUsername();
-  }, []);
 
   // The useNotifications hook handles loading notifications when username changes
 

@@ -23,6 +23,7 @@ function isCacheExpired<T>(item: CacheItem<T>): boolean {
 // Initial state
 export const initialUserState: UserState = {
   currentUser: null,
+  hasActiveKey: false,
   profiles: {},
   followingLists: {},
   followerLists: {},
@@ -48,6 +49,12 @@ export function userReducer(state: UserState, action: UserAction): UserState {
       return {
         ...state,
         currentUser: action.payload,
+      };
+
+    case 'USER_SET_HAS_ACTIVE_KEY':
+      return {
+        ...state,
+        hasActiveKey: action.payload,
       };
 
     case 'USER_SET_PROFILE':
@@ -206,6 +213,9 @@ export function userReducer(state: UserState, action: UserAction): UserState {
 export const userSelectors = {
   // Get current user
   getCurrentUser: (state: UserState): string | null => state.currentUser,
+
+  // Get hasActiveKey
+  getHasActiveKey: (state: UserState): boolean => state.hasActiveKey,
 
   // Get user profile with cache check
   getUserProfile: (state: UserState, username: string): UserProfile | null => {

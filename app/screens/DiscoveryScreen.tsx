@@ -24,6 +24,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Snap from '../components/Snap';
 import { Client } from '@hiveio/dhive';
 import UpvoteModal from '../../components/UpvoteModal';
+import { useCurrentUser } from '../../store/context';
 // useEdit removed - now using ComposeScreen for edit
 
 // Use local twitterColors definition (copied from FeedScreen)
@@ -83,8 +84,8 @@ const DiscoveryScreen = () => {
   const router = useRouter();
   const { hashtag } = useLocalSearchParams<{ hashtag: string }>();
 
-  // Get current username
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  // Get current username from context (managed by PIN system)
+  const currentUsername = useCurrentUser();
 
   const [snaps, setSnaps] = useState<Snap[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,20 +194,15 @@ const DiscoveryScreen = () => {
     setLoading(false);
   };
 
-  // Load username from SecureStore before fetching snaps
+  // Load snaps when hashtag or username changes
   useEffect(() => {
-    const loadUsernameAndFetch = async () => {
-      const storedUsername = await SecureStore.getItemAsync('hive_username');
-      if (storedUsername) setCurrentUsername(storedUsername);
-      // Only pass string or undefined, never null
-      if (hashtag) fetchHashtagSnaps(storedUsername ?? undefined);
-    };
-    loadUsernameAndFetch();
-  }, [hashtag]);
+    if (hashtag) {
+      fetchHashtagSnaps(currentUsername ?? undefined);
+    }
+  }, [hashtag, currentUsername]);
 
   // Create refresh handler that uses current username
   const handleRefresh = async () => {
-    const currentUsername = await SecureStore.getItemAsync('hive_username');
     fetchHashtagSnaps(currentUsername ?? undefined);
   };
 

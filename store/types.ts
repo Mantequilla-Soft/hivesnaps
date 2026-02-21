@@ -32,6 +32,7 @@ export interface UserProfile {
 
 export interface UserState {
   currentUser: string | null;
+  hasActiveKey: boolean;
   profiles: Record<string, CacheItem<UserProfile>>;
   followingLists: Record<string, CacheItem<string[]>>;
   followerLists: Record<string, CacheItem<string[]>>;
@@ -161,6 +162,7 @@ export interface AppState {
 // Action types
 export type UserAction =
   | { type: 'USER_SET_CURRENT'; payload: string | null }
+  | { type: 'USER_SET_HAS_ACTIVE_KEY'; payload: boolean }
   | { type: 'USER_SET_PROFILE'; payload: { username: string; profile: UserProfile } }
   | { type: 'USER_SET_FOLLOWING_LIST'; payload: { username: string; following: string[] } }
   | { type: 'USER_SET_FOLLOWER_LIST'; payload: { username: string; followers: string[] } }

@@ -9,6 +9,7 @@ import { avatarService } from '../services/AvatarService';
 import { saveAvatarImage } from '../utils/avatarUtils';
 import { useAppStore } from '../store/context';
 import { convertImageSmart } from '../utils/imageConverter';
+import { SessionService } from '../services/SessionService';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -218,14 +219,26 @@ export const useAvatarManagement = (currentUsername: string | null) => {
     }
   };
 
-  const handleNextStep = () => {
-    // Move to active key input modal
-    setEditAvatarModalVisible(false);
-    setActiveKeyModalVisible(true);
+  const handleNextStep = async () => {
+    // Check if we have a stored active key
+    const storedActiveKey = SessionService.getCurrentActiveKey();
+
+    if (storedActiveKey) {
+      // We have a stored active key - use it directly
+      console.log('[useAvatarManagement] Using stored active key');
+      setEditAvatarModalVisible(false);
+      // Call update directly with the stored key
+      await handleUpdateAvatarWithKey(storedActiveKey);
+    } else {
+      // No stored key - prompt user to enter it
+      console.log('[useAvatarManagement] No stored active key, prompting user');
+      setEditAvatarModalVisible(false);
+      setActiveKeyModalVisible(true);
+    }
   };
 
-  const handleUpdateAvatar = async () => {
-    if (!newAvatarImage || !currentUsername || !activeKeyInput.trim()) return;
+  const handleUpdateAvatarWithKey = async (activeKeyString: string) => {
+    if (!newAvatarImage || !currentUsername || !activeKeyString.trim()) return;
 
     setAvatarUpdateLoading(true);
     setAvatarUpdateSuccess(false);
@@ -234,7 +247,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
       // Validate and create active key
       let activeKey;
       try {
-        const keyStr = activeKeyInput.trim();
+        const keyStr = activeKeyString.trim();
         // Basic validation: should start with 5 and be roughly the right length
         if (!keyStr.startsWith('5') || keyStr.length < 50) {
           throw new Error('Invalid key format');
@@ -359,6 +372,12 @@ export const useAvatarManagement = (currentUsername: string | null) => {
       const errorMsg = err instanceof Error ? err.message : JSON.stringify(err);
       throw new Error('Failed to update profile image: ' + errorMsg);
     }
+  };
+
+  // Wrapper function for modal-based active key input
+  const handleUpdateAvatar = async () => {
+    if (!activeKeyInput.trim()) return;
+    await handleUpdateAvatarWithKey(activeKeyInput);
   };
 
   const closeModals = () => {

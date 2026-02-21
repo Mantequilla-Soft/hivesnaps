@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
-import * as SecureStore from 'expo-secure-store';
 import { useFollowCacheManagement } from '../store/context';
+import { SessionService } from '../services/SessionService';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -18,7 +18,7 @@ export const useFollowManagement = (
   const [isMuted, setIsMuted] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [muteLoading, setMuteLoading] = useState(false);
-  
+
   // Cache management for immediate updates
   const { invalidateFollowingCache, invalidateMutedCache } = useFollowCacheManagement();
 
@@ -116,10 +116,10 @@ export const useFollowManagement = (
 
     setFollowLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Get posting key from session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
@@ -145,13 +145,13 @@ export const useFollowManagement = (
       );
 
       setIsFollowing(true);
-      
+
       // Invalidate follow cache to trigger immediate refresh
       if (currentUsername) {
         invalidateFollowingCache(currentUsername);
         console.log('🔄 Invalidated following cache for:', currentUsername);
       }
-      
+
       console.log('Successfully followed:', targetUsername);
     } catch (error) {
       console.log('Error following user:', error);
@@ -166,10 +166,10 @@ export const useFollowManagement = (
 
     setFollowLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Get posting key from session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
@@ -195,13 +195,13 @@ export const useFollowManagement = (
       );
 
       setIsFollowing(false);
-      
+
       // Invalidate follow cache to trigger immediate refresh
       if (currentUsername) {
         invalidateFollowingCache(currentUsername);
         console.log('🔄 Invalidated following cache for:', currentUsername);
       }
-      
+
       console.log('Successfully unfollowed:', targetUsername);
     } catch (error) {
       console.log('Error unfollowing user:', error);
@@ -216,10 +216,10 @@ export const useFollowManagement = (
 
     setMuteLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Get posting key from session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
@@ -245,13 +245,13 @@ export const useFollowManagement = (
       );
 
       setIsMuted(true);
-      
+
       // Invalidate muted cache to trigger immediate refresh
       if (currentUsername) {
         invalidateMutedCache(currentUsername);
         console.log('🔇 Invalidated muted cache for:', currentUsername);
       }
-      
+
       console.log('Successfully muted:', targetUsername);
     } catch (error) {
       console.log('Error muting user:', error);
@@ -266,10 +266,10 @@ export const useFollowManagement = (
 
     setMuteLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Get posting key from session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
@@ -295,13 +295,13 @@ export const useFollowManagement = (
       );
 
       setIsMuted(false);
-      
+
       // Invalidate muted cache to trigger immediate refresh
       if (currentUsername) {
         invalidateMutedCache(currentUsername);
         console.log('🔇 Invalidated muted cache for:', currentUsername);
       }
-      
+
       console.log('Successfully unmuted:', targetUsername);
     } catch (error) {
       console.log('Error unmuting user:', error);
