@@ -13,7 +13,7 @@
  *   5. On error -> falls back to the default fallback video URL from env.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useReducer, useEffect, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -32,6 +32,7 @@ import { fetchThreeSpeakVideoInfo } from '../../services/threeSpeakVideoService'
 import { useTheme } from '../../hooks/useTheme';
 import { shadowUtilities, palette } from '../../constants/Colors';
 import offlineVideo from '../../assets/animation/offline.mp4';
+import { parseVideoError } from '../../utils/videoErrorParser';
 
 // --- Env / config -------------------------------------------------------------
 
@@ -55,10 +56,106 @@ interface ThreeSpeakEmbedProps {
   isDark?: boolean;
 }
 
-interface VideoState {
+/**
+ * Unified video player state that models the actual playback lifecycle.
+ * Consolidates metadata, buffering, and fallback state into a single structure.
+ */
+type VideoPlayerStatus = 'loading' | 'ready' | 'buffering' | 'playing';
+
+interface VideoPlayerState {
+  // Metadata from API
   cid: string | null;
   thumbnail: string | null;
-  isLoading: boolean;
+
+  // Playback status
+  status: VideoPlayerStatus;
+
+  // Fallback tracking (enforces invariant: useOfflineFallback implies hasTriedFallback)
+  useOfflineFallback: boolean;
+  hasTriedFallback: boolean;
+}
+
+/**
+ * Actions for the video player state machine.
+ */
+type VideoPlayerAction =
+  | { type: 'METADATA_LOADING' }
+  | { type: 'METADATA_LOADED'; cid: string; thumbnail: string | null }
+  | { type: 'METADATA_FAILED' }
+  | { type: 'VIDEO_BUFFERING' }
+  | { type: 'VIDEO_READY' }
+  | { type: 'VIDEO_ERROR_FALLBACK' }
+  | { type: 'RESET_FALLBACK' };
+
+/**
+ * Reducer that enforces state transitions and invariants.
+ */
+function videoPlayerReducer(
+  state: VideoPlayerState,
+  action: VideoPlayerAction
+): VideoPlayerState {
+  switch (action.type) {
+    case 'METADATA_LOADING':
+      return {
+        cid: null,
+        thumbnail: null,
+        status: 'loading',
+        useOfflineFallback: false,
+        hasTriedFallback: false,
+      };
+
+    case 'METADATA_LOADED':
+      return {
+        ...state,
+        cid: action.cid,
+        thumbnail: action.thumbnail,
+        status: 'ready',
+      };
+
+    case 'METADATA_FAILED':
+      // API call failed - use offline video immediately
+      return {
+        ...state,
+        cid: OFFLINE_VIDEO,
+        thumbnail: null,
+        status: 'ready',
+      };
+
+    case 'VIDEO_BUFFERING':
+      return {
+        ...state,
+        status: 'buffering',
+      };
+
+    case 'VIDEO_READY':
+      return {
+        ...state,
+        status: 'playing',
+      };
+
+    case 'VIDEO_ERROR_FALLBACK':
+      // Network error during playback - switch to offline fallback
+      // Enforces invariant: useOfflineFallback → hasTriedFallback
+      if (!state.hasTriedFallback) {
+        return {
+          ...state,
+          useOfflineFallback: true,
+          hasTriedFallback: true,
+          status: 'buffering', // Will buffer the fallback video
+        };
+      }
+      return state;
+
+    case 'RESET_FALLBACK':
+      return {
+        ...state,
+        useOfflineFallback: false,
+        hasTriedFallback: false,
+      };
+
+    default:
+      return state;
+  }
 }
 
 // --- Component ----------------------------------------------------------------
@@ -71,15 +168,15 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const themeIsDark = isDark ?? theme.isDark;
   const { width, height } = useWindowDimensions();
 
-  const [videoState, setVideoState] = useState<VideoState>({
+  const [state, dispatch] = useReducer(videoPlayerReducer, {
     cid: null,
     thumbnail: null,
-    isLoading: true,
+    status: 'loading',
+    useOfflineFallback: false,
+    hasTriedFallback: false,
   });
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isVideoBuffering, setIsVideoBuffering] = useState(true);
-  const [useOfflineFallback, setUseOfflineFallback] = useState(false);
-  const [hasTriedFallback, setHasTriedFallback] = useState(false);
+
+  const [isModalVisible, setIsModalVisible] = React.useState(false);
 
   // -- Fetch metadata ----------------------------------------------------------
 
@@ -87,7 +184,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     let cancelled = false;
 
     const load = async () => {
-      setVideoState({ cid: null, thumbnail: null, isLoading: true });
+      dispatch({ type: 'METADATA_LOADING' });
 
       if (__DEV__) {
         console.log('[ThreeSpeakEmbed] Loading video for embedUrl:', embedUrl);
@@ -105,10 +202,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             views: info.views,
           });
         }
-        setVideoState({
+        dispatch({
+          type: 'METADATA_LOADED',
           cid: info.cid,
           thumbnail: info.thumbnail,
-          isLoading: false,
         });
       } else {
         // Network error or API unavailable - use the bundled offline video
@@ -117,11 +214,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             '[ThreeSpeakEmbed] API failed, using offline fallback video'
           );
         }
-        setVideoState({
-          cid: OFFLINE_VIDEO,
-          thumbnail: null,
-          isLoading: false,
-        });
+        dispatch({ type: 'METADATA_FAILED' });
       }
     };
 
@@ -134,17 +227,17 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   // -- Handlers ----------------------------------------------------------------
 
   const handleThumbnailPress = useCallback(() => {
-    if (videoState.cid) {
+    if (state.cid) {
       if (__DEV__) {
         console.log(
           '[ThreeSpeakEmbed] Opening video modal for CID:',
-          videoState.cid
+          state.cid
         );
       }
-      setIsVideoBuffering(true);
+      dispatch({ type: 'VIDEO_BUFFERING' });
       setIsModalVisible(true);
     }
-  }, [videoState.cid]);
+  }, [state.cid]);
 
   const handleCloseModal = useCallback(() => {
     if (__DEV__) {
@@ -152,58 +245,49 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
     }
     setIsModalVisible(false);
     // Reset fallback state for next play attempt
-    setUseOfflineFallback(false);
-    setHasTriedFallback(false);
+    dispatch({ type: 'RESET_FALLBACK' });
   }, []);
 
   const handleVideoLoad = useCallback(() => {
     if (__DEV__) {
       console.log('[ThreeSpeakEmbed] Video loaded successfully');
     }
-    setIsVideoBuffering(false);
+    dispatch({ type: 'VIDEO_READY' });
   }, []);
 
   const handleVideoBuffer = useCallback(
     ({ isBuffering }: { isBuffering: boolean }) => {
-      setIsVideoBuffering(isBuffering);
+      if (isBuffering) {
+        dispatch({ type: 'VIDEO_BUFFERING' });
+      } else {
+        dispatch({ type: 'VIDEO_READY' });
+      }
     },
     []
   );
 
-  const handleVideoError = useCallback(
-    (err: unknown) => {
-      setIsVideoBuffering(false);
+  const handleVideoError = useCallback((err: unknown) => {
+    // Parse error safely using utility function
+    const { message, isNetworkError, code } = parseVideoError(err);
 
-      // Check if this is a network error and we haven't tried the fallback yet
-      const errorString = JSON.stringify(err).toLowerCase();
-      const isNetworkError =
-        errorString.includes('network') ||
-        errorString.includes('unknownhost') ||
-        errorString.includes('no address') ||
-        errorString.includes('connection') ||
-        errorString.includes('22001'); // ExoPlayer network error code
-
-      if (isNetworkError && !hasTriedFallback) {
-        if (__DEV__) {
-          console.log(
-            '[ThreeSpeakEmbed] 📡 Network unavailable, using offline video'
-          );
-        }
-        setUseOfflineFallback(true);
-        setHasTriedFallback(true);
-      } else if (!isNetworkError) {
-        // Only log detailed errors for non-network issues
-        if (__DEV__) {
-          console.warn('[ThreeSpeakEmbed] Video playback error:', err);
-          console.log(
-            '[ThreeSpeakEmbed] Error details:',
-            JSON.stringify(err, null, 2)
-          );
+    if (isNetworkError) {
+      // Network error - try offline fallback (reducer enforces hasTriedFallback invariant)
+      if (__DEV__) {
+        console.log(
+          '[ThreeSpeakEmbed] 📡 Network unavailable, using offline video'
+        );
+      }
+      dispatch({ type: 'VIDEO_ERROR_FALLBACK' });
+    } else {
+      // Non-network error - just log it
+      if (__DEV__) {
+        console.warn('[ThreeSpeakEmbed] Video playback error:', message);
+        if (code !== undefined) {
+          console.log('[ThreeSpeakEmbed] Error code:', code);
         }
       }
-    },
-    [hasTriedFallback]
-  );
+    }
+  }, []);
 
   // -- Render: 1:1 thumbnail in feed -------------------------------------------
 
@@ -222,27 +306,27 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       ]}
     >
       {/* Thumbnail image */}
-      {videoState.thumbnail ? (
+      {state.thumbnail ? (
         <Image
-          source={{ uri: videoState.thumbnail }}
+          source={{ uri: state.thumbnail }}
           style={StyleSheet.absoluteFillObject}
           resizeMode='cover'
         />
       ) : null}
 
       {/* Dark overlay for play button contrast */}
-      {!videoState.isLoading && videoState.cid ? (
+      {state.status !== 'loading' && state.cid ? (
         <View style={[styles.overlay, { backgroundColor: theme.overlay }]} />
       ) : null}
 
       {/* Loading spinner */}
-      {videoState.isLoading ? (
+      {state.status === 'loading' ? (
         <ActivityIndicator
           size='large'
           color={theme.tint}
           style={styles.centered}
         />
-      ) : videoState.cid ? (
+      ) : state.cid ? (
         /* Play button */
         <View style={styles.centered}>
           <View
@@ -292,10 +376,10 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       >
         {/* Native video player - only mounted when modal is open to avoid
             background player instances and buffering spinner race conditions */}
-        {isModalVisible && videoState.cid ? (
+        {isModalVisible && state.cid ? (
           <Video
-            key={`${useOfflineFallback ? 'offline' : 'online'}-${width}x${height}`}
-            source={useOfflineFallback ? offlineVideo : { uri: videoState.cid }}
+            key={`${state.useOfflineFallback ? 'offline' : 'online'}-${width}x${height}`}
+            source={state.useOfflineFallback ? offlineVideo : { uri: state.cid }}
             style={styles.videoPlayer}
             controls
             resizeMode='contain'
@@ -311,7 +395,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         ) : null}
 
         {/* Buffering spinner over video */}
-        {isVideoBuffering ? (
+        {state.status === 'buffering' ? (
           <View
             style={[
               styles.bufferingOverlay,
