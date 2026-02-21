@@ -405,7 +405,7 @@ const ProfileScreen = () => {
                   <FontAwesome
                     name={hasActiveKey ? 'check-circle' : 'lock'}
                     size={14}
-                    color='#fff'
+                    color={colors.buttonText}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={styles.permissionBadgeText}>
