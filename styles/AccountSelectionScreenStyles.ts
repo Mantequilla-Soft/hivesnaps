@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { Theme, getTheme } from '../constants/Colors';
+import { Theme, getTheme, palette } from '../constants/Colors';
 
 /**
  * AccountSelectionScreen Styles
@@ -28,6 +28,7 @@ interface AccountSelectionScreenColors extends Theme {
     footerBorderColor: string;
     addButtonBackground: string;
     addButtonTextColor: string;
+    shadowColor: string;
 }
 
 export const createAccountSelectionScreenStyles = (isDark: boolean) => {
@@ -55,6 +56,7 @@ export const createAccountSelectionScreenStyles = (isDark: boolean) => {
         footerBorderColor: theme.border,
         addButtonBackground: theme.button,
         addButtonTextColor: theme.buttonText,
+        shadowColor: palette.shadow,
     };
 
     return StyleSheet.create({
@@ -103,7 +105,7 @@ export const createAccountSelectionScreenStyles = (isDark: boolean) => {
             borderRadius: 16,
             gap: 12,
             backgroundColor: extendedColors.accountItemBackground,
-            shadowColor: '#000',
+            shadowColor: extendedColors.shadowColor,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
             shadowRadius: 8,
