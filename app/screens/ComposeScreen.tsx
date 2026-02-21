@@ -774,55 +774,71 @@ export default function ComposeScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg, marginLeft: 12 },
-                ]}
-                onPress={compose.video.addVideo}
-                disabled={compose.video.hasVideo || compose.video.uploading}
-              >
-                <FontAwesome
-                  name="video-camera"
-                  size={20}
-                  color={(compose.video.hasVideo || compose.video.uploading) ? colors.info : colors.button}
-                />
-                {compose.video.hasVideo && (
-                  <View
-                    style={[
-                      styles.imageBadge,
-                      { backgroundColor: colors.button },
-                    ]}
-                  >
-                    <Text style={styles.imageBadgeText}>1</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              <View style={styles.mediaButtonWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg, marginLeft: 12 },
+                  ]}
+                  onPress={compose.video.addVideo}
+                  disabled={compose.video.hasVideo || compose.video.uploading}
+                >
+                  <FontAwesome
+                    name="video-camera"
+                    size={20}
+                    color={(compose.video.hasVideo || compose.video.uploading) ? colors.info : colors.button}
+                  />
+                  {compose.video.hasVideo && (
+                    <View
+                      style={[
+                        styles.imageBadge,
+                        { backgroundColor: colors.button },
+                      ]}
+                    >
+                      <Text style={styles.imageBadgeText}>1</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.video.hasVideo ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.video.hasVideo ? '1' : '0'} video selected out of 1 maximum`}
+                >
+                  {compose.video.hasVideo ? '1' : '0'}/1
+                </Text>
+              </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg, marginLeft: 12 },
-                ]}
-                onPress={compose.openAudioRecorder}
-                disabled={compose.state.audioEmbedUrl !== null || compose.state.audioUploading}
-              >
-                <FontAwesome
-                  name="microphone"
-                  size={20}
-                  color={compose.state.audioEmbedUrl !== null || compose.state.audioUploading ? colors.info : colors.button}
-                />
-                {compose.state.audioEmbedUrl && (
-                  <View
-                    style={[
-                      styles.imageBadge,
-                      { backgroundColor: colors.button },
-                    ]}
-                  >
-                    <Text style={styles.imageBadgeText}>♪</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              <View style={styles.mediaButtonWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg, marginLeft: 12 },
+                  ]}
+                  onPress={compose.openAudioRecorder}
+                  disabled={compose.state.audioEmbedUrl !== null || compose.state.audioUploading}
+                >
+                  <FontAwesome
+                    name="microphone"
+                    size={20}
+                    color={compose.state.audioEmbedUrl !== null || compose.state.audioUploading ? colors.info : colors.button}
+                  />
+                  {compose.state.audioEmbedUrl && (
+                    <View
+                      style={[
+                        styles.imageBadge,
+                        { backgroundColor: colors.button },
+                      ]}
+                    >
+                      <Text style={styles.imageBadgeText}>♪</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.state.audioEmbedUrl ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.state.audioEmbedUrl ? '1' : '0'} audio selected out of 1 maximum`}
+                >
+                  {compose.state.audioEmbedUrl ? '1' : '0'}/1
+                </Text>
+              </View>
             </View>
 
             {compose.state.images.length === 0 && !compose.state.uploading && (

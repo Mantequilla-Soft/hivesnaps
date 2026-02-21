@@ -219,12 +219,6 @@ export const styles = StyleSheet.create({
         fontSize: 14,
         fontStyle: 'italic',
     },
-    notificationStatus: {
-        marginTop: 8,
-        padding: 8,
-        borderRadius: 6,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-    },
     // Spoiler modal styles
     modalOverlay: {
         flex: 1,
