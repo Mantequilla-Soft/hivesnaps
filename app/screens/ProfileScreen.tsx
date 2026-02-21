@@ -53,7 +53,6 @@ const ProfileScreen = () => {
 
   // Use custom hooks
   const { currentUsername, handleLogout } = useAuthContext();
-  const { hasActiveKey: checkHasActiveKey, requireActiveKey } = useAuth();
   const { selectors } = useAppStore();
   const hasActiveKey = selectors.getHasActiveKey();
 
