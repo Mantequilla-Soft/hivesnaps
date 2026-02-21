@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import Modal from 'react-native-modal';
 import { getTheme, palette } from '../../constants/Colors';
 import { useCurrentUser } from '../../store/context';

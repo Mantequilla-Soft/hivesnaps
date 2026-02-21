@@ -39,6 +39,7 @@ interface ProfileScreenColors extends Theme {
   loadMoreButtonTextColor: string;
   logoutButtonBackground: string;
   errorTextColor: string;
+  permissionBadgeTextColor: string;
 }
 
 export const createProfileScreenStyles = (isDark: boolean) => {
@@ -77,6 +78,7 @@ export const createProfileScreenStyles = (isDark: boolean) => {
     loadMoreButtonTextColor: theme.text,
     logoutButtonBackground: theme.mutedButton,
     errorTextColor: theme.text,
+    permissionBadgeTextColor: theme.buttonText,
   };
 
   return StyleSheet.create({
@@ -316,7 +318,7 @@ export const createProfileScreenStyles = (isDark: boolean) => {
       marginBottom: 4,
     },
     permissionBadgeText: {
-      color: '#fff',
+      color: extendedColors.permissionBadgeTextColor,
       fontWeight: '600',
       fontSize: 14,
     },
