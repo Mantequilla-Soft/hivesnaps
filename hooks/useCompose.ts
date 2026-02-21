@@ -1,6 +1,5 @@
 import { useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, Platform, ActionSheetIOS } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
 import { Client, PrivateKey } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
@@ -10,6 +9,7 @@ import { convertImageSmart, convertToJPEG } from '../utils/imageConverter';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import { useVideoUpload } from './useVideoUpload';
 import { useReply } from './useReply';
+import { SessionService } from '../services/SessionService';
 import { useEdit } from './useEdit';
 import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
@@ -216,7 +216,7 @@ export function useCompose({
     useEffect(() => {
         const loadCredentials = async () => {
             try {
-                const storedUsername = await SecureStore.getItemAsync('hive_username');
+                const storedUsername = SessionService.getCurrentUsername();
 
                 let avatarUrl: string | null = null;
                 if (storedUsername) {
@@ -663,9 +663,9 @@ export function useCompose({
         dispatch({ type: 'SET_POSTING', payload: true });
 
         try {
-            const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+            const postingKeyStr = SessionService.getCurrentPostingKey();
             if (!postingKeyStr) {
-                throw new Error('No posting key found. Please log in again.');
+                throw new Error('Session expired. Please unlock your account again.');
             }
             const postingKey = PrivateKey.fromString(postingKeyStr);
 

@@ -4,6 +4,7 @@
 import { uploadImageToCloudinaryFixed } from './cloudinaryImageUploadFixed';
 import { uploadImageToHive, HiveImageUploadFile } from './hiveImageUpload';
 import * as SecureStore from 'expo-secure-store';
+import { SessionService } from '../services/SessionService';
 
 export interface UploadResult {
   url: string;
@@ -43,10 +44,10 @@ export async function uploadImage(
     const hasHiveCredentials = username && privateKey;
     const selectedProvider = hasHiveCredentials ? 'hive' : 'cloudinary';
     console.log(`[ImageUploadService] Auto-selected provider: ${selectedProvider}`);
-    
-    return uploadImage(file, { 
-      ...options, 
-      provider: selectedProvider 
+
+    return uploadImage(file, {
+      ...options,
+      provider: selectedProvider
     });
   }
 
@@ -63,7 +64,7 @@ export async function uploadImage(
     try {
       console.log('[ImageUploadService] Uploading to Hive...');
       const result = await uploadImageToHive(file, { username, privateKey });
-      
+
       return {
         url: result.url,
         provider: 'hive',
@@ -71,12 +72,12 @@ export async function uploadImage(
       };
     } catch (error) {
       console.error('[ImageUploadService] Hive upload failed:', error);
-      
+
       if (fallbackToCloudinary) {
         console.warn('[ImageUploadService] Falling back to Cloudinary due to Hive failure');
         return uploadImage(file, { ...options, provider: 'cloudinary' });
       }
-      
+
       throw error;
     }
   }
@@ -86,7 +87,7 @@ export async function uploadImage(
     try {
       console.log('[ImageUploadService] Uploading to Cloudinary...');
       const url = await uploadImageToCloudinaryFixed(file);
-      
+
       return {
         url,
         provider: 'cloudinary',
@@ -111,8 +112,8 @@ export async function getHiveCredentials(username: string): Promise<{
   privateKey: string;
 } | null> {
   try {
-    const privateKey = await SecureStore.getItemAsync('hive_posting_key');
-    
+    const privateKey = SessionService.getCurrentPostingKey();
+
     if (!privateKey) {
       return null;
     }
@@ -140,7 +141,7 @@ export async function uploadImageSmart(
   }
 
   const credentials = await getHiveCredentials(username);
-  
+
   if (credentials) {
     console.log('[ImageUploadService] Hive credentials found, using Hive upload');
     return uploadImage(file, {

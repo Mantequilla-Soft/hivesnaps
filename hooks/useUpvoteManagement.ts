@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
+import { SessionService } from '../services/SessionService';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -115,9 +116,9 @@ export const useUpvoteManagement = (
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 

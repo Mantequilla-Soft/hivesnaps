@@ -31,7 +31,8 @@ import { useFollowManagement } from '../../hooks/useFollowManagement';
 import { useUserSnaps } from '../../hooks/useUserSnaps';
 import { useAvatarManagement } from '../../hooks/useAvatarManagement';
 import { useRewardsManagement } from '../../hooks/useRewardsManagement';
-import { useAuth } from '../../store/context';
+import { useAuth as useAuthContext, useAppStore } from '../../store/context';
+import { useAuth } from '../../hooks/useAuth';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
 // useEdit removed - now using ComposeScreen for edit
@@ -51,7 +52,10 @@ const ProfileScreen = () => {
   const username = params.username as string | undefined;
 
   // Use custom hooks
-  const { currentUsername, handleLogout } = useAuth();
+  const { currentUsername, handleLogout } = useAuthContext();
+  const { hasActiveKey: checkHasActiveKey, requireActiveKey } = useAuth();
+  const { selectors } = useAppStore();
+  const hasActiveKey = selectors.getHasActiveKey();
 
   // Define isOwnProfile early to avoid undefined issues
   const isOwnProfile = currentUsername === username;
@@ -393,18 +397,48 @@ const ProfileScreen = () => {
               onResnapPress={handleResnapPress}
             />
 
-            {/* Logout Button - Only show for own profile */}
+            {/* Account Management Section - Only show for own profile */}
             {isOwnProfile && (
               <View style={styles.logoutSection}>
+                {/* Permission Badge */}
+                <View style={[styles.permissionBadge, { backgroundColor: hasActiveKey ? colors.followButton : colors.icon }]}>
+                  <FontAwesome
+                    name={hasActiveKey ? 'check-circle' : 'lock'}
+                    size={14}
+                    color='#fff'
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.permissionBadgeText}>
+                    {hasActiveKey ? 'Full Access' : 'Posting Only'}
+                  </Text>
+                </View>
+
+                {/* Add Active Key Button - Only show if posting-only */}
+                {!hasActiveKey && (
+                  <TouchableOpacity
+                    style={[styles.logoutButton, { backgroundColor: colors.followButton, marginTop: 12 }]}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/screens/AddActiveKeyScreen' as any,
+                        params: { username: currentUsername },
+                      });
+                    }}
+                  >
+                    <FontAwesome name='key' size={18} color='#fff' />
+                    <Text style={styles.logoutButtonText}>Add Active Key</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Exit to Login Screen Button */}
                 <TouchableOpacity
-                  style={[styles.logoutButton, { backgroundColor: '#E74C3C' }]}
+                  style={[styles.logoutButton, { backgroundColor: '#E74C3C', marginTop: 12 }]}
                   onPress={async () => {
                     await handleLogout();
                     router.replace('/');
                   }}
                 >
                   <FontAwesome name='sign-out' size={18} color='#fff' />
-                  <Text style={styles.logoutButtonText}>Log Out</Text>
+                  <Text style={styles.logoutButtonText}>Exit to Login Screen</Text>
                 </TouchableOpacity>
               </View>
             )}

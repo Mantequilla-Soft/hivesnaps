@@ -1,10 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
-import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import * as ImagePicker from 'expo-image-picker';
 import { convertImageSmart } from '../utils/imageConverter';
+import { SessionService } from '../services/SessionService';
 
 const HIVE_NODES = [
   'https://api.hive.blog',
@@ -154,7 +154,7 @@ export const useEdit = (
         const asset = result.assets[0];
 
         // Smart conversion - only converts HEIC, preserves GIFs
-        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
+        const converted = await convertImageSmart(asset.uri, asset.fileName || 'image.jpg', 0.8);
 
         const fileToUpload = {
           uri: converted.uri,
@@ -224,10 +224,10 @@ export const useEdit = (
     setState(prev => ({ ...prev, editing: true, error: null }));
 
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Get posting key from session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 

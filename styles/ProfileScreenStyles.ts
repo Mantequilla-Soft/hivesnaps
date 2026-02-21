@@ -306,6 +306,20 @@ export const createProfileScreenStyles = (isDark: boolean) => {
       marginBottom: 20,
       alignItems: 'center',
     },
+    permissionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginBottom: 4,
+    },
+    permissionBadgeText: {
+      color: '#fff',
+      fontWeight: '600',
+      fontSize: 14,
+    },
     logoutButton: {
       flexDirection: 'row',
       alignItems: 'center',

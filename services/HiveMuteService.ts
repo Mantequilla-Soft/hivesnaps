@@ -3,7 +3,7 @@
 
 import { BlacklistService } from './BlacklistService';
 import { makeAuthenticatedRequest } from './AuthenticatedRequest';
-  
+
 // Define interfaces for the expected API response and muted user objects
 interface MutedUserObject {
   account?: string;
@@ -13,10 +13,10 @@ type MutedApiResponse = string[] | { muted: (string | MutedUserObject)[] };
 
 export async function fetchMutedList(username: string): Promise<Set<string>> {
   if (!username) return new Set();
-  
+
   try {
     console.log('[HiveMuteService] 🚀 Starting fetch for user:', username);
-    
+
     // Fetch both user's personal muted list and global blacklist in parallel
     const [personalMuted, globalBlacklist] = await Promise.all([
       fetchPersonalMutedList(),
@@ -30,7 +30,7 @@ export async function fetchMutedList(username: string): Promise<Set<string>> {
     // Combine both lists
     const combinedMuted = new Set([...personalMuted, ...globalBlacklist]);
     const combinedArray = Array.from(combinedMuted);
-    
+
     console.log('[HiveMuteService] 🔗 FINAL COMBINED LIST (' + combinedMuted.size + '):', combinedArray);
     console.log('[HiveMuteService] ✅ Summary:', {
       personal: personalMuted.length,
@@ -51,12 +51,12 @@ export async function fetchMutedList(username: string): Promise<Set<string>> {
  */
 async function fetchPersonalMutedList(): Promise<string[]> {
   const response = await makeAuthenticatedRequest({
-        path: '/muted/',
-        method: 'GET',
-        shouldCache: true, // Enable networking layer caching
-        timeoutMs: 10000,
-        retries: 2
-      });
+    path: '/muted/',
+    method: 'GET',
+    shouldCache: true, // Enable networking layer caching
+    timeoutMs: 10000,
+    retries: 2
+  });
   const data: MutedApiResponse = response.body;
   console.log('[HiveMuteService] Fetched personal muted data:', data);
   // The API returns an array of usernames in the 'muted' field or as the root array

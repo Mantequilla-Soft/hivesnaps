@@ -23,18 +23,20 @@ export class BlacklistService {
   static async getBlacklist(): Promise<string[]> {
     try {
       console.log('[BlacklistService] Fetching blacklist from /blacklisted');
-      
+
       // Use authenticated request with built-in caching and JWT token
+      // Note: Blacklist is public data, so we don't require authentication
       const response = await makeAuthenticatedRequest({
         path: '/blacklisted',
         method: 'GET',
         shouldCache: true, // Enable networking layer caching
         timeoutMs: 10000,
-        retries: 2
+        retries: 2,
+        requireAuth: false // Blacklist is public data
       });
 
       const blacklist = this.extractBlacklistFromResponse(response.body);
-      
+
       if (blacklist.length > 0) {
         console.log('[BlacklistService] Successfully fetched blacklist:', blacklist.length, 'users');
         return blacklist;
@@ -68,7 +70,7 @@ export class BlacklistService {
       console.log('[BlacklistService] ✅ Found array format:', filtered.length, 'users');
       return filtered;
     }
-    
+
     // Check for blacklistedUsers field (the actual field from your API)
     if (data.blacklistedUsers && Array.isArray(data.blacklistedUsers)) {
       const filtered = data.blacklistedUsers.filter((item: unknown): item is string => typeof item === 'string');
@@ -76,19 +78,19 @@ export class BlacklistService {
       console.log('[BlacklistService] 📋 Blacklisted users:', filtered);
       return filtered;
     }
-    
+
     if (data.data && Array.isArray(data.data)) {
       const filtered = data.data.filter((item: unknown): item is string => typeof item === 'string');
       console.log('[BlacklistService] ✅ Found data field:', filtered.length, 'users');
       return filtered;
     }
-    
+
     if (data.blacklist && Array.isArray(data.blacklist)) {
       const filtered = data.blacklist.filter((item: unknown): item is string => typeof item === 'string');
       console.log('[BlacklistService] ✅ Found blacklist field:', filtered.length, 'users');
       return filtered;
     }
-    
+
     if (data.users && Array.isArray(data.users)) {
       const filtered = data.users.filter((item: unknown): item is string => typeof item === 'string');
       console.log('[BlacklistService] ✅ Found users field:', filtered.length, 'users');
