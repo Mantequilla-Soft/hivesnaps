@@ -13,7 +13,7 @@
  *   5. On error -> falls back to the default fallback video URL from env.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -22,10 +22,10 @@ import {
   Image,
   StyleSheet,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import Video from 'react-native-video';
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchThreeSpeakVideoInfo } from '../../services/threeSpeakVideoService';
@@ -69,6 +69,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 }) => {
   const theme = useTheme();
   const themeIsDark = isDark ?? theme.isDark;
+  const { width, height } = useWindowDimensions();
 
   const [videoState, setVideoState] = useState<VideoState>({
     cid: null,
@@ -79,82 +80,6 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
   const [isVideoBuffering, setIsVideoBuffering] = useState(true);
   const [useOfflineFallback, setUseOfflineFallback] = useState(false);
   const [hasTriedFallback, setHasTriedFallback] = useState(false);
-
-  // Ref kept in sync with isModalVisible so cleanup functions always read the
-  // current value, not the stale closure value from when the effect ran.
-  // Using useLayoutEffect ensures the ref is updated synchronously after render
-  // but before effect cleanup runs, preventing race conditions with orientation locking.
-  const isModalVisibleRef = useRef(isModalVisible);
-  useLayoutEffect(() => {
-    isModalVisibleRef.current = isModalVisible;
-  }, [isModalVisible]);
-
-  // -- Screen Orientation ------------------------------------------------------
-
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const handleOrientationChange = async () => {
-      if (isModalVisible) {
-        // Unlock orientation when video modal opens - allow rotation
-        try {
-          await ScreenOrientation.unlockAsync();
-          if (__DEV__) {
-            console.log('[ThreeSpeakEmbed] Orientation unlocked');
-          }
-        } catch (err) {
-          if (__DEV__) {
-            console.warn(
-              '[ThreeSpeakEmbed] Failed to unlock orientation:',
-              err
-            );
-          }
-        }
-      } else {
-        // Lock back to portrait when modal closes - with a delay to avoid race conditions
-        timeoutId = setTimeout(async () => {
-          try {
-            await ScreenOrientation.lockAsync(
-              ScreenOrientation.OrientationLock.PORTRAIT_UP
-            );
-            if (__DEV__) {
-              console.log('[ThreeSpeakEmbed] Orientation locked to portrait');
-            }
-          } catch (err) {
-            if (__DEV__) {
-              console.warn(
-                '[ThreeSpeakEmbed] Failed to lock orientation:',
-                err
-              );
-            }
-          }
-        }, 300); // Small delay to ensure modal animation completes
-      }
-    };
-
-    handleOrientationChange();
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      // Use ref (not closed-over isModalVisible) so we always read the current
-      // value at unmount time, even if the component unmounts within the 300ms
-      // debounce window after the modal was closed.
-      if (isModalVisibleRef.current) {
-        ScreenOrientation.lockAsync(
-          ScreenOrientation.OrientationLock.PORTRAIT_UP
-        ).catch(err => {
-          if (__DEV__) {
-            console.warn(
-              '[ThreeSpeakEmbed] Failed to restore orientation on unmount:',
-              err
-            );
-          }
-        });
-      }
-    };
-  }, [isModalVisible]);
 
   // -- Fetch metadata ----------------------------------------------------------
 
@@ -369,7 +294,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             background player instances and buffering spinner race conditions */}
         {isModalVisible && videoState.cid ? (
           <Video
-            key={useOfflineFallback ? 'offline' : 'online'}
+            key={`${useOfflineFallback ? 'offline' : 'online'}-${width}x${height}`}
             source={useOfflineFallback ? offlineVideo : { uri: videoState.cid }}
             style={styles.videoPlayer}
             controls
