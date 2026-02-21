@@ -18,7 +18,6 @@ import {
   View,
   TouchableOpacity,
   Modal,
-  SafeAreaView,
   ActivityIndicator,
   Image,
   StyleSheet,
@@ -27,7 +26,7 @@ import {
 import Video from 'react-native-video';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchThreeSpeakVideoInfo } from '../../services/threeSpeakVideoService';
 import { useTheme } from '../../hooks/useTheme';
@@ -70,7 +69,6 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
 }) => {
   const theme = useTheme();
   const themeIsDark = isDark ?? theme.isDark;
-  const insets = useSafeAreaInsets();
 
   const [videoState, setVideoState] = useState<VideoState>({
     cid: null,
@@ -360,11 +358,12 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       onRequestClose={handleCloseModal}
       statusBarTranslucent
     >
-      <View
+      <SafeAreaView
         style={[
           styles.modalContainer,
-          { paddingBottom: insets.bottom, backgroundColor: palette.shadow },
+          { backgroundColor: palette.shadow },
         ]}
+        edges={['top', 'bottom', 'left', 'right']}
       >
         {/* Native video player - only mounted when modal is open to avoid
             background player instances and buffering spinner race conditions */}
@@ -399,7 +398,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
         ) : null}
 
         {/* Close button - top-left, safe area aware */}
-        <SafeAreaView style={styles.modalSafeArea} pointerEvents='box-none'>
+        <View style={styles.modalSafeArea} pointerEvents='box-none'>
           <TouchableOpacity
             onPress={handleCloseModal}
             style={styles.closeButton}
@@ -409,8 +408,8 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
           >
             <Ionicons name='close-circle' size={32} color={palette.white} />
           </TouchableOpacity>
-        </SafeAreaView>
-      </View>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 
