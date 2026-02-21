@@ -26,6 +26,7 @@ import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
 import { getTheme } from '../../constants/Colors';
+import { styles } from './ComposeScreen.styles';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
