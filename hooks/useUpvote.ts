@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
-import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
 import { useOptimisticUpdates } from './useOptimisticUpdates';

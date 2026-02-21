@@ -156,6 +156,7 @@ const ProfileScreen = () => {
     mutedButton: theme.mutedButton,
     followButton: theme.followButton,
     unfollowButton: theme.unfollowButton,
+    error: theme.error,
   };
 
   // Handle snap bubble press (navigate to conversation)
@@ -430,7 +431,7 @@ const ProfileScreen = () => {
 
                 {/* Exit to Login Screen Button */}
                 <TouchableOpacity
-                  style={[styles.logoutButton, { backgroundColor: '#E74C3C', marginTop: 12 }]}
+                  style={[styles.logoutButton, { backgroundColor: colors.error, marginTop: 12 }]}
                   onPress={async () => {
                     await handleLogout();
                     router.replace('/');

@@ -52,6 +52,7 @@ export default function LoginScreen() {
     buttonText: theme.buttonText,
     info: theme.textSecondary,
     footer: isDark ? theme.border : palette.lightTabIcon,
+    placeholderText: theme.placeholderText,
   };
   const router = useRouter();
   const { authenticate } = useAuth();
@@ -146,9 +147,7 @@ export default function LoginScreen() {
                   },
                 ]}
                 placeholder='username'
-                placeholderTextColor={
-                  colorScheme === 'dark' ? '#8899A6' : '#536471'
-                }
+                placeholderTextColor={colors.placeholderText}
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize='none'
@@ -166,9 +165,7 @@ export default function LoginScreen() {
                   },
                 ]}
                 placeholder='Posting key'
-                placeholderTextColor={
-                  colorScheme === 'dark' ? '#8899A6' : '#536471'
-                }
+                placeholderTextColor={colors.placeholderText}
                 value={postingKey}
                 onChangeText={setPostingKey}
                 secureTextEntry
@@ -205,9 +202,7 @@ export default function LoginScreen() {
                       },
                     ]}
                     placeholder='Active key (optional)'
-                    placeholderTextColor={
-                      colorScheme === 'dark' ? '#8899A6' : '#536471'
-                    }
+                    placeholderTextColor={colors.placeholderText}
                     value={activeKey}
                     onChangeText={setActiveKey}
                     secureTextEntry

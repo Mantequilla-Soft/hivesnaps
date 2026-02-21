@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { PrivateKey } from '@hiveio/dhive';
+import { SessionService } from '../../services/SessionService';
 import { useColorScheme, StyleSheet } from 'react-native';
 import {
   View,
@@ -328,10 +328,10 @@ const DiscoveryScreen = () => {
     setUpvoteLoading(true);
     setUpvoteSuccess(false);
     try {
-      // Get posting key from SecureStore
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      // Get posting key from current session
+      const postingKeyStr = SessionService.getCurrentPostingKey();
       if (!postingKeyStr)
-        throw new Error('No posting key found. Please log in again.');
+        throw new Error('Session expired. Please unlock your account again.');
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
       // Ensure user is logged in
