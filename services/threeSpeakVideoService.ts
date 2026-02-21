@@ -87,10 +87,12 @@ export async function fetchThreeSpeakVideoInfo(
 ): Promise<ThreeSpeakVideoInfo | null> {
   const infoUrl = buildInfoUrl(embedUrl);
   if (!infoUrl) {
-    console.warn(
-      '[threeSpeakVideoService] Could not build info URL from:',
-      embedUrl
-    );
+    if (__DEV__) {
+      console.warn(
+        '[threeSpeakVideoService] Could not build info URL from:',
+        embedUrl
+      );
+    }
     return null;
   }
 
@@ -105,9 +107,11 @@ export async function fetchThreeSpeakVideoInfo(
     });
 
     if (!response.ok) {
-      console.warn(
-        `[threeSpeakVideoService] API returned ${response.status} for ${infoUrl}`
-      );
+      if (__DEV__) {
+        console.warn(
+          `[threeSpeakVideoService] API returned ${response.status} for ${infoUrl}`
+        );
+      }
       return null;
     }
 
@@ -129,7 +133,9 @@ export async function fetchThreeSpeakVideoInfo(
       (typeof data.views !== 'undefined' && typeof data.views !== 'number') ||
       (typeof data.short !== 'undefined' && typeof data.short !== 'boolean')
     ) {
-      console.warn('[threeSpeakVideoService] Unexpected response shape:', data);
+      if (__DEV__) {
+        console.warn('[threeSpeakVideoService] Unexpected response shape:', data);
+      }
       return null;
     }
 
@@ -140,7 +146,9 @@ export async function fetchThreeSpeakVideoInfo(
       short: data.short,
     };
   } catch (err) {
-    console.warn('[threeSpeakVideoService] Fetch error:', err);
+    if (__DEV__) {
+      console.warn('[threeSpeakVideoService] Fetch error:', err);
+    }
     return null;
   }
 }
