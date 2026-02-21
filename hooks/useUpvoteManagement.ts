@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Client, PrivateKey } from '@hiveio/dhive';
-import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';

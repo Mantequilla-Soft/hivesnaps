@@ -3,7 +3,6 @@
 
 import { uploadImageToCloudinaryFixed } from './cloudinaryImageUploadFixed';
 import { uploadImageToHive, HiveImageUploadFile } from './hiveImageUpload';
-import * as SecureStore from 'expo-secure-store';
 import { SessionService } from '../services/SessionService';
 
 export interface UploadResult {

@@ -59,6 +59,22 @@ export const palette = {
 } as const;
 
 // ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+/**
+ * Convert a hex color to rgba format with opacity.
+ * @param hex - Hex color (e.g., '#1DA1F2')
+ * @param opacity - Opacity value 0-1 (e.g., 0.1 for 10%)
+ * @returns RGBA string (e.g., 'rgba(29, 161, 242, 0.1)')
+ */
+export const hexToRgba = (hex: string, opacity: number): string => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+// ============================================================================
 // THEME TYPE DEFINITION
 // ============================================================================
 export interface Theme {

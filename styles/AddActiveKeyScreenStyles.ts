@@ -1,5 +1,5 @@
 import { StyleSheet, Dimensions } from 'react-native';
-import { Theme, getTheme } from '../constants/Colors';
+import { Theme, getTheme, hexToRgba } from '../constants/Colors';
 
 /**
  * AddActiveKeyScreen Styles
@@ -46,7 +46,7 @@ export const createAddActiveKeyScreenStyles = (isDark: boolean) => {
         containerBackground: theme.background,
         titleColor: theme.text,
         subtitleColor: theme.textSecondary,
-        infoBoxBackground: 'rgba(0, 122, 255, 0.1)',
+        infoBoxBackground: hexToRgba(theme.button, 0.1),
         infoIconColor: theme.button,
         infoTitleColor: theme.text,
         infoTextColor: theme.textSecondary,
