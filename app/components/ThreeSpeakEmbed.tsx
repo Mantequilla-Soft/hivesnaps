@@ -41,8 +41,6 @@ import { parseVideoError } from '../../utils/videoErrorParser';
  * Uses a pre-bundled offline.mp4 video shipped with the app for a better UX
  * when the device is offline or the API is unreachable.
  */
-const DEFAULT_VIDEO_URL: string =
-  process.env.EXPO_PUBLIC_DEFAULT_VIDEO_CID ?? '';
 const OFFLINE_VIDEO = offlineVideo;
 
 // --- Constants ----------------------------------------------------------------
@@ -110,6 +108,9 @@ function videoPlayerReducer(
         cid: action.cid,
         thumbnail: action.thumbnail,
         status: 'ready',
+        // Reset fallback state when loading new video metadata
+        useOfflineFallback: false,
+        hasTriedFallback: false,
       };
 
     case 'METADATA_FAILED':
@@ -234,7 +235,7 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
           state.cid
         );
       }
-      dispatch({ type: 'VIDEO_BUFFERING' });
+      // Let onBuffer callback drive buffering state to avoid race condition
       setIsModalVisible(true);
     }
   }, [state.cid]);
@@ -366,6 +367,9 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
       ]}
       onRequestClose={handleCloseModal}
       statusBarTranslucent
+      accessibilityViewIsModal
+      accessible
+      accessibilityLabel='Video player modal'
     >
       <SafeAreaView
         style={[
@@ -378,12 +382,12 @@ const ThreeSpeakEmbed: React.FC<ThreeSpeakEmbedProps> = ({
             background player instances and buffering spinner race conditions */}
         {isModalVisible && state.cid ? (
           <Video
-            key={`${state.useOfflineFallback ? 'offline' : 'online'}-${width}x${height}`}
+            key={state.useOfflineFallback ? 'offline' : 'online'}
             source={state.useOfflineFallback ? offlineVideo : { uri: state.cid }}
             style={styles.videoPlayer}
             controls
             resizeMode='contain'
-            paused={false}
+            paused={true}
             onLoad={handleVideoLoad}
             onBuffer={handleVideoBuffer}
             onError={handleVideoError}
