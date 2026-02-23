@@ -74,7 +74,7 @@ export default function ComposeScreen() {
       buttonInactive: theme.buttonInactive,
       info: theme.textSecondary,
       warning: theme.warning,
-      danger: theme.error,
+      error: theme.error,
     };
   }, [isDark]);
 
@@ -354,7 +354,7 @@ export default function ComposeScreen() {
                 {
                   color:
                     compose.state.text.length > 260
-                      ? colors.danger
+                      ? colors.error
                       : compose.state.text.length > 240
                         ? colors.warning
                         : colors.info,
@@ -747,11 +747,10 @@ export default function ComposeScreen() {
                   disabled={compose.state.gifs.length >= 5}
                 >
                   <Text
-                    style={{
-                      fontSize: 18,
-                      color: compose.state.gifs.length >= 5 ? colors.info : colors.button,
-                      fontWeight: 'bold',
-                    }}
+                    style={[
+                      styles.gifButtonText,
+                      { color: compose.state.gifs.length >= 5 ? colors.info : colors.button }
+                    ]}
                   >
                     GIF
                   </Text>
