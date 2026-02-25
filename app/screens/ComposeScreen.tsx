@@ -1,6 +1,5 @@
 import React, { useRef, useMemo, useEffect, useCallback } from 'react';
 import {
-  StyleSheet,
   View,
   Text,
   TextInput,
@@ -27,6 +26,7 @@ import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
 import { getTheme } from '../../constants/Colors';
+import { styles } from './ComposeScreen.styles';
 
 export default function ComposeScreen() {
   const colorScheme = useColorScheme() || 'light';
@@ -73,6 +73,8 @@ export default function ComposeScreen() {
       buttonText: theme.buttonText,
       buttonInactive: theme.buttonInactive,
       info: theme.textSecondary,
+      warning: theme.warning,
+      error: theme.error,
     };
   }, [isDark]);
 
@@ -352,9 +354,9 @@ export default function ComposeScreen() {
                 {
                   color:
                     compose.state.text.length > 260
-                      ? '#e74c3c'
+                      ? colors.error
                       : compose.state.text.length > 240
-                        ? '#f39c12'
+                        ? colors.warning
                         : colors.info,
                 },
               ]}
@@ -694,127 +696,172 @@ export default function ComposeScreen() {
 
             {/* Image and GIF buttons */}
             <View style={styles.mediaButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg },
-                ]}
-                onPress={compose.addImage}
-                disabled={compose.state.uploading || compose.state.images.length >= 10}
-              >
-                {compose.state.uploading ? (
-                  <ActivityIndicator size='small' color={colors.button} />
-                ) : (
-                  <>
-                    <FontAwesome
-                      name='image'
-                      size={20}
-                      color={compose.state.images.length >= 10 ? colors.info : colors.button}
-                    />
-                    {compose.state.images.length > 0 && (
-                      <View
-                        style={[
-                          styles.imageBadge,
-                          { backgroundColor: colors.button },
-                        ]}
-                      >
-                        <Text style={styles.imageBadgeText}>
-                          {compose.state.images.length}
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg, marginLeft: 12 },
-                ]}
-                onPress={compose.gifPicker.openPicker}
-                disabled={compose.state.gifs.length >= 5}
-              >
-                <Text
-                  style={{
-                    fontSize: 18,
-                    color: compose.state.gifs.length >= 5 ? colors.info : colors.button,
-                    fontWeight: 'bold',
-                  }}
+              <View style={styles.mediaButtonWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg },
+                  ]}
+                  onPress={compose.addImage}
+                  disabled={compose.state.uploading || compose.state.images.length >= 10}
                 >
-                  GIF
+                  {compose.state.uploading ? (
+                    <ActivityIndicator size='small' color={colors.button} />
+                  ) : (
+                    <>
+                      <FontAwesome
+                        name='image'
+                        size={20}
+                        color={compose.state.images.length >= 10 ? colors.info : colors.button}
+                      />
+                      {compose.state.images.length > 0 && (
+                        <View
+                          style={[
+                            styles.imageBadge,
+                            { backgroundColor: colors.button },
+                          ]}
+                        >
+                          <Text style={styles.imageBadgeText}>
+                            {compose.state.images.length}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.state.images.length >= 10 ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.state.images.length} images selected out of 10 maximum`}
+                >
+                  {compose.state.images.length}/10
                 </Text>
-                {compose.state.gifs.length > 0 && (
-                  <View
-                    style={[
-                      styles.imageBadge,
-                      { backgroundColor: colors.button },
-                    ]}
-                  >
-                    <Text style={styles.imageBadgeText}>{compose.state.gifs.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg, marginLeft: 12 },
-                ]}
-                onPress={compose.video.addVideo}
-                disabled={compose.video.hasVideo || compose.video.uploading}
-              >
-                <FontAwesome
-                  name="video-camera"
-                  size={20}
-                  color={(compose.video.hasVideo || compose.video.uploading) ? colors.info : colors.button}
-                />
-                {compose.video.hasVideo && (
-                  <View
+              <View style={styles.mediaButtonWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg, marginLeft: 12 },
+                  ]}
+                  onPress={compose.gifPicker.openPicker}
+                  disabled={compose.state.gifs.length >= 5}
+                >
+                  <Text
                     style={[
-                      styles.imageBadge,
-                      { backgroundColor: colors.button },
+                      styles.gifButtonText,
+                      { color: compose.state.gifs.length >= 5 ? colors.info : colors.button }
                     ]}
                   >
-                    <Text style={styles.imageBadgeText}>1</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+                    GIF
+                  </Text>
+                  {compose.state.gifs.length > 0 && (
+                    <View
+                      style={[
+                        styles.imageBadge,
+                        { backgroundColor: colors.button },
+                      ]}
+                    >
+                      <Text style={styles.imageBadgeText}>{compose.state.gifs.length}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.state.gifs.length >= 5 ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.state.gifs.length} GIFs selected out of 5 maximum`}
+                >
+                  {compose.state.gifs.length}/5
+                </Text>
+              </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: colors.inputBg, marginLeft: 12 },
-                ]}
-                onPress={compose.openAudioRecorder}
-                disabled={compose.state.audioEmbedUrl !== null || compose.state.audioUploading}
-              >
-                <FontAwesome
-                  name="microphone"
-                  size={20}
-                  color={compose.state.audioEmbedUrl !== null || compose.state.audioUploading ? colors.info : colors.button}
-                />
-                {compose.state.audioEmbedUrl && (
-                  <View
-                    style={[
-                      styles.imageBadge,
-                      { backgroundColor: colors.button },
-                    ]}
-                  >
-                    <Text style={styles.imageBadgeText}>♪</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              <View style={styles.mediaButtonWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg, marginLeft: 12 },
+                  ]}
+                  onPress={compose.video.addVideo}
+                  disabled={compose.video.hasVideo || compose.video.uploading}
+                >
+                  <FontAwesome
+                    name="video-camera"
+                    size={20}
+                    color={(compose.video.hasVideo || compose.video.uploading) ? colors.info : colors.button}
+                  />
+                  {compose.video.hasVideo && (
+                    <View
+                      style={[
+                        styles.imageBadge,
+                        { backgroundColor: colors.button },
+                      ]}
+                    >
+                      <Text style={styles.imageBadgeText}>1</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.video.hasVideo ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.video.hasVideo ? '1' : '0'} video selected out of 1 maximum`}
+                >
+                  {compose.video.hasVideo ? '1' : '0'}/1
+                </Text>
+              </View>
+
+              <View style={styles.mediaButtonWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: colors.inputBg, marginLeft: 12 },
+                  ]}
+                  onPress={compose.openAudioRecorder}
+                  disabled={compose.state.audioEmbedUrl !== null || compose.state.audioUploading}
+                >
+                  <FontAwesome
+                    name="microphone"
+                    size={20}
+                    color={compose.state.audioEmbedUrl !== null || compose.state.audioUploading ? colors.info : colors.button}
+                  />
+                  {compose.state.audioEmbedUrl && (
+                    <View
+                      style={[
+                        styles.imageBadge,
+                        { backgroundColor: colors.button },
+                      ]}
+                    >
+                      <Text style={styles.imageBadgeText}>♪</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <Text
+                  style={[styles.buttonLabel, { color: compose.state.audioEmbedUrl ? colors.info : colors.text }]}
+                  accessibilityLabel={`${compose.state.audioEmbedUrl ? '1' : '0'} audio selected out of 1 maximum`}
+                >
+                  {compose.state.audioEmbedUrl ? '1' : '0'}/1
+                </Text>
+              </View>
             </View>
 
+            {compose.state.images.length === 0 && !compose.state.uploading && (
+              <Text
+                style={[styles.hintText, { color: colors.info }]}
+                accessibilityLabel="Tip: Select up to 10 images at once from gallery"
+              >
+                💡 Select up to 10 images at once from gallery
+              </Text>
+            )}
             {compose.state.images.length >= 10 && (
-              <Text style={[styles.limitText, { color: colors.info }]}>
-                Maximum 10 images
+              <Text
+                style={[styles.limitText, { color: colors.warning }]}
+                accessibilityLabel="Warning: Maximum 10 images reached"
+              >
+                ⚠️ Maximum 10 images reached
               </Text>
             )}
             {compose.state.gifs.length >= 5 && (
-              <Text style={[styles.limitText, { color: colors.info }]}>
-                Maximum 5 GIFs
+              <Text
+                style={[styles.limitText, { color: colors.warning }]}
+                accessibilityLabel="Warning: Maximum 5 GIFs reached"
+              >
+                ⚠️ Maximum 5 GIFs reached
               </Text>
             )}
           </View>
@@ -962,261 +1009,3 @@ export default function ComposeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  postButton: {
-    // Additional styles for post button
-  },
-  headerButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  headerTitleContainer: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  username: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  textInput: {
-    fontSize: 18,
-    lineHeight: 24,
-    minHeight: 120,
-    padding: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  charCountRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 16,
-  },
-  charCount: {
-    fontSize: 14,
-  },
-  imagesContainer: {
-    marginBottom: 16,
-  },
-  imagesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  imagesCount: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  clearAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  clearAllText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  imagesScrollView: {
-    marginHorizontal: -8,
-  },
-  imagesScrollContent: {
-    paddingHorizontal: 8,
-  },
-  imageContainer: {
-    position: 'relative',
-    marginRight: 8,
-    width: 120,
-  },
-  imagePreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 16,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actions: {
-    flexDirection: 'column',
-    marginBottom: 16,
-  },
-  markdownToolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
-  },
-  markdownButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  mediaButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    position: 'relative',
-  },
-  imageBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  gifBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 3,
-  },
-  gifBadgeText: {
-    color: '#fff',
-    fontSize: 8,
-    fontWeight: 'bold',
-  },
-  limitText: {
-    fontSize: 12,
-    marginLeft: 8,
-  },
-  sharedIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  sharedText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  notificationStatus: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  // Spoiler modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  spoilerModal: {
-    width: '85%',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-  },
-  spoilerModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  spoilerModalDescription: {
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  spoilerInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  spoilerModalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  spoilerModalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  spoilerModalButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
