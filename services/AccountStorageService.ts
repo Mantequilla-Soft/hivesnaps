@@ -209,15 +209,27 @@ class AccountStorageServiceImpl {
 
             // Validate and normalize each account
             return parsed
-                .filter((acc) => acc && typeof acc.username === 'string')
-                .map((acc) => ({
-                    username: acc.username,
-                    hasActiveKey: !!acc.hasActiveKey,
-                    avatar: typeof acc.avatar === 'string'
-                        ? acc.avatar
-                        : getAvatarImageUrl(acc.username),
-                    lastUsed: typeof acc.lastUsed === 'number' ? acc.lastUsed : Date.now(),
-                }))
+                .filter(
+                    (acc) =>
+                        acc &&
+                        typeof acc.username === 'string' &&
+                        // Only keep accounts with a valid, normalized username
+                        validateUsername(normalizeUsername(acc.username)),
+                )
+                .map((acc) => {
+                    const normalizedUsername = normalizeUsername(acc.username);
+
+                    return {
+                        username: normalizedUsername,
+                        hasActiveKey: !!acc.hasActiveKey,
+                        avatar:
+                            typeof acc.avatar === 'string'
+                                ? acc.avatar
+                                : getAvatarImageUrl(normalizedUsername),
+                        lastUsed:
+                            typeof acc.lastUsed === 'number' ? acc.lastUsed : Date.now(),
+                    };
+                })
                 .sort((a, b) => b.lastUsed - a.lastUsed); // Most recent first
         } catch (error) {
             console.error('[AccountStorageService] Error reading accounts:', error);
