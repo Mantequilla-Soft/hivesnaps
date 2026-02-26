@@ -13,6 +13,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { PrivateKey, Client, PublicKey } from '@hiveio/dhive';
+import { getAvatarImageUrl } from './AvatarService';
 
 // Storage keys
 const ACCOUNTS_STORAGE_KEY = 'hive_accounts_v3';
@@ -167,7 +168,7 @@ class AccountStorageServiceImpl {
         const accountData: StoredAccount = {
             username: normalizedUsername,
             hasActiveKey: !!(activeKey && activeKey.trim()),
-            avatar: `https://images.ecency.com/u/${normalizedUsername}/avatar/original`,
+            avatar: getAvatarImageUrl(normalizedUsername),
             lastUsed: Date.now(),
         };
 

@@ -19,7 +19,7 @@ class AvatarService {
   private loadingPromises = new Map<string, Promise<string>>();
   private listeners = new Set<(username: string, avatarUrl: string) => void>();
   private readonly DEBUG = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
-  
+
   // Cache duration: 30 minutes for successful loads, 5 minutes for failures
   private readonly CACHE_DURATION_SUCCESS = 30 * 60 * 1000;
   private readonly CACHE_DURATION_FAILURE = 5 * 60 * 1000;
@@ -78,7 +78,7 @@ class AvatarService {
    */
   private notifyListeners(username: string, avatarUrl: string) {
     if (this.DEBUG) {
-      try { console.log(`[Avatar][Service] notify ${username} -> ${avatarUrl || 'EMPTY'}`); } catch {}
+      try { console.log(`[Avatar][Service] notify ${username} -> ${avatarUrl || 'EMPTY'}`); } catch { }
     }
     this.listeners.forEach(listener => {
       try {
@@ -101,7 +101,7 @@ class AvatarService {
     // Check cache first
     const cached = this.cache.get(key);
     const now = Date.now();
-    
+
     if (cached) {
       const cacheAge = now - cached.timestamp;
       const maxAge = cached.url ? this.CACHE_DURATION_SUCCESS : this.CACHE_DURATION_FAILURE;
@@ -127,10 +127,10 @@ class AvatarService {
     try {
       const url = await loadPromise;
       this.loadingPromises.delete(key);
-      
+
       // Notify listeners of the update
       this.notifyListeners(key, url);
-      
+
       const result = { url, fromCache: false, source: this.cache.get(key)?.source || 'ecency-images' };
       if (this.DEBUG) {
         console.log(`[AvatarService] getAvatarUrl(${username}) -> ${url} (source: ${result.source})`);
@@ -148,10 +148,10 @@ class AvatarService {
    */
   async preloadAvatars(usernames: string[]): Promise<void> {
     const uniqueUsernames = [...new Set(usernames.map(u => this.normalizeUsername(u)).filter(Boolean))];
-    const loadPromises = uniqueUsernames.map(username => 
+    const loadPromises = uniqueUsernames.map(username =>
       this.getAvatarUrl(username).catch(() => ({ url: '', fromCache: false, source: 'fallback' as const }))
     );
-    
+
     await Promise.all(loadPromises);
     if (this.DEBUG) {
       console.log(`✅ Preloaded avatars for ${uniqueUsernames.length} users`);
@@ -170,14 +170,14 @@ class AvatarService {
       }
       return '';
     }
-    
+
     const now = Date.now();
     const cacheAge = now - cached.timestamp;
     const maxAge = cached.url ? this.CACHE_DURATION_SUCCESS : this.CACHE_DURATION_FAILURE;
 
     if (cacheAge >= maxAge) {
       if (this.DEBUG) {
-        console.log(`[AvatarService] getCachedAvatarUrl(${username}) -> EXPIRED (age: ${Math.round(cacheAge/1000)}s)`);
+        console.log(`[AvatarService] getCachedAvatarUrl(${username}) -> EXPIRED (age: ${Math.round(cacheAge / 1000)}s)`);
       }
       return '';
     }
@@ -192,7 +192,7 @@ class AvatarService {
       this.persistCacheToStorage();
       return imagesUrl;
     }
-    
+
     if (this.DEBUG) {
       console.log(`[AvatarService] getCachedAvatarUrl(${username}) -> ${cached.url} (cached)`);
     }
@@ -239,11 +239,11 @@ class AvatarService {
     let avatarUrl = '';
     let source: 'metadata' | 'ecency-images' | 'fallback' = 'ecency-images';
 
-  // Always use the deterministic Ecency images service URL.
-  // We intentionally avoid metadata because many accounts reference dead hosts (e.g., snag.gy).
-  const ecencyImageUrl = AvatarService.imagesAvatarUrl(username);
-  avatarUrl = ecencyImageUrl;
-  source = 'ecency-images';
+    // Always use the deterministic Ecency images service URL.
+    // We intentionally avoid metadata because many accounts reference dead hosts (e.g., snag.gy).
+    const ecencyImageUrl = AvatarService.imagesAvatarUrl(username);
+    avatarUrl = ecencyImageUrl;
+    source = 'ecency-images';
 
     // Cache the result (even if empty)
     this.cache.set(username, {
@@ -253,7 +253,7 @@ class AvatarService {
     });
 
     // Persist cache to storage periodically
-  this.persistCacheToStorage();
+    this.persistCacheToStorage();
 
     return avatarUrl;
   }
@@ -277,10 +277,10 @@ class AvatarService {
           const normalized: AvatarCacheEntry = e.url === correctUrl
             ? e
             : {
-                url: correctUrl,
-                timestamp: Date.now(),
-                source: 'ecency-images',
-              };
+              url: correctUrl,
+              timestamp: Date.now(),
+              source: 'ecency-images',
+            };
           this.cache.set(this.normalizeUsername(username), normalized);
         });
         if (this.DEBUG) {
@@ -301,11 +301,11 @@ class AvatarService {
     if (Platform.OS === 'web') {
       return;
     }
-    
+
     if (this.persistTimer) {
       clearTimeout(this.persistTimer);
     }
-    
+
     this.persistTimer = setTimeout(async () => {
       try {
         const cacheObject = Object.fromEntries(this.cache.entries());
@@ -319,4 +319,10 @@ class AvatarService {
 
 // Export singleton instance
 export const avatarService = AvatarService.getInstance();
+
+// Export standalone helper function for generating avatar URLs
+export const getAvatarImageUrl = (username: string): string => {
+  return AvatarService.imagesAvatarUrl(username);
+};
+
 export type { AvatarLoadResult };
