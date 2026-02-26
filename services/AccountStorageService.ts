@@ -12,7 +12,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { PrivateKey, Client } from '@hiveio/dhive';
+import { PrivateKey, Client, PublicKey } from '@hiveio/dhive';
 
 // Storage keys
 const ACCOUNTS_STORAGE_KEY = 'hive_accounts_v3';
@@ -34,6 +34,15 @@ const HIVE_NODES = [
     'https://api.openhive.network',
 ];
 
+// Hive username validation regex: 3-16 characters, lowercase letters, numbers, hyphens
+const HIVE_USERNAME_REGEX = /^[a-z0-9-]{3,16}$/;
+
+/**
+ * Type for Hive key authority tuples
+ * Key can be either a string (public key) or a PublicKey object
+ */
+type KeyAuthority = [string | PublicKey, number];
+
 /**
  * Stored account metadata (no private keys)
  */
@@ -54,6 +63,13 @@ export interface AccountKeys {
 
 /**
  * Account Storage Service Implementation
+ * 
+ * CONCURRENCY WARNING:
+ * This service is NOT thread-safe. Methods that modify the account list
+ * (removeAccount, addActiveKey, removeActiveKey, updateLastUsed) use a
+ * read-modify-write pattern on the account list. Concurrent calls to these
+ * methods may result in lost updates. The application should ensure that
+ * only one account modification operation is in progress at a time.
  */
 class AccountStorageServiceImpl {
     private client: Client;
@@ -63,46 +79,83 @@ class AccountStorageServiceImpl {
     }
 
     /**
-     * Add or update an account with its keys
-     * Validates keys against the blockchain before storing
-     * 
+     * Normalize a Hive username: remove @, convert to lowercase, trim whitespace
+     * @private
+     */
+    private normalizeUsername(username: string): string {
+        return username.replace('@', '').toLowerCase().trim();
+    }
+
+    /**
+     * Validate Hive username format
+     * @private
+     * @throws Error if username is invalid
+     */
+    private validateUsername(username: string): void {
+        if (!username) {
+            throw new Error('Username is required');
+        }
+        if (!HIVE_USERNAME_REGEX.test(username)) {
+            throw new Error(
+                'Invalid username format. Must be 3-16 characters: lowercase letters, numbers, hyphens only'
+            );
+        }
+    }
+
+    /**
+     * Add or update an account with its keys.
+     *
+     * Both the posting and active keys (if provided) are validated against the
+     * blockchain before any new key data is written to storage. If validation
+     * fails for either key, this method throws and does not modify any
+     * previously stored keys or account metadata.
+     *
+     * Storage operations to SecureStore (posting key, active key, and account
+     * metadata) are performed as separate writes and are not transactional.
+     * If a SecureStore write fails after a previous write has succeeded, some
+     * partial state (for example, a stored posting key without updated
+     * metadata or active key) may remain.
+     *
+     * When updating an existing account: if the activeKey parameter is not provided
+     * (undefined), any previously stored active key will be removed.
+     *
      * @param username - Hive username (without @)
      * @param postingKey - Private posting key (required)
      * @param activeKey - Private active key (optional)
-     * @throws Error if validation fails
+     * @throws Error if validation fails or a storage error occurs
      */
     async addAccount(
         username: string,
         postingKey: string,
         activeKey?: string
     ): Promise<void> {
-        // Normalize username (remove @ if present, lowercase)
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
-
-        if (!normalizedUsername) {
-            throw new Error('Username is required');
-        }
+        const normalizedUsername = this.normalizeUsername(username);
+        this.validateUsername(normalizedUsername);
 
         if (!postingKey || !postingKey.trim()) {
             throw new Error('Posting key is required');
         }
 
-        // Validate keys against blockchain
+        // Validate keys against blockchain before making any changes
         await this.validateKeys(normalizedUsername, postingKey, activeKey);
 
-        // Store keys in SecureStore
+        // Store posting key in SecureStore
         await SecureStore.setItemAsync(
             postingKeyStorageKey(normalizedUsername),
             postingKey.trim(),
             secureStoreOptions
         );
 
+        // Handle active key: store if provided, remove if not
         if (activeKey && activeKey.trim()) {
             await SecureStore.setItemAsync(
                 activeKeyStorageKey(normalizedUsername),
                 activeKey.trim(),
                 secureStoreOptions
             );
+        } else {
+            // Remove active key if not provided (cleanup for updates)
+            await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
         }
 
         // Update account metadata
@@ -114,7 +167,7 @@ class AccountStorageServiceImpl {
         const accountData: StoredAccount = {
             username: normalizedUsername,
             hasActiveKey: !!(activeKey && activeKey.trim()),
-            avatar: `https://images.ecency.com/u/${normalizedUsername}/avatar`,
+            avatar: `https://images.ecency.com/u/${normalizedUsername}/avatar/original`,
             lastUsed: Date.now(),
         };
 
@@ -176,7 +229,7 @@ class AccountStorageServiceImpl {
      * Returns null if account not found
      */
     async getAccount(username: string): Promise<StoredAccount | null> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
         const accounts = await this.getAccounts();
         return accounts.find((acc) => acc.username === normalizedUsername) || null;
     }
@@ -184,10 +237,12 @@ class AccountStorageServiceImpl {
     /**
      * Remove an account and all its associated keys
      * 
+     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * 
      * @param username - Hive username to remove
      */
     async removeAccount(username: string): Promise<void> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
 
         // Remove keys from SecureStore
         await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
@@ -224,7 +279,7 @@ class AccountStorageServiceImpl {
      * @returns Account keys or null if not found
      */
     async getAccountKeys(username: string): Promise<AccountKeys | null> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
 
         const postingKey = await SecureStore.getItemAsync(
             postingKeyStorageKey(normalizedUsername)
@@ -251,7 +306,7 @@ class AccountStorageServiceImpl {
      * @returns true if active key exists
      */
     async hasActiveKey(username: string): Promise<boolean> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
         const activeKey = await SecureStore.getItemAsync(
             activeKeyStorageKey(normalizedUsername)
         );
@@ -262,11 +317,13 @@ class AccountStorageServiceImpl {
      * Add or update active key for an existing account
      * Validates the key before storing
      * 
+     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * 
      * @param username - Hive username
      * @param activeKey - Private active key
      */
     async addActiveKey(username: string, activeKey: string): Promise<void> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
 
         if (!activeKey || !activeKey.trim()) {
             throw new Error('Active key is required');
@@ -307,10 +364,12 @@ class AccountStorageServiceImpl {
     /**
      * Remove active key from an account (keeps posting key)
      * 
+     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * 
      * @param username - Hive username
      */
     async removeActiveKey(username: string): Promise<void> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
 
         // Remove active key from SecureStore
         await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
@@ -351,7 +410,7 @@ class AccountStorageServiceImpl {
      * @param username - Hive username to set as current
      */
     async setCurrentAccountUsername(username: string): Promise<void> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
 
         // Verify account exists
         const account = await this.getAccount(normalizedUsername);
@@ -378,10 +437,12 @@ class AccountStorageServiceImpl {
     /**
      * Update the lastUsed timestamp for an account
      * 
+     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * 
      * @param username - Hive username
      */
     async updateLastUsed(username: string): Promise<void> {
-        const normalizedUsername = username.replace('@', '').toLowerCase().trim();
+        const normalizedUsername = this.normalizeUsername(username);
         const accounts = await this.getAccounts();
         const accountIndex = accounts.findIndex(
             (acc) => acc.username === normalizedUsername
@@ -424,8 +485,8 @@ class AccountStorageServiceImpl {
             // Validate posting key
             const postingPublicKey = PrivateKey.fromString(postingKey).createPublic().toString();
             const hasPostingAuth = account.posting.key_auths.some(
-                ([key]: [string | any, number]) => {
-                    const keyStr = typeof key === 'string' ? key : key.toString();
+                ([key]: KeyAuthority) => {
+                    const keyStr = typeof key === 'string' ? key : String(key);
                     return keyStr === postingPublicKey;
                 }
             );
@@ -438,13 +499,16 @@ class AccountStorageServiceImpl {
             if (activeKey && activeKey.trim()) {
                 await this.validateActiveKey(username, activeKey);
             }
-        } catch (error: any) {
-            if (error.message.includes('Invalid posting key') ||
-                error.message.includes('Invalid active key') ||
-                error.message.includes('not found')) {
-                throw error;
+        } catch (error: unknown) {
+            if (error instanceof Error) {
+                if (error.message.includes('Invalid posting key') ||
+                    error.message.includes('Invalid active key') ||
+                    error.message.includes('not found')) {
+                    throw error;
+                }
+                throw new Error(`Failed to validate keys: ${error.message}`);
             }
-            throw new Error(`Failed to validate keys: ${error.message}`);
+            throw new Error('Failed to validate keys: Unknown error');
         }
     }
 
@@ -468,8 +532,8 @@ class AccountStorageServiceImpl {
 
             const activePublicKey = PrivateKey.fromString(activeKey).createPublic().toString();
             const hasActiveAuth = account.active.key_auths.some(
-                ([key]: [string | any, number]) => {
-                    const keyStr = typeof key === 'string' ? key : key.toString();
+                ([key]: KeyAuthority) => {
+                    const keyStr = typeof key === 'string' ? key : String(key);
                     return keyStr === activePublicKey;
                 }
             );
@@ -477,12 +541,15 @@ class AccountStorageServiceImpl {
             if (!hasActiveAuth) {
                 throw new Error('Invalid active key for this account');
             }
-        } catch (error: any) {
-            if (error.message.includes('Invalid active key') ||
-                error.message.includes('not found')) {
-                throw error;
+        } catch (error: unknown) {
+            if (error instanceof Error) {
+                if (error.message.includes('Invalid active key') ||
+                    error.message.includes('not found')) {
+                    throw error;
+                }
+                throw new Error(`Failed to validate active key: ${error.message}`);
             }
-            throw new Error(`Failed to validate active key: ${error.message}`);
+            throw new Error('Failed to validate active key: Unknown error');
         }
     }
 
@@ -506,4 +573,4 @@ class AccountStorageServiceImpl {
 }
 
 // Export singleton instance
-export const AccountStorageService = new AccountStorageServiceImpl();
+export const accountStorageService = new AccountStorageServiceImpl();

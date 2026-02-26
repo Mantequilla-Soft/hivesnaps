@@ -3,52 +3,70 @@
  * Tests multi-account storage, key management, and validation
  */
 
-import { AccountStorageService } from '../services/AccountStorageService';
 import * as SecureStore from 'expo-secure-store';
 import { Client, PrivateKey } from '@hiveio/dhive';
 
+// Mock data
+const mockUsername = 'testuser';
+const mockPostingKey = '5TestPostingKeyABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+const mockActiveKey = '5TestActiveKeyABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+const mockPublicKey = 'STM5TestPublicKeyABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+// Mock Hive account data
+const mockHiveAccount = {
+    name: mockUsername,
+    posting: {
+        key_auths: [[mockPublicKey, 1]],
+    },
+    active: {
+        key_auths: [[mockPublicKey, 1]],
+    },
+};
+
+// Create shared mocks that will be used across tests
+let mockGetAccounts: jest.Mock;
+let mockPrivateKeyFromString: jest.Mock;
+
 // Mock dependencies
 jest.mock('expo-secure-store');
-jest.mock('@hiveio/dhive', () => ({
-    Client: jest.fn(),
-    PrivateKey: {
-        fromString: jest.fn(),
-    },
-}));
+jest.mock('@hiveio/dhive', () => {
+    // Create the mock functions inside the factory
+    mockGetAccounts = jest.fn();
+    mockPrivateKeyFromString = jest.fn();
 
-describe('AccountStorageService', () => {
-    // Mock data
-    const mockUsername = 'testuser';
-    const mockPostingKey = '5TestPostingKeyABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
-    const mockActiveKey = '5TestActiveKeyABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
-    const mockPublicKey = 'STM5TestPublicKeyABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-    // Mock Hive account data
-    const mockHiveAccount = {
-        name: mockUsername,
-        posting: {
-            key_auths: [[mockPublicKey, 1]],
-        },
-        active: {
-            key_auths: [[mockPublicKey, 1]],
+    const mockClient = {
+        database: {
+            getAccounts: mockGetAccounts,
         },
     };
 
+    return {
+        Client: jest.fn(() => mockClient),
+        PrivateKey: {
+            fromString: mockPrivateKeyFromString,
+        },
+    };
+});
+
+// Import service AFTER mocks are set up
+import { accountStorageService as AccountStorageService } from '../services/AccountStorageService';
+
+describe('AccountStorageService', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        // Clear all mocks but don't remove implementations
+        mockGetAccounts.mockClear();
+        mockPrivateKeyFromString.mockClear();
+        (SecureStore.getItemAsync as jest.Mock).mockClear();
+        (SecureStore.setItemAsync as jest.Mock).mockClear();
+        (SecureStore.deleteItemAsync as jest.Mock).mockClear();
 
         // Mock SecureStore methods
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
         (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
         (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
 
-        // Mock dhive Client
-        const mockClient = {
-            database: {
-                getAccounts: jest.fn().mockResolvedValue([mockHiveAccount]),
-            },
-        };
-        (Client as unknown as jest.Mock).mockImplementation(() => mockClient);
+        // Set up default dhive client mock behavior
+        mockGetAccounts.mockResolvedValue([mockHiveAccount]);
 
         // Mock PrivateKey
         const mockPrivateKey = {
@@ -56,7 +74,7 @@ describe('AccountStorageService', () => {
                 toString: jest.fn().mockReturnValue(mockPublicKey),
             }),
         };
-        (PrivateKey.fromString as jest.Mock).mockReturnValue(mockPrivateKey);
+        mockPrivateKeyFromString.mockReturnValue(mockPrivateKey);
     });
 
     describe('addAccount', () => {
@@ -117,12 +135,8 @@ describe('AccountStorageService', () => {
         });
 
         it('should throw error if account not found on blockchain', async () => {
-            const mockClient = {
-                database: {
-                    getAccounts: jest.fn().mockResolvedValue([]),
-                },
-            };
-            (Client as unknown as jest.Mock).mockImplementation(() => mockClient);
+            // Override the default mock to return empty array
+            mockGetAccounts.mockResolvedValueOnce([]);
 
             await expect(
                 AccountStorageService.addAccount(mockUsername, mockPostingKey)
@@ -136,7 +150,7 @@ describe('AccountStorageService', () => {
                     toString: jest.fn().mockReturnValue(wrongPublicKey),
                 }),
             };
-            (PrivateKey.fromString as jest.Mock).mockReturnValue(mockPrivateKey);
+            mockPrivateKeyFromString.mockReturnValue(mockPrivateKey);
 
             await expect(
                 AccountStorageService.addAccount(mockUsername, mockPostingKey)
