@@ -9,7 +9,12 @@ import { Client, PrivateKey } from '@hiveio/dhive';
 
 // Mock dependencies
 jest.mock('expo-secure-store');
-jest.mock('@hiveio/dhive');
+jest.mock('@hiveio/dhive', () => ({
+    Client: jest.fn(),
+    PrivateKey: {
+        fromString: jest.fn(),
+    },
+}));
 
 describe('AccountStorageService', () => {
     // Mock data
@@ -43,7 +48,7 @@ describe('AccountStorageService', () => {
                 getAccounts: jest.fn().mockResolvedValue([mockHiveAccount]),
             },
         };
-        (Client as jest.Mock).mockImplementation(() => mockClient);
+        (Client as unknown as jest.Mock).mockImplementation(() => mockClient);
 
         // Mock PrivateKey
         const mockPrivateKey = {
@@ -117,7 +122,7 @@ describe('AccountStorageService', () => {
                     getAccounts: jest.fn().mockResolvedValue([]),
                 },
             };
-            (Client as jest.Mock).mockImplementation(() => mockClient);
+            (Client as unknown as jest.Mock).mockImplementation(() => mockClient);
 
             await expect(
                 AccountStorageService.addAccount(mockUsername, mockPostingKey)
