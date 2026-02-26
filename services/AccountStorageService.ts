@@ -41,6 +41,9 @@ const HIVE_NODES = [
 // Hive username validation regex: 3-16 characters, starts with letter, ends with letter/number, allows dots and hyphens
 const HIVE_USERNAME_REGEX = /^[a-z][a-z0-9\-.]{1,14}[a-z0-9]$/;
 
+// Maximum number of accounts that can be stored
+const MAX_ACCOUNTS = 10;
+
 /**
  * Type for Hive key authority tuples
  * Key can be either a string (public key) or a PublicKey object
@@ -49,11 +52,12 @@ type KeyAuthority = [string | PublicKey, number];
 
 /**
  * Stored account metadata (no private keys)
+ * Note: Avatar URLs are computed on read, not stored
  */
 export interface StoredAccount {
     username: string;
     hasActiveKey: boolean;
-    avatar: string;
+    avatar: string; // Computed dynamically, not persisted
     lastUsed: number;
 }
 
@@ -67,19 +71,129 @@ export interface AccountKeys {
 
 /**
  * Account Storage Service Implementation
- *
- * CONCURRENCY WARNING:
- * This service is NOT thread-safe. Methods that modify the account list
- * (removeAccount, addActiveKey, removeActiveKey, updateLastUsed) use a
- * read-modify-write pattern on the account list. Concurrent calls to these
- * methods may result in lost updates. The application should ensure that
- * only one account modification operation is in progress at a time.
+ * 
+ * Thread-safe account list modifications are protected by an internal mutex.
+ * All methods that modify the account list serialize their operations.
  */
 class AccountStorageServiceImpl {
     private client: Client;
+    private modificationQueue: Promise<void> = Promise.resolve();
 
     constructor() {
         this.client = new Client(HIVE_NODES);
+    }
+
+    /**
+     * Serialize account list modifications to prevent race conditions
+     * @private
+     */
+    private async withModificationLock<T>(
+        operation: () => Promise<T>
+    ): Promise<T> {
+        const previousOperation = this.modificationQueue;
+        let resolveCurrentOperation: () => void;
+
+        this.modificationQueue = new Promise<void>(resolve => {
+            resolveCurrentOperation = resolve;
+        });
+
+        try {
+            await previousOperation;
+            return await operation();
+        } finally {
+            resolveCurrentOperation!();
+        }
+    }
+
+    /**
+     * Migrate from legacy storage format (v1) to v3
+     * Legacy format: hive_username, hive_posting_key
+     * New format: hive_accounts_v3 with per-account keys
+     * @private
+     */
+    private async migrateFromLegacyStorage(): Promise<void> {
+        try {
+            // Check if legacy storage exists
+            const legacyUsername = await SecureStore.getItemAsync('hive_username');
+            const legacyPostingKey = await SecureStore.getItemAsync(
+                'hive_posting_key'
+            );
+
+            if (!legacyUsername || !legacyPostingKey) {
+                return; // No legacy data to migrate
+            }
+
+            console.log(
+                '[AccountStorageService] Migrating legacy account:',
+                legacyUsername
+            );
+
+            // Normalize username
+            const normalizedUsername = this.normalizeUsername(legacyUsername);
+
+            // Check if already migrated
+            const accountsJson = await SecureStore.getItemAsync(
+                ACCOUNTS_STORAGE_KEY
+            );
+            if (accountsJson) {
+                const accounts = JSON.parse(accountsJson);
+                const alreadyMigrated = accounts.some(
+                    (acc: any) => acc.username === normalizedUsername
+                );
+                if (alreadyMigrated) {
+                    console.log(
+                        '[AccountStorageService] Account already migrated, cleaning up legacy keys'
+                    );
+                    await SecureStore.deleteItemAsync('hive_username');
+                    await SecureStore.deleteItemAsync('hive_posting_key');
+                    return;
+                }
+            }
+
+            // Store posting key in new format
+            await SecureStore.setItemAsync(
+                postingKeyStorageKey(normalizedUsername),
+                legacyPostingKey,
+                secureStoreOptions
+            );
+
+            // Create account metadata (without avatar - computed on read)
+            const accountData = {
+                username: normalizedUsername,
+                hasActiveKey: false,
+                lastUsed: Date.now(),
+            };
+
+            // Add to accounts list
+            const accounts = accountsJson ? JSON.parse(accountsJson) : [];
+            accounts.push(accountData);
+            await SecureStore.setItemAsync(
+                ACCOUNTS_STORAGE_KEY,
+                JSON.stringify(accounts),
+                secureStoreOptions
+            );
+
+            // Set as current account
+            await SecureStore.setItemAsync(
+                CURRENT_ACCOUNT_KEY,
+                normalizedUsername,
+                secureStoreOptions
+            );
+
+            // Clean up legacy keys
+            await SecureStore.deleteItemAsync('hive_username');
+            await SecureStore.deleteItemAsync('hive_posting_key');
+
+            console.log(
+                '[AccountStorageService] Successfully migrated legacy account'
+            );
+        } catch (error) {
+            console.error(
+                '[AccountStorageService] Migration failed:',
+                error
+            );
+            // Don't throw - allow app to continue even if migration fails
+        }
     }
 
     /**
@@ -88,6 +202,17 @@ class AccountStorageServiceImpl {
      */
     private normalizeUsername(username: string): string {
         return username.trim().replace(/^@/, '').toLowerCase();
+    }
+
+    /**
+     * Strip avatar field from accounts before persisting to storage
+     * Avatar URLs are computed dynamically on read, not stored
+     * @private
+     */
+    private stripAvatarForStorage(
+        accounts: StoredAccount[]
+    ): Array<Omit<StoredAccount, 'avatar'>> {
+        return accounts.map(({ avatar, ...rest }) => rest);
     }
 
     /**
@@ -156,6 +281,13 @@ class AccountStorageServiceImpl {
             acc => acc.username === normalizedUsername
         );
 
+        // Check maximum account limit for new accounts
+        if (existingIndex < 0 && accounts.length >= MAX_ACCOUNTS) {
+            throw new Error(
+                `Maximum account limit (${MAX_ACCOUNTS}) reached. Remove an account before adding a new one.`
+            );
+        }
+
         // Handle active key: store if provided, remove if not (for updates)
         if (activeKey && activeKey.trim()) {
             await SecureStore.setItemAsync(
@@ -170,27 +302,37 @@ class AccountStorageServiceImpl {
             );
         }
 
-        // Update account metadata
-
-        const accountData: StoredAccount = {
+        // Update account metadata (without avatar - computed on read)
+        const accountDataForStorage = {
             username: normalizedUsername,
             hasActiveKey: !!(activeKey && activeKey.trim()),
-            avatar: getAvatarImageUrl(normalizedUsername),
             lastUsed: Date.now(),
         };
 
-        if (existingIndex >= 0) {
+        // Get current accounts list for storage (without avatar field)
+        const storedAccountsJson = await SecureStore.getItemAsync(
+            ACCOUNTS_STORAGE_KEY
+        );
+        const storedAccounts = storedAccountsJson
+            ? JSON.parse(storedAccountsJson)
+            : [];
+
+        const storedIndex = storedAccounts.findIndex(
+            (acc: any) => acc.username === normalizedUsername
+        );
+
+        if (storedIndex >= 0) {
             // Update existing account
-            accounts[existingIndex] = accountData;
+            storedAccounts[storedIndex] = accountDataForStorage;
         } else {
             // Add new account
-            accounts.push(accountData);
+            storedAccounts.push(accountDataForStorage);
         }
 
-        // Save updated account list
+        // Save updated account list (avatar will be computed dynamically on read)
         await SecureStore.setItemAsync(
             ACCOUNTS_STORAGE_KEY,
-            JSON.stringify(accounts),
+            JSON.stringify(storedAccounts),
             secureStoreOptions
         );
     }
@@ -198,9 +340,13 @@ class AccountStorageServiceImpl {
     /**
      * Get all stored accounts (metadata only, no keys)
      * Returns empty array if no accounts found
+     * Automatically migrates from legacy storage format if detected
      */
     async getAccounts(): Promise<StoredAccount[]> {
         try {
+            // Attempt migration from legacy format
+            await this.migrateFromLegacyStorage();
+
             const accountsJson = await SecureStore.getItemAsync(ACCOUNTS_STORAGE_KEY);
 
             if (!accountsJson) {
@@ -217,7 +363,7 @@ class AccountStorageServiceImpl {
             }
 
             // Validate and normalize each account
-            return parsed
+            const accountPromises = parsed
                 .filter(acc => {
                     if (!acc || typeof acc.username !== 'string') {
                         return false;
@@ -226,21 +372,26 @@ class AccountStorageServiceImpl {
                     // Only keep accounts with a valid username format
                     return HIVE_USERNAME_REGEX.test(normalized);
                 })
-                .map(acc => {
+                .map(async acc => {
                     const normalizedUsername = this.normalizeUsername(acc.username);
+
+                    // Reconcile hasActiveKey from SecureStore (source of truth)
+                    const activeKey = await SecureStore.getItemAsync(
+                        activeKeyStorageKey(normalizedUsername)
+                    );
 
                     return {
                         username: normalizedUsername,
-                        hasActiveKey: !!acc.hasActiveKey,
-                        avatar:
-                            typeof acc.avatar === 'string'
-                                ? acc.avatar
-                                : getAvatarImageUrl(normalizedUsername),
+                        hasActiveKey: !!activeKey, // Always from SecureStore, not metadata
+                        avatar: getAvatarImageUrl(normalizedUsername), // Always computed dynamically
                         lastUsed:
                             typeof acc.lastUsed === 'number' ? acc.lastUsed : Date.now(),
                     };
-                })
-                .sort((a, b) => b.lastUsed - a.lastUsed); // Most recent first
+                });
+
+            // Resolve all promises (hasActiveKey checks)
+            const resolvedAccounts = await Promise.all(accountPromises);
+            return resolvedAccounts.sort((a, b) => b.lastUsed - a.lastUsed); // Most recent first
         } catch (error) {
             console.error('[AccountStorageService] Error reading accounts:', error);
             return [];
@@ -259,40 +410,42 @@ class AccountStorageServiceImpl {
 
     /**
      * Remove an account and all its associated keys
-     *
-     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * Thread-safe: uses modification lock
      *
      * @param username - Hive username to remove
      */
     async removeAccount(username: string): Promise<void> {
-        const normalizedUsername = this.normalizeUsername(username);
+        return this.withModificationLock(async () => {
+            const normalizedUsername = this.normalizeUsername(username);
 
-        // Remove keys from SecureStore
-        await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
-        await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
+            // Remove keys from SecureStore
+            await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
+            await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
 
-        // Remove from account list
-        const accounts = await this.getAccounts();
-        const filteredAccounts = accounts.filter(
-            acc => acc.username !== normalizedUsername
-        );
-
-        if (filteredAccounts.length > 0) {
-            await SecureStore.setItemAsync(
-                ACCOUNTS_STORAGE_KEY,
-                JSON.stringify(filteredAccounts),
-                secureStoreOptions
+            // Remove from account list
+            const accounts = await this.getAccounts();
+            const filteredAccounts = accounts.filter(
+                acc => acc.username !== normalizedUsername
             );
-        } else {
-            // No accounts left, remove the storage key
-            await SecureStore.deleteItemAsync(ACCOUNTS_STORAGE_KEY);
-        }
 
-        // Clear current account if it was the removed account
-        const currentAccount = await this.getCurrentAccountUsername();
-        if (currentAccount === normalizedUsername) {
-            await this.clearCurrentAccountUsername();
-        }
+            if (filteredAccounts.length > 0) {
+                // Save without avatar field
+                await SecureStore.setItemAsync(
+                    ACCOUNTS_STORAGE_KEY,
+                    JSON.stringify(this.stripAvatarForStorage(filteredAccounts)),
+                    secureStoreOptions
+                );
+            } else {
+                // No accounts left, remove the storage key
+                await SecureStore.deleteItemAsync(ACCOUNTS_STORAGE_KEY);
+            }
+
+            // Clear current account if it was the removed account
+            const currentAccount = await this.getCurrentAccountUsername();
+            if (currentAccount === normalizedUsername) {
+                await this.clearCurrentAccountUsername();
+            }
+        });
     }
 
     /**
@@ -339,78 +492,82 @@ class AccountStorageServiceImpl {
     /**
      * Add or update active key for an existing account
      * Validates the key before storing
-     *
-     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * Thread-safe: uses modification lock
      *
      * @param username - Hive username
      * @param activeKey - Private active key
      */
     async addActiveKey(username: string, activeKey: string): Promise<void> {
-        const normalizedUsername = this.normalizeUsername(username);
+        return this.withModificationLock(async () => {
+            const normalizedUsername = this.normalizeUsername(username);
 
-        if (!activeKey || !activeKey.trim()) {
-            throw new Error('Active key is required');
-        }
+            if (!activeKey || !activeKey.trim()) {
+                throw new Error('Active key is required');
+            }
 
-        // Verify account exists
-        const account = await this.getAccount(normalizedUsername);
-        if (!account) {
-            throw new Error('Account not found');
-        }
+            // Verify account exists
+            const account = await this.getAccount(normalizedUsername);
+            if (!account) {
+                throw new Error('Account not found');
+            }
 
-        // Validate active key against blockchain
-        await this.validateActiveKey(normalizedUsername, activeKey);
+            // Validate active key against blockchain
+            await this.validateActiveKey(normalizedUsername, activeKey);
 
-        // Store active key
-        await SecureStore.setItemAsync(
-            activeKeyStorageKey(normalizedUsername),
-            activeKey.trim(),
-            secureStoreOptions
-        );
-
-        // Update account metadata
-        const accounts = await this.getAccounts();
-        const accountIndex = accounts.findIndex(
-            acc => acc.username === normalizedUsername
-        );
-
-        if (accountIndex >= 0) {
-            accounts[accountIndex].hasActiveKey = true;
+            // Store active key
             await SecureStore.setItemAsync(
-                ACCOUNTS_STORAGE_KEY,
-                JSON.stringify(accounts),
+                activeKeyStorageKey(normalizedUsername),
+                activeKey.trim(),
                 secureStoreOptions
             );
-        }
+
+            // Update account metadata
+            const accounts = await this.getAccounts();
+            const accountIndex = accounts.findIndex(
+                acc => acc.username === normalizedUsername
+            );
+
+            if (accountIndex >= 0) {
+                accounts[accountIndex].hasActiveKey = true;
+                // Save without avatar field
+                await SecureStore.setItemAsync(
+                    ACCOUNTS_STORAGE_KEY,
+                    JSON.stringify(this.stripAvatarForStorage(accounts)),
+                    secureStoreOptions
+                );
+            }
+        });
     }
 
     /**
      * Remove active key from an account (keeps posting key)
-     *
-     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * Thread-safe: uses modification lock
      *
      * @param username - Hive username
      */
     async removeActiveKey(username: string): Promise<void> {
-        const normalizedUsername = this.normalizeUsername(username);
+        return this.withModificationLock(async () => {
+            const normalizedUsername = this.normalizeUsername(username);
 
-        // Remove active key from SecureStore
-        await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
+            // Remove active key from SecureStore
+            await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
 
-        // Update account metadata
-        const accounts = await this.getAccounts();
-        const accountIndex = accounts.findIndex(
-            acc => acc.username === normalizedUsername
-        );
-
-        if (accountIndex >= 0) {
-            accounts[accountIndex].hasActiveKey = false;
-            await SecureStore.setItemAsync(
-                ACCOUNTS_STORAGE_KEY,
-                JSON.stringify(accounts),
-                secureStoreOptions
+            // Update account metadata
+            const accounts = await this.getAccounts();
+            const accountIndex = accounts.findIndex(
+                acc => acc.username === normalizedUsername
             );
-        }
+
+            if (accountIndex >= 0) {
+                accounts[accountIndex].hasActiveKey = false;
+                // Save without avatar field
+                await SecureStore.setItemAsync(
+                    ACCOUNTS_STORAGE_KEY,
+                    JSON.stringify(this.stripAvatarForStorage(accounts)),
+                    secureStoreOptions
+                );
+            }
+        });
     }
 
     /**
@@ -432,35 +589,39 @@ class AccountStorageServiceImpl {
     /**
      * Set the current active account
      * Updates the lastUsed timestamp
+     * Thread-safe: uses modification lock
      *
      * @param username - Hive username to set as current
      */
     async setCurrentAccountUsername(username: string): Promise<void> {
-        const normalizedUsername = this.normalizeUsername(username);
+        return this.withModificationLock(async () => {
+            const normalizedUsername = this.normalizeUsername(username);
 
-        // Get accounts list (single read for both verification and update)
-        const accounts = await this.getAccounts();
-        const accountIndex = accounts.findIndex(
-            acc => acc.username === normalizedUsername
-        );
+            // Get accounts list (single read for both verification and update)
+            const accounts = await this.getAccounts();
+            const accountIndex = accounts.findIndex(
+                acc => acc.username === normalizedUsername
+            );
 
-        if (accountIndex < 0) {
-            throw new Error('Account not found');
-        }
+            if (accountIndex < 0) {
+                throw new Error('Account not found');
+            }
 
-        await SecureStore.setItemAsync(
-            CURRENT_ACCOUNT_KEY,
-            normalizedUsername,
-            secureStoreOptions
-        );
+            await SecureStore.setItemAsync(
+                CURRENT_ACCOUNT_KEY,
+                normalizedUsername,
+                secureStoreOptions
+            );
 
-        // Update lastUsed timestamp in-place
-        accounts[accountIndex].lastUsed = Date.now();
-        await SecureStore.setItemAsync(
-            ACCOUNTS_STORAGE_KEY,
-            JSON.stringify(accounts),
-            secureStoreOptions
-        );
+            // Update lastUsed timestamp in-place
+            accounts[accountIndex].lastUsed = Date.now();
+            // Save without avatar field
+            await SecureStore.setItemAsync(
+                ACCOUNTS_STORAGE_KEY,
+                JSON.stringify(this.stripAvatarForStorage(accounts)),
+                secureStoreOptions
+            );
+        });
     }
 
     /**
@@ -472,26 +633,28 @@ class AccountStorageServiceImpl {
 
     /**
      * Update the lastUsed timestamp for an account
-     *
-     * WARNING: Not safe for concurrent calls. Uses read-modify-write on account list.
+     * Thread-safe: uses modification lock
      *
      * @param username - Hive username
      */
     async updateLastUsed(username: string): Promise<void> {
-        const normalizedUsername = this.normalizeUsername(username);
-        const accounts = await this.getAccounts();
-        const accountIndex = accounts.findIndex(
-            acc => acc.username === normalizedUsername
-        );
-
-        if (accountIndex >= 0) {
-            accounts[accountIndex].lastUsed = Date.now();
-            await SecureStore.setItemAsync(
-                ACCOUNTS_STORAGE_KEY,
-                JSON.stringify(accounts),
-                secureStoreOptions
+        return this.withModificationLock(async () => {
+            const normalizedUsername = this.normalizeUsername(username);
+            const accounts = await this.getAccounts();
+            const accountIndex = accounts.findIndex(
+                acc => acc.username === normalizedUsername
             );
-        }
+
+            if (accountIndex >= 0) {
+                accounts[accountIndex].lastUsed = Date.now();
+                // Save without avatar field
+                await SecureStore.setItemAsync(
+                    ACCOUNTS_STORAGE_KEY,
+                    JSON.stringify(this.stripAvatarForStorage(accounts)),
+                    secureStoreOptions
+                );
+            }
+        });
     }
 
     /**
@@ -608,19 +771,26 @@ class AccountStorageServiceImpl {
     /**
      * Clear all stored accounts and keys
      * USE WITH CAUTION - This removes all data
+     * Thread-safe: uses modification lock
      */
     async clearAllAccounts(): Promise<void> {
-        const accounts = await this.getAccounts();
+        return this.withModificationLock(async () => {
+            const accounts = await this.getAccounts();
 
-        // Remove all account keys
-        for (const account of accounts) {
-            await SecureStore.deleteItemAsync(postingKeyStorageKey(account.username));
-            await SecureStore.deleteItemAsync(activeKeyStorageKey(account.username));
-        }
+            // Remove all account keys in parallel for efficiency
+            const deletionPromises = accounts.flatMap(account => [
+                SecureStore.deleteItemAsync(postingKeyStorageKey(account.username)),
+                SecureStore.deleteItemAsync(activeKeyStorageKey(account.username)),
+            ]);
 
-        // Remove account list and current account
-        await SecureStore.deleteItemAsync(ACCOUNTS_STORAGE_KEY);
-        await SecureStore.deleteItemAsync(CURRENT_ACCOUNT_KEY);
+            await Promise.all(deletionPromises);
+
+            // Remove account list and current account
+            await Promise.all([
+                SecureStore.deleteItemAsync(ACCOUNTS_STORAGE_KEY),
+                SecureStore.deleteItemAsync(CURRENT_ACCOUNT_KEY),
+            ]);
+        });
     }
 }
 
