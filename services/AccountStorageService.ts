@@ -209,15 +209,16 @@ class AccountStorageServiceImpl {
 
             // Validate and normalize each account
             return parsed
-                .filter(
-                    (acc) =>
-                        acc &&
-                        typeof acc.username === 'string' &&
-                        // Only keep accounts with a valid, normalized username
-                        validateUsername(normalizeUsername(acc.username)),
-                )
+                .filter((acc) => {
+                    if (!acc || typeof acc.username !== 'string') {
+                        return false;
+                    }
+                    const normalized = this.normalizeUsername(acc.username);
+                    // Only keep accounts with a valid username format
+                    return HIVE_USERNAME_REGEX.test(normalized);
+                })
                 .map((acc) => {
-                    const normalizedUsername = normalizeUsername(acc.username);
+                    const normalizedUsername = this.normalizeUsername(acc.username);
 
                     return {
                         username: normalizedUsername,
