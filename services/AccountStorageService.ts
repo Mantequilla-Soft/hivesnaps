@@ -215,7 +215,7 @@ class AccountStorageServiceImpl {
                     hasActiveKey: !!acc.hasActiveKey,
                     avatar: typeof acc.avatar === 'string'
                         ? acc.avatar
-                        : `https://images.ecency.com/u/${acc.username}/avatar`,
+                        : getAvatarImageUrl(acc.username),
                     lastUsed: typeof acc.lastUsed === 'number' ? acc.lastUsed : Date.now(),
                 }))
                 .sort((a, b) => b.lastUsed - a.lastUsed); // Most recent first
