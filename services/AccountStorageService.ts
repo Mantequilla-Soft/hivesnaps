@@ -38,8 +38,8 @@ const HIVE_NODES = [
     'https://api.openhive.network',
 ];
 
-// Hive username validation regex: 3-16 characters, lowercase letters, numbers, hyphens
-const HIVE_USERNAME_REGEX = /^[a-z0-9-]{3,16}$/;
+// Hive username validation regex: 3-16 characters, starts with letter, ends with letter/number, allows dots and hyphens
+const HIVE_USERNAME_REGEX = /^[a-z][a-z0-9\-.]{1,14}[a-z0-9]$/;
 
 /**
  * Type for Hive key authority tuples
@@ -101,7 +101,7 @@ class AccountStorageServiceImpl {
         }
         if (!HIVE_USERNAME_REGEX.test(username)) {
             throw new Error(
-                'Invalid username format. Must be 3-16 characters: lowercase letters, numbers, hyphens only'
+                'Invalid username format. Must be 3-16 characters: start with a letter, end with letter/number, lowercase letters, numbers, dots, and hyphens allowed'
             );
         }
     }
@@ -438,9 +438,13 @@ class AccountStorageServiceImpl {
     async setCurrentAccountUsername(username: string): Promise<void> {
         const normalizedUsername = this.normalizeUsername(username);
 
-        // Verify account exists
-        const account = await this.getAccount(normalizedUsername);
-        if (!account) {
+        // Get accounts list (single read for both verification and update)
+        const accounts = await this.getAccounts();
+        const accountIndex = accounts.findIndex(
+            acc => acc.username === normalizedUsername
+        );
+
+        if (accountIndex < 0) {
             throw new Error('Account not found');
         }
 
@@ -450,7 +454,13 @@ class AccountStorageServiceImpl {
             secureStoreOptions
         );
 
-        await this.updateLastUsed(normalizedUsername);
+        // Update lastUsed timestamp in-place
+        accounts[accountIndex].lastUsed = Date.now();
+        await SecureStore.setItemAsync(
+            ACCOUNTS_STORAGE_KEY,
+            JSON.stringify(accounts),
+            secureStoreOptions
+        );
     }
 
     /**
@@ -523,9 +533,9 @@ class AccountStorageServiceImpl {
                 throw new Error('Invalid posting key for this account');
             }
 
-            // Validate active key if provided
+            // Validate active key if provided (pass already-fetched account)
             if (activeKey && activeKey.trim()) {
-                await this.validateActiveKey(username, activeKey);
+                await this.validateActiveKey(username, activeKey, account);
             }
         } catch (error: unknown) {
             if (error instanceof Error) {
@@ -548,20 +558,25 @@ class AccountStorageServiceImpl {
      * @private
      * @param username - Hive username
      * @param activeKey - Private active key
+     * @param account - Optional pre-fetched account object (avoids redundant API call)
      * @throws Error if validation fails
      */
     private async validateActiveKey(
         username: string,
-        activeKey: string
+        activeKey: string,
+        account?: any
     ): Promise<void> {
         try {
-            const accounts = await this.client.database.getAccounts([username]);
+            // Use provided account or fetch from blockchain
+            if (!account) {
+                const accounts = await this.client.database.getAccounts([username]);
 
-            if (!accounts || accounts.length === 0) {
-                throw new Error(`Account @${username} not found on Hive blockchain`);
+                if (!accounts || accounts.length === 0) {
+                    throw new Error(`Account @${username} not found on Hive blockchain`);
+                }
+
+                account = accounts[0];
             }
-
-            const account = accounts[0];
 
             const activePublicKey = PrivateKey.fromString(activeKey)
                 .createPublic()
