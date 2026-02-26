@@ -84,7 +84,7 @@ class AccountStorageServiceImpl {
      * @private
      */
     private normalizeUsername(username: string): string {
-        return username.replace('@', '').toLowerCase().trim();
+        return username.trim().replace(/^@/, '').toLowerCase();
     }
 
     /**
