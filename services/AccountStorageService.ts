@@ -150,25 +150,27 @@ class AccountStorageServiceImpl {
             secureStoreOptions
         );
 
-        // Handle active key: store if provided, remove if not
+        // Determine if this is an update to an existing account
+        const accounts = await this.getAccounts();
+        const existingIndex = accounts.findIndex(
+            acc => acc.username === normalizedUsername
+        );
+
+        // Handle active key: store if provided, remove if not (for updates)
         if (activeKey && activeKey.trim()) {
             await SecureStore.setItemAsync(
                 activeKeyStorageKey(normalizedUsername),
                 activeKey.trim(),
                 secureStoreOptions
             );
-        } else {
-            // Remove active key if not provided (cleanup for updates)
+        } else if (existingIndex >= 0) {
+            // Remove active key if not provided (cleanup for updates only)
             await SecureStore.deleteItemAsync(
                 activeKeyStorageKey(normalizedUsername)
             );
         }
 
         // Update account metadata
-        const accounts = await this.getAccounts();
-        const existingIndex = accounts.findIndex(
-            acc => acc.username === normalizedUsername
-        );
 
         const accountData: StoredAccount = {
             username: normalizedUsername,
