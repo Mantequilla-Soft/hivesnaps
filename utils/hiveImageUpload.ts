@@ -1,12 +1,12 @@
 // Hive Images Upload Utility for React Native Expo
-// Uses images.hive.blog with images.ecency.com as fallback - Zero cost image hosting
-// Automatically falls back to ecency.com if hive.blog is unavailable
+// Uses images.hive.blog as primary, images.3speak.tv as fallback
 // Usage: const url = await uploadImageToHive({ uri, name, type }, { username, privateKey });
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { PrivateKey } from '@hiveio/dhive';
 import { Buffer } from 'buffer';
 import { sha256 } from 'js-sha256';
+import { THREESPEAK_IMAGE_SERVER, THREESPEAK_IMAGE_API_KEY } from '../app/config/env';
 
 export interface HiveImageUploadFile {
   uri: string;
@@ -42,6 +42,8 @@ declare global {
   }
 }
 
+const UPLOAD_TIMEOUT_MS = 15_000;
+
 /**
  * Create signature for image upload to Hive images
  * @param fileUri - Local file URI from Expo ImagePicker
@@ -53,25 +55,17 @@ async function createImageSignature(
   privateKey: string
 ): Promise<string> {
   try {
-    // Read file as base64
     const base64Data = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-
-    // Convert base64 to buffer
     const content = Buffer.from(base64Data, 'base64');
-
-    // Create hash
     const hash = sha256.create();
     hash.update('ImageSigningChallenge');
     hash.update(content);
     const hashHex = hash.hex();
-
-    // Sign the hash
     const key = PrivateKey.fromString(privateKey);
     const hashBuffer = Buffer.from(hashHex, 'hex');
     const signature = key.sign(hashBuffer);
-
     return signature.toString();
   } catch (error) {
     if (__DEV__) console.error('Error creating image signature:', error);
@@ -79,65 +73,57 @@ async function createImageSignature(
   }
 }
 
+function isCloudflareChallenge(text: string): boolean {
+  return text.includes('_cf_chl_opt') || text.includes('challenge-platform');
+}
+
 /**
- * Upload image to a specific Hive images endpoint
+ * POST a file to an upload endpoint and return the resulting image URL.
+ * Handles timeout, Cloudflare challenge detection, and content-type validation.
  * @private
  */
-async function uploadToEndpoint(
-  endpoint: string,
+async function fetchImageUpload(
+  url: string,
   file: HiveImageUploadFile,
-  username: string,
-  signature: string
+  extraHeaders?: Record<string, string>
 ): Promise<HiveImageUploadResult> {
   const formData = new FormData();
-
-  // React Native's FormData accepts file objects with uri, name, type properties
-  const fileData: ReactNativeFormDataFile = {
-    uri: file.uri,
-    name: file.name,
-    type: file.type,
-  };
-
-  // Type-safe append using module-augmented FormData interface
+  const fileData: ReactNativeFormDataFile = { uri: file.uri, name: file.name, type: file.type };
   formData.append('image', fileData);
 
-  const uploadUrl = `${endpoint}/${username}/${signature}`;
-  if (__DEV__) console.log(`Uploading to: ${uploadUrl}`);
+  if (__DEV__) console.log(`Uploading to: ${url}`);
 
-  // Set up timeout for fetch request to avoid hanging indefinitely
   const controller = new AbortController();
-  const timeoutMs = 15000; // 15 seconds
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
 
   try {
-    const response = await fetch(uploadUrl, {
+    const response = await fetch(url, {
       method: 'POST',
       body: formData,
+      headers: { Accept: 'application/json', ...extraHeaders },
       signal: controller.signal,
     });
 
+    const contentType = response.headers.get('content-type') ?? '';
+    const isJson = contentType.includes('application/json');
+
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+      if (isCloudflareChallenge(errorText)) {
+        throw new Error(`Cloudflare challenge blocked upload (HTTP ${response.status})`);
+      }
+      throw new Error(`Upload failed with status ${response.status}`);
     }
 
-    // Check if response is JSON before parsing
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
+    if (!isJson) {
       const responseText = await response.text();
-
-      // Check if it's a Cloudflare challenge page
-      if (responseText.includes('_cf_chl_opt') || responseText.includes('cf-challenge')) {
-        throw new Error('Upload blocked by Cloudflare protection. Endpoint may be restricting automated requests.');
+      if (isCloudflareChallenge(responseText)) {
+        throw new Error('Cloudflare challenge blocked upload');
       }
-
-      throw new Error(`Invalid response type: Expected JSON, got ${contentType || 'unknown'}. Response: ${responseText.substring(0, 200)}...`);
+      throw new Error(`Unexpected response type: ${contentType || 'unknown'}`);
     }
 
     const result = await response.json();
-
     if (!result.url) {
       throw new Error('No URL returned from image upload');
     }
@@ -145,11 +131,10 @@ async function uploadToEndpoint(
     if (__DEV__) console.log(`✅ Upload successful: ${result.url}`);
     return { url: result.url };
   } catch (error) {
-    const err = error as Error;
-    if (err.name === 'AbortError') {
+    if ((error as Error).name === 'AbortError') {
       throw new Error('Image upload request timed out');
     }
-    throw err;
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -157,7 +142,7 @@ async function uploadToEndpoint(
 
 /**
  * Upload image to Hive images service with automatic fallback
- * Tries images.hive.blog first, then images.ecency.com if it fails
+ * Tries images.hive.blog first, then images.3speak.tv if it fails
  * @param file - File object with uri, name, and type
  * @param options - Upload options including username and privateKey
  * @returns Promise with uploaded image URL
@@ -168,32 +153,25 @@ export async function uploadImageToHive(
 ): Promise<HiveImageUploadResult> {
   if (__DEV__) console.log('Starting Hive image upload for:', file.name);
 
-  // Create signature once (works for both endpoints)
   const signature = await createImageSignature(file.uri, options.privateKey);
 
-  // Primary endpoint: images.hive.blog
-  const primaryEndpoint = 'https://images.hive.blog';
-  // Fallback endpoint: images.ecency.com
-  const fallbackEndpoint = 'https://images.ecency.com';
+  const hiveUrl = `https://images.hive.blog/${options.username}/${signature}`;
+  const threeSpeakUrl = `${THREESPEAK_IMAGE_SERVER}/upload`;
 
   try {
-    // Try primary endpoint first
     if (__DEV__) console.log('📤 Trying primary endpoint: images.hive.blog');
-    return await uploadToEndpoint(primaryEndpoint, file, options.username, signature);
+    return await fetchImageUpload(hiveUrl, file);
   } catch (primaryError) {
     if (__DEV__) console.warn('⚠️  Primary endpoint failed:', primaryError instanceof Error ? primaryError.message : 'Unknown error');
-    if (__DEV__) console.log('🔄 Falling back to: images.ecency.com');
+    if (__DEV__) console.log('🔄 Falling back to: images.3speak.tv');
 
     try {
-      // Try fallback endpoint
-      return await uploadToEndpoint(fallbackEndpoint, file, options.username, signature);
+      return await fetchImageUpload(threeSpeakUrl, file, { Authorization: `Bearer ${THREESPEAK_IMAGE_API_KEY}` });
     } catch (fallbackError) {
-      // Both failed - throw comprehensive error
-      if (__DEV__) console.error('❌ Both upload endpoints failed');
       throw new Error(
         `Image upload failed on all endpoints. ` +
         `Primary (hive.blog): ${primaryError instanceof Error ? primaryError.message : 'Unknown'}. ` +
-        `Fallback (ecency.com): ${fallbackError instanceof Error ? fallbackError.message : 'Unknown'}`
+        `Fallback (3speak.tv): ${fallbackError instanceof Error ? fallbackError.message : 'Unknown'}`
       );
     }
   }
