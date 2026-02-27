@@ -24,6 +24,25 @@ export interface HiveImageUploadResult {
 }
 
 /**
+ * React Native's FormData.append accepts this file structure for uploads
+ */
+interface ReactNativeFormDataFile {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+/**
+ * Augment FormData to include React Native's file upload types
+ * React Native extends FormData.append to accept file objects with uri/name/type
+ */
+declare global {
+  interface FormData {
+    append(name: string, value: ReactNativeFormDataFile): void;
+  }
+}
+
+/**
  * Create signature for image upload to Hive images
  * @param fileUri - Local file URI from Expo ImagePicker
  * @param privateKey - User's private posting key
@@ -71,11 +90,16 @@ async function uploadToEndpoint(
   signature: string
 ): Promise<HiveImageUploadResult> {
   const formData = new FormData();
-  formData.append('image', {
+
+  // React Native's FormData accepts file objects with uri, name, type properties
+  const fileData: ReactNativeFormDataFile = {
     uri: file.uri,
     name: file.name,
     type: file.type,
-  } as any);
+  };
+
+  // Type-safe append using module-augmented FormData interface
+  formData.append('image', fileData);
 
   const uploadUrl = `${endpoint}/${username}/${signature}`;
   if (__DEV__) console.log(`Uploading to: ${uploadUrl}`);
