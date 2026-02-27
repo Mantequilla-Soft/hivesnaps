@@ -16,6 +16,33 @@ import { PrivateKey, Client } from '@hiveio/dhive';
 import type { PublicKey } from '@hiveio/dhive';
 import { getAvatarImageUrl } from './AvatarService';
 
+/**
+ * Custom error classes for better error handling and testing
+ */
+export class AccountNotFoundError extends Error {
+    constructor(username: string) {
+        super(`Account '${username}' not found on Hive blockchain`);
+        this.name = 'AccountNotFoundError';
+    }
+}
+
+export class InvalidKeyError extends Error {
+    constructor(keyType: 'posting' | 'active', username: string) {
+        super(`Invalid ${keyType} key for account '${username}'`);
+        this.name = 'InvalidKeyError';
+    }
+}
+
+export class KeyValidationError extends Error {
+    constructor(message: string, cause?: Error) {
+        super(message);
+        this.name = 'KeyValidationError';
+        if (cause) {
+            this.cause = cause;
+        }
+    }
+}
+
 // Storage keys
 const ACCOUNTS_STORAGE_KEY = 'hive_accounts_v3';
 const CURRENT_ACCOUNT_KEY = 'hive_current_account';
@@ -31,8 +58,8 @@ const postingKeyStorageKey = (username: string) =>
 const activeKeyStorageKey = (username: string) =>
     `account:${username}:activeKey`;
 
-// Hive API nodes for key validation
-const HIVE_NODES = [
+// Default Hive API nodes for key validation
+const DEFAULT_HIVE_NODES = [
     'https://api.hive.blog',
     'https://api.deathwing.me',
     'https://api.openhive.network',
@@ -79,8 +106,11 @@ class AccountStorageServiceImpl {
     private client: Client;
     private modificationQueue: Promise<void> = Promise.resolve();
 
-    constructor() {
-        this.client = new Client(HIVE_NODES);
+    /**
+     * @param hiveNodes - Array of Hive API node URLs (optional, for testing)
+     */
+    constructor(hiveNodes: string[] = DEFAULT_HIVE_NODES) {
+        this.client = new Client(hiveNodes);
     }
 
     /**
@@ -416,8 +446,7 @@ class AccountStorageServiceImpl {
      */
     async removeAccount(username: string): Promise<void> {
         return this.withModificationLock(async () => {
-            const normalizedUsername = this.normalizeUsername(username);
-
+            const normalizedUsername = this.normalizeUsername(username); this.validateUsername(normalizedUsername);
             // Remove keys from SecureStore
             await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
             await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
@@ -693,7 +722,7 @@ class AccountStorageServiceImpl {
             );
 
             if (!hasPostingAuth) {
-                throw new Error('Invalid posting key for this account');
+                throw new InvalidKeyError('posting', username);
             }
 
             // Validate active key if provided (pass already-fetched account)
@@ -701,17 +730,22 @@ class AccountStorageServiceImpl {
                 await this.validateActiveKey(username, activeKey, account);
             }
         } catch (error: unknown) {
-            if (error instanceof Error) {
-                if (
-                    error.message.includes('Invalid posting key') ||
-                    error.message.includes('Invalid active key') ||
-                    error.message.includes('not found')
-                ) {
-                    throw error;
-                }
-                throw new Error(`Failed to validate keys: ${error.message}`);
+            // Re-throw custom errors and validation errors as-is
+            if (
+                error instanceof AccountNotFoundError ||
+                error instanceof InvalidKeyError
+            ) {
+                throw error;
             }
-            throw new Error('Failed to validate keys: Unknown error');
+
+            // Wrap unexpected errors
+            if (error instanceof Error) {
+                throw new KeyValidationError(
+                    `Failed to validate keys: ${error.message}`,
+                    error
+                );
+            }
+            throw new KeyValidationError('Failed to validate keys: Unknown error');
         }
     }
 
@@ -735,7 +769,7 @@ class AccountStorageServiceImpl {
                 const accounts = await this.client.database.getAccounts([username]);
 
                 if (!accounts || accounts.length === 0) {
-                    throw new Error(`Account @${username} not found on Hive blockchain`);
+                    throw new AccountNotFoundError(username);
                 }
 
                 account = accounts[0];
@@ -752,19 +786,27 @@ class AccountStorageServiceImpl {
             );
 
             if (!hasActiveAuth) {
-                throw new Error('Invalid active key for this account');
+                throw new InvalidKeyError('active', username);
             }
         } catch (error: unknown) {
-            if (error instanceof Error) {
-                if (
-                    error.message.includes('Invalid active key') ||
-                    error.message.includes('not found')
-                ) {
-                    throw error;
-                }
-                throw new Error(`Failed to validate active key: ${error.message}`);
+            // Re-throw custom errors as-is
+            if (
+                error instanceof AccountNotFoundError ||
+                error instanceof InvalidKeyError
+            ) {
+                throw error;
             }
-            throw new Error('Failed to validate active key: Unknown error');
+
+            // Wrap unexpected errors
+            if (error instanceof Error) {
+                throw new KeyValidationError(
+                    `Failed to validate active key: ${error.message}`,
+                    error
+                );
+            }
+            throw new KeyValidationError(
+                'Failed to validate active key: Unknown error'
+            );
         }
     }
 
