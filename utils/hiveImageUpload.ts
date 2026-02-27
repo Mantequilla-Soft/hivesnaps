@@ -104,24 +104,42 @@ async function uploadToEndpoint(
   const uploadUrl = `${endpoint}/${username}/${signature}`;
   if (__DEV__) console.log(`Uploading to: ${uploadUrl}`);
 
-  const response = await fetch(uploadUrl, {
-    method: 'POST',
-    body: formData,
-  });
+  // Set up timeout for fetch request to avoid hanging indefinitely
+  const controller = new AbortController();
+  const timeoutMs = 15000; // 15 seconds
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+  try {
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    if (!result.url) {
+      throw new Error('No URL returned from image upload');
+    }
+
+    if (__DEV__) console.log(`✅ Upload successful: ${result.url}`);
+    return { url: result.url };
+  } catch (error) {
+    const err = error as Error;
+    if (err.name === 'AbortError') {
+      throw new Error('Image upload request timed out');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const result = await response.json();
-
-  if (!result.url) {
-    throw new Error('No URL returned from image upload');
-  }
-
-  if (__DEV__) console.log(`✅ Upload successful: ${result.url}`);
-  return { url: result.url };
 }
 
 /**
