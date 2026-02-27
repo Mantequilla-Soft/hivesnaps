@@ -55,7 +55,7 @@ async function createImageSignature(
 
     return signature.toString();
   } catch (error) {
-    console.error('Error creating image signature:', error);
+    if (__DEV__) console.error('Error creating image signature:', error);
     throw new Error('Failed to create image signature');
   }
 }
@@ -78,7 +78,7 @@ async function uploadToEndpoint(
   } as any);
 
   const uploadUrl = `${endpoint}/${username}/${signature}`;
-  console.log(`Uploading to: ${uploadUrl}`);
+  if (__DEV__) console.log(`Uploading to: ${uploadUrl}`);
 
   const response = await fetch(uploadUrl, {
     method: 'POST',
@@ -96,7 +96,7 @@ async function uploadToEndpoint(
     throw new Error('No URL returned from image upload');
   }
 
-  console.log(`✅ Upload successful: ${result.url}`);
+  if (__DEV__) console.log(`✅ Upload successful: ${result.url}`);
   return { url: result.url };
 }
 
@@ -111,7 +111,7 @@ export async function uploadImageToHive(
   file: HiveImageUploadFile,
   options: HiveImageUploadOptions
 ): Promise<HiveImageUploadResult> {
-  console.log('Starting Hive image upload for:', file.name);
+  if (__DEV__) console.log('Starting Hive image upload for:', file.name);
 
   // Create signature once (works for both endpoints)
   const signature = await createImageSignature(file.uri, options.privateKey);
@@ -123,18 +123,18 @@ export async function uploadImageToHive(
 
   try {
     // Try primary endpoint first
-    console.log('📤 Trying primary endpoint: images.hive.blog');
+    if (__DEV__) console.log('📤 Trying primary endpoint: images.hive.blog');
     return await uploadToEndpoint(primaryEndpoint, file, options.username, signature);
   } catch (primaryError) {
-    console.warn('⚠️  Primary endpoint failed:', primaryError instanceof Error ? primaryError.message : 'Unknown error');
-    console.log('🔄 Falling back to: images.ecency.com');
+    if (__DEV__) console.warn('⚠️  Primary endpoint failed:', primaryError instanceof Error ? primaryError.message : 'Unknown error');
+    if (__DEV__) console.log('🔄 Falling back to: images.ecency.com');
 
     try {
       // Try fallback endpoint
       return await uploadToEndpoint(fallbackEndpoint, file, options.username, signature);
     } catch (fallbackError) {
       // Both failed - throw comprehensive error
-      console.error('❌ Both upload endpoints failed');
+      if (__DEV__) console.error('❌ Both upload endpoints failed');
       throw new Error(
         `Image upload failed on all endpoints. ` +
         `Primary (hive.blog): ${primaryError instanceof Error ? primaryError.message : 'Unknown'}. ` +
