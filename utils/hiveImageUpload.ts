@@ -1,5 +1,6 @@
 // Hive Images Upload Utility for React Native Expo
-// Uses images.hive.blog - Zero cost image hosting on Hive blockchain
+// Uses images.hive.blog with images.ecency.com as fallback - Zero cost image hosting
+// Automatically falls back to ecency.com if hive.blog is unavailable
 // Usage: const url = await uploadImageToHive({ uri, name, type }, { username, privateKey });
 
 import * as FileSystem from 'expo-file-system/legacy';
@@ -60,7 +61,48 @@ async function createImageSignature(
 }
 
 /**
- * Upload image to Hive images service
+ * Upload image to a specific Hive images endpoint
+ * @private
+ */
+async function uploadToEndpoint(
+  endpoint: string,
+  file: HiveImageUploadFile,
+  username: string,
+  signature: string
+): Promise<HiveImageUploadResult> {
+  const formData = new FormData();
+  formData.append('image', {
+    uri: file.uri,
+    name: file.name,
+    type: file.type,
+  } as any);
+
+  const uploadUrl = `${endpoint}/${username}/${signature}`;
+  console.log(`Uploading to: ${uploadUrl}`);
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+
+  if (!result.url) {
+    throw new Error('No URL returned from image upload');
+  }
+
+  console.log(`✅ Upload successful: ${result.url}`);
+  return { url: result.url };
+}
+
+/**
+ * Upload image to Hive images service with automatic fallback
+ * Tries images.hive.blog first, then images.ecency.com if it fails
  * @param file - File object with uri, name, and type
  * @param options - Upload options including username and privateKey
  * @returns Promise with uploaded image URL
@@ -69,51 +111,36 @@ export async function uploadImageToHive(
   file: HiveImageUploadFile,
   options: HiveImageUploadOptions
 ): Promise<HiveImageUploadResult> {
+  console.log('Starting Hive image upload for:', file.name);
+
+  // Create signature once (works for both endpoints)
+  const signature = await createImageSignature(file.uri, options.privateKey);
+
+  // Primary endpoint: images.hive.blog
+  const primaryEndpoint = 'https://images.hive.blog';
+  // Fallback endpoint: images.ecency.com
+  const fallbackEndpoint = 'https://images.ecency.com';
+
   try {
-    console.log('Starting Hive image upload for:', file.name);
+    // Try primary endpoint first
+    console.log('📤 Trying primary endpoint: images.hive.blog');
+    return await uploadToEndpoint(primaryEndpoint, file, options.username, signature);
+  } catch (primaryError) {
+    console.warn('⚠️  Primary endpoint failed:', primaryError instanceof Error ? primaryError.message : 'Unknown error');
+    console.log('🔄 Falling back to: images.ecency.com');
 
-    // Create signature
-    const signature = await createImageSignature(file.uri, options.privateKey);
-
-    // Prepare form data
-    const formData = new FormData();
-    formData.append('image', {
-      uri: file.uri,
-      name: file.name,
-      type: file.type,
-    } as any);
-
-    // Upload to Hive images
-    const uploadUrl = `https://images.hive.blog/${options.username}/${signature}`;
-    console.log('Uploading to:', uploadUrl);
-
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Hive image upload failed:', response.status, errorText);
-      throw new Error(`Image upload failed: ${response.status} - ${errorText}`);
+    try {
+      // Try fallback endpoint
+      return await uploadToEndpoint(fallbackEndpoint, file, options.username, signature);
+    } catch (fallbackError) {
+      // Both failed - throw comprehensive error
+      console.error('❌ Both upload endpoints failed');
+      throw new Error(
+        `Image upload failed on all endpoints. ` +
+        `Primary (hive.blog): ${primaryError instanceof Error ? primaryError.message : 'Unknown'}. ` +
+        `Fallback (ecency.com): ${fallbackError instanceof Error ? fallbackError.message : 'Unknown'}`
+      );
     }
-
-    const result = await response.json();
-    console.log('Hive upload response:', result);
-
-    if (!result.url) {
-      throw new Error('No URL returned from image upload');
-    }
-
-    console.log('Hive image upload successful:', result.url);
-    return { url: result.url };
-  } catch (error) {
-    console.error('Failed to upload image to Hive:', error);
-    throw new Error(
-      `Image upload failed: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`
-    );
   }
 }
 
