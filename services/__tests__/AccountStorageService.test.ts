@@ -4,7 +4,6 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { Client, PrivateKey } from '@hiveio/dhive';
 
 // Mock data
 const mockUsername = 'testuser';
@@ -23,10 +22,6 @@ const mockHiveAccount = {
     },
 };
 
-// Create shared mocks that will be used across tests
-let mockGetAccounts: jest.Mock;
-let mockPrivateKeyFromString: jest.Mock;
-
 // Mock dependencies
 jest.mock('@react-native-async-storage/async-storage', () => ({
     __esModule: true,
@@ -38,27 +33,35 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 jest.mock('expo-secure-store');
-jest.mock('@hiveio/dhive', () => {
-    // Create the mock functions inside the factory
-    mockGetAccounts = jest.fn();
-    mockPrivateKeyFromString = jest.fn();
 
-    const mockClient = {
-        database: {
-            getAccounts: mockGetAccounts,
-        },
-    };
+// Declare mock function variables - will be assigned in the factory
+let mockGetAccounts: jest.Mock;
+let mockPrivateKeyFromString: jest.Mock;
+
+// Mock @hiveio/dhive - create mocks inside factory to avoid hoisting issues
+jest.mock('@hiveio/dhive', () => {
+    // Create mock functions inside the factory
+    const getAccountsMock = jest.fn();
+    const privateKeyFromStringMock = jest.fn();
+
+    // Assign to outer scope so tests can access them
+    mockGetAccounts = getAccountsMock;
+    mockPrivateKeyFromString = privateKeyFromStringMock;
 
     return {
-        Client: jest.fn(() => mockClient),
+        Client: jest.fn(() => ({
+            database: {
+                getAccounts: getAccountsMock,
+            },
+        })),
         PrivateKey: {
-            fromString: mockPrivateKeyFromString,
+            fromString: privateKeyFromStringMock,
         },
     };
 });
 
 // Import service AFTER mocks are set up
-import { accountStorageService as AccountStorageService } from '../services/AccountStorageService';
+import { accountStorageService as AccountStorageService } from '../AccountStorageService';
 
 describe('AccountStorageService', () => {
     beforeEach(() => {
