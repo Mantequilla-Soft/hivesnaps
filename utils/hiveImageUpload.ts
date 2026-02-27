@@ -213,7 +213,7 @@ export function createImageMarkdown(
 }
 
 /**
- * Legacy compatibility function - maintains same interface as Cloudinary
+ * Convenience function - returns URL string directly instead of result object
  * @param file - File object with uri, name, and type
  * @param username - Hive username
  * @param privateKey - Hive private posting key

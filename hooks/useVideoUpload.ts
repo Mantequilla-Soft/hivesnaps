@@ -364,7 +364,6 @@ export function useVideoUpload(currentUsername: string | null) {
                             provider: 'hive',
                             username: credentials.username,
                             privateKey: credentials.privateKey,
-                            fallbackToCloudinary: false,
                         });
 
                         const thumbnailUrl = result.url;

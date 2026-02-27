@@ -1,28 +1,26 @@
-// Image Upload Service - Unified interface supporting both Cloudinary and Hive
-// Provides seamless migration from Cloudinary to Hive images.hive.blog
+// Image Upload Service - Hive blockchain image hosting
+// Zero-cost image uploads using images.hive.blog with ecency.com fallback
 
-import { uploadImageToCloudinaryFixed } from './cloudinaryImageUploadFixed';
 import { uploadImageToHive, HiveImageUploadFile } from './hiveImageUpload';
 import * as SecureStore from 'expo-secure-store';
 
 export interface UploadResult {
   url: string;
-  provider: 'cloudinary' | 'hive';
-  cost: number; // Estimated cost in USD
+  provider: 'hive';
+  cost: number; // Estimated cost in USD (always 0 for Hive)
 }
 
 export interface ImageUploadOptions {
-  provider?: 'cloudinary' | 'hive' | 'auto';
+  provider?: 'hive' | 'auto';
   username?: string;
   privateKey?: string;
-  fallbackToCloudinary?: boolean;
 }
 
 /**
- * Unified image upload function
- * Supports both Cloudinary (legacy) and Hive (new, cost-effective)
+ * Hive image upload function with automatic endpoint fallback
+ * Uses images.hive.blog with automatic fallback to images.ecency.com
  * @param file - File object with uri, name, and type
- * @param options - Upload options
+ * @param options - Upload options (requires username and privateKey)
  * @returns Promise with upload result including URL and provider info
  */
 export async function uploadImage(
@@ -33,69 +31,37 @@ export async function uploadImage(
     provider = 'auto',
     username,
     privateKey,
-    fallbackToCloudinary = true,
   } = options;
 
   if (__DEV__) console.log(`[ImageUploadService] Starting upload with provider: ${provider}`);
 
-  // Auto-detection: prefer Hive if credentials available
+  // Auto-detection: requires Hive credentials
   if (provider === 'auto') {
-    const hasHiveCredentials = username && privateKey;
-    const selectedProvider = hasHiveCredentials ? 'hive' : 'cloudinary';
-    if (__DEV__) console.log(`[ImageUploadService] Auto-selected provider: ${selectedProvider}`);
+    if (!username || !privateKey) {
+      throw new Error('Image upload requires Hive credentials (username and privateKey). Please log in to upload images.');
+    }
+    if (__DEV__) console.log(`[ImageUploadService] Auto-selected provider: hive`);
 
     return uploadImage(file, {
       ...options,
-      provider: selectedProvider
+      provider: 'hive'
     });
   }
 
-  // Hive upload
+  // Hive upload with dual-endpoint fallback
   if (provider === 'hive') {
     if (!username || !privateKey) {
-      if (fallbackToCloudinary) {
-        if (__DEV__) console.warn('[ImageUploadService] Hive credentials missing, falling back to Cloudinary');
-        return uploadImage(file, { ...options, provider: 'cloudinary' });
-      }
       throw new Error('Hive upload requires username and privateKey');
     }
 
-    try {
-      if (__DEV__) console.log('[ImageUploadService] Uploading to Hive...');
-      const result = await uploadImageToHive(file, { username, privateKey });
+    if (__DEV__) console.log('[ImageUploadService] Uploading to Hive...');
+    const result = await uploadImageToHive(file, { username, privateKey });
 
-      return {
-        url: result.url,
-        provider: 'hive',
-        cost: 0, // Free!
-      };
-    } catch (error) {
-      if (__DEV__) console.error('[ImageUploadService] Hive upload failed:', error);
-
-      if (fallbackToCloudinary) {
-        if (__DEV__) console.warn('[ImageUploadService] Falling back to Cloudinary due to Hive failure');
-        return uploadImage(file, { ...options, provider: 'cloudinary' });
-      }
-
-      throw error;
-    }
-  }
-
-  // Cloudinary upload (legacy)
-  if (provider === 'cloudinary') {
-    try {
-      if (__DEV__) console.log('[ImageUploadService] Uploading to Cloudinary...');
-      const url = await uploadImageToCloudinaryFixed(file);
-
-      return {
-        url,
-        provider: 'cloudinary',
-        cost: 0.001, // Estimated cost per image
-      };
-    } catch (error) {
-      if (__DEV__) console.error('[ImageUploadService] Cloudinary upload failed:', error);
-      throw error;
-    }
+    return {
+      url: result.url,
+      provider: 'hive',
+      cost: 0, // Free!
+    };
   }
 
   throw new Error(`Unsupported provider: ${provider}`);
@@ -135,24 +101,21 @@ export async function uploadImageSmart(
   username?: string | null
 ): Promise<UploadResult> {
   if (!username) {
-    if (__DEV__) console.log('[ImageUploadService] No username provided, using Cloudinary');
-    return uploadImage(file, { provider: 'cloudinary' });
+    throw new Error('Image upload requires login. Please log in to upload images.');
   }
 
   const credentials = await getHiveCredentials(username);
 
-  if (credentials) {
-    if (__DEV__) console.log('[ImageUploadService] Hive credentials found, using Hive upload');
-    return uploadImage(file, {
-      provider: 'hive',
-      username: credentials.username,
-      privateKey: credentials.privateKey,
-      fallbackToCloudinary: true,
-    });
+  if (!credentials) {
+    throw new Error('Hive credentials not found. Please ensure you are properly logged in.');
   }
 
-  if (__DEV__) console.log('[ImageUploadService] No Hive credentials, using Cloudinary');
-  return uploadImage(file, { provider: 'cloudinary' });
+  if (__DEV__) console.log('[ImageUploadService] Hive credentials found, using Hive upload');
+  return uploadImage(file, {
+    provider: 'hive',
+    username: credentials.username,
+    privateKey: credentials.privateKey,
+  });
 }
 
 /**
