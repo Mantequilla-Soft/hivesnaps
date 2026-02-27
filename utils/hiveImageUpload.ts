@@ -123,6 +123,19 @@ async function uploadToEndpoint(
       throw new Error(`Upload failed: ${response.status} - ${errorText}`);
     }
 
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text();
+
+      // Check if it's a Cloudflare challenge page
+      if (responseText.includes('_cf_chl_opt') || responseText.includes('cf-challenge')) {
+        throw new Error('Upload blocked by Cloudflare protection. Endpoint may be restricting automated requests.');
+      }
+
+      throw new Error(`Invalid response type: Expected JSON, got ${contentType || 'unknown'}. Response: ${responseText.substring(0, 200)}...`);
+    }
+
     const result = await response.json();
 
     if (!result.url) {
