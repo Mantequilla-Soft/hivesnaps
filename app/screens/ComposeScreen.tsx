@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   useColorScheme,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,6 +12,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -308,10 +308,9 @@ export default function ComposeScreen() {
           {/* User info */}
           <View style={styles.userRow}>
             {compose.state.avatarUrl ? (
-              <Image
+              <ExpoImage
                 source={{ uri: compose.state.avatarUrl }}
                 style={styles.avatar}
-                onError={() => { }}
               />
             ) : (
               <View
@@ -395,9 +394,10 @@ export default function ComposeScreen() {
                     key={`${imageUrl}-${index}`}
                     style={styles.imageContainer}
                   >
-                    <Image
+                    <ExpoImage
                       source={{ uri: imageUrl }}
                       style={styles.imagePreview}
+                      contentFit='cover'
                     />
                     <TouchableOpacity
                       style={styles.removeImageButton}
@@ -442,9 +442,10 @@ export default function ComposeScreen() {
                     key={`gif-${gifUrl}-${index}`}
                     style={styles.imageContainer}
                   >
-                    <Image
+                    <ExpoImage
                       source={{ uri: gifUrl }}
                       style={styles.imagePreview}
+                      contentFit='cover'
                     />
                     <TouchableOpacity
                       style={styles.removeImageButton}
@@ -488,7 +489,7 @@ export default function ComposeScreen() {
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   {compose.video.thumbnail ? (
-                    <Image
+                    <ExpoImage
                       source={{ uri: compose.video.thumbnail.uri }}
                       style={{
                         width: 60,
@@ -496,7 +497,7 @@ export default function ComposeScreen() {
                         borderRadius: 6,
                         marginRight: 12
                       }}
-                      resizeMode="cover"
+                      contentFit='cover'
                     />
                   ) : (
                     <View style={{
