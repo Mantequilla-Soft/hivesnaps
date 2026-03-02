@@ -1,5 +1,5 @@
 // Image Upload Service - Hive blockchain image hosting
-// Zero-cost image uploads using images.hive.blog with ecency.com fallback
+// Zero-cost image uploads using images.hive.blog with images.3speak.tv fallback
 
 import { uploadImageToHive, HiveImageUploadFile } from './hiveImageUpload';
 import * as SecureStore from 'expo-secure-store';
@@ -8,6 +8,7 @@ export interface UploadResult {
   url: string;
   provider: 'hive';
   cost: number; // Estimated cost in USD (always 0 for Hive)
+
 }
 
 export interface ImageUploadOptions {
@@ -18,7 +19,7 @@ export interface ImageUploadOptions {
 
 /**
  * Hive image upload function with automatic endpoint fallback
- * Uses images.hive.blog with automatic fallback to images.ecency.com
+ * Uses images.hive.blog with automatic fallback to images.3speak.tv
  * @param file - File object with uri, name, and type
  * @param options - Upload options (requires username and privateKey)
  * @returns Promise with upload result including URL and provider info
@@ -121,11 +122,13 @@ export async function uploadImageSmart(
 /**
  * Compatibility function for existing code
  * @param file - File object with uri, name, and type
+ * @param username - Current logged-in Hive username (required)
  * @returns Promise with uploaded image URL (string)
  */
 export async function uploadImageCompatible(
-  file: HiveImageUploadFile
+  file: HiveImageUploadFile,
+  username: string
 ): Promise<string> {
-  const result = await uploadImageSmart(file);
+  const result = await uploadImageSmart(file, username);
   return result.url;
 }

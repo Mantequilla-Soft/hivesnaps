@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+import React, { useRef, useMemo, useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -60,6 +60,10 @@ export default function ComposeScreen() {
 
   // UI-only refs
   const textInputRef = useRef<TextInput>(null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Reset avatar error whenever the URL changes (e.g. avatarService resolves a new URL)
+  useEffect(() => { setAvatarError(false); }, [compose.state.avatarUrl]);
 
   // Memoized colors based on theme from centralized Colors
   const colors = useMemo(() => {
@@ -309,8 +313,12 @@ export default function ComposeScreen() {
           <View style={styles.userRow}>
             {compose.state.avatarUrl ? (
               <ExpoImage
-                source={{ uri: compose.state.avatarUrl }}
+                source={{ uri: avatarError
+                  ? `https://images.hive.blog/u/${compose.state.currentUsername}/avatar/original`
+                  : compose.state.avatarUrl
+                }}
                 style={styles.avatar}
+                onError={() => setAvatarError(true)}
               />
             ) : (
               <View

@@ -404,7 +404,7 @@ export function useCompose({
                         type: fileType,
                     };
                     const uploadResult = await uploadImageSmart(fileToUpload, state.currentUsername);
-                    console.log(`[useCompose] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
+                    if (__DEV__) console.log(`[useCompose] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
                     return uploadResult.url;
                 });
 

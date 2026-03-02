@@ -286,15 +286,7 @@ const Snap: React.FC<SnapProps> = ({
         >
           <ExpoImage
             source={{ uri: src }}
-            style={{
-              width: '100%',
-              aspectRatio: 1.2,
-              maxHeight: 340,
-              borderRadius: 14,
-              marginVertical: 10,
-              alignSelf: 'center',
-              backgroundColor: '#eee',
-            }}
+            style={styles.markdownImage}
             contentFit='cover'
             accessibilityLabel={alt || 'image'}
           />
@@ -745,13 +737,7 @@ const Snap: React.FC<SnapProps> = ({
               >
                 <ExpoImage
                   source={{ uri: url }}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    backgroundColor: '#eee',
-                  }}
+                  style={styles.feedImage}
                   contentFit='cover'
                 />
               </Pressable>
@@ -775,13 +761,7 @@ const Snap: React.FC<SnapProps> = ({
               >
                 <ExpoImage
                   source={{ uri: url }}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    backgroundColor: '#eee',
-                  }}
+                  style={styles.feedImage}
                   contentFit='cover'
                 />
               </Pressable>
@@ -1280,6 +1260,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
+  },
+  markdownImage: {
+    width: '100%',
+    aspectRatio: 1.2,
+    maxHeight: 340,
+    borderRadius: 14,
+    marginVertical: 10,
+    alignSelf: 'center',
+    backgroundColor: '#eee',
+  },
+  feedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: '#eee',
   },
 });
 

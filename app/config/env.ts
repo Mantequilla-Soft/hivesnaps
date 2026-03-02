@@ -35,6 +35,6 @@ export const IPFS_GATEWAY_URL = process.env.EXPO_PUBLIC_IPFS_GATEWAY_URL || 'htt
 // 3Speak Image Server Configuration
 export const THREESPEAK_IMAGE_SERVER = process.env.EXPO_PUBLIC_THREESPEAK_IMAGE_SERVER || 'https://images.3speak.tv';
 export const THREESPEAK_IMAGE_API_KEY = process.env.EXPO_PUBLIC_THREESPEAK_IMAGE_API_KEY || '';
-if (!THREESPEAK_IMAGE_API_KEY && __DEV__) {
+if (!THREESPEAK_IMAGE_API_KEY) {
   console.warn('⚠️  THREESPEAK_IMAGE_API_KEY is not set - fallback image upload to 3Speak will not work');
 }

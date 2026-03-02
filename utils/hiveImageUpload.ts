@@ -153,6 +153,10 @@ export async function uploadImageToHive(
 ): Promise<HiveImageUploadResult> {
   if (__DEV__) console.log('Starting Hive image upload for:', file.name);
 
+  // Signature is computed upfront before the first network call so we read the
+  // file from disk only once. If the primary endpoint fails and we fall through
+  // to the 3Speak fallback, the file does not need to be re-read. The fallback
+  // does not use the signature, so the work is simply not re-done on retry.
   const signature = await createImageSignature(file.uri, options.privateKey);
 
   const hiveUrl = `https://images.hive.blog/${options.username}/${signature}`;
@@ -166,6 +170,10 @@ export async function uploadImageToHive(
     if (__DEV__) console.log('🔄 Falling back to: images.3speak.tv');
 
     try {
+      // 3Speak endpoint contract (confirmed):
+      //   Auth:     Authorization: Bearer <key> header (no username/signature in path)
+      //   Field:    form field named "image" — same as the primary endpoint
+      //   Response: { url: string } — same shape as the primary endpoint
       return await fetchImageUpload(threeSpeakUrl, file, { Authorization: `Bearer ${THREESPEAK_IMAGE_API_KEY}` });
     } catch (fallbackError) {
       throw new Error(
