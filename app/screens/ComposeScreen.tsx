@@ -10,9 +10,15 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActionSheetIOS,
   Modal,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+
+// Action sheet button indices for the video source picker (iOS)
+const VIDEO_SOURCE_CANCEL = 0;
+const VIDEO_SOURCE_RECORD = 1;
+const VIDEO_SOURCE_GALLERY = 2;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -148,6 +154,49 @@ export default function ComposeScreen() {
     } else {
       router.back();
     }
+  };
+
+  // Show source picker then delegate to the hook (no UI logic lives in the hook)
+  const handleAddVideo = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Record Video', 'Choose from Library'], cancelButtonIndex: VIDEO_SOURCE_CANCEL },
+        buttonIndex => {
+          if (buttonIndex === VIDEO_SOURCE_RECORD) compose.video.addVideo('camera');
+          else if (buttonIndex === VIDEO_SOURCE_GALLERY) compose.video.addVideo('gallery');
+        }
+      );
+    } else {
+      Alert.alert(
+        'Add Video',
+        'Choose a source',
+        [
+          { text: 'Record Video', onPress: () => compose.video.addVideo('camera') },
+          { text: 'Choose from Library', onPress: () => compose.video.addVideo('gallery') },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
+
+  // Show confirmation then delegate to the hook
+  const handleRemoveVideo = () => {
+    const uploading = compose.video.uploading;
+    Alert.alert(
+      uploading ? 'Cancel Upload?' : 'Remove Video?',
+      uploading
+        ? 'Do you want to cancel this video upload?'
+        : 'Remove the attached video from your snap?',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: uploading ? 'Cancel Upload' : 'Remove',
+          style: 'destructive',
+          onPress: () => compose.video.remove(),
+        },
+      ]
+    );
   };
 
   // Markdown formatting helpers
@@ -479,7 +528,7 @@ export default function ComposeScreen() {
                   Video
                 </Text>
                 {!compose.video.uploading && (
-                  <TouchableOpacity onPress={compose.video.remove}>
+                  <TouchableOpacity onPress={handleRemoveVideo}>
                     <Text style={[styles.clearAllText, { color: colors.info }]}>
                       Remove
                     </Text>
@@ -595,7 +644,7 @@ export default function ComposeScreen() {
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={compose.video.remove}
+                        onPress={handleRemoveVideo}
                         style={{
                           paddingHorizontal: 12,
                           paddingVertical: 6,
@@ -788,7 +837,7 @@ export default function ComposeScreen() {
                     styles.actionButton,
                     { backgroundColor: colors.inputBg, marginLeft: 12 },
                   ]}
-                  onPress={compose.video.addVideo}
+                  onPress={handleAddVideo}
                   disabled={compose.video.hasVideo || compose.video.uploading}
                 >
                   <FontAwesome
