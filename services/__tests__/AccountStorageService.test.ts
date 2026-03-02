@@ -65,6 +65,11 @@ import { accountStorageService as AccountStorageService } from '../AccountStorag
 
 describe('AccountStorageService', () => {
     beforeEach(() => {
+        // SecureStore.getItemAsync defaults to null, which means:
+        // - 'hive_username' → null: no legacy data → migrateFromLegacyStorage no-ops
+        // - 'hive_accounts_v3' → null: getAccounts returns []
+        // Each test that needs specific stored data must override this with mockResolvedValue/mockImplementation.
+
         // Clear all mocks but don't remove implementations
         mockGetAccounts.mockClear();
         mockPrivateKeyFromString.mockClear();
@@ -167,6 +172,37 @@ describe('AccountStorageService', () => {
             await expect(
                 AccountStorageService.addAccount(mockUsername, mockPostingKey)
             ).rejects.toThrow('Invalid posting key');
+        });
+
+        it('should serialize concurrent addAccount calls (no overwrites)', async () => {
+            // Simulate mutable storage that updates with each write, mirroring real SecureStore
+            let storedAccountsJson: string | null = null;
+
+            (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+                if (key === 'hive_accounts_v3') return Promise.resolve(storedAccountsJson);
+                return Promise.resolve(null);
+            });
+
+            (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string, value: string) => {
+                if (key === 'hive_accounts_v3') {
+                    storedAccountsJson = value;
+                }
+                return Promise.resolve(undefined);
+            });
+
+            // Call both concurrently — the lock must serialize them
+            await Promise.all([
+                AccountStorageService.addAccount('user1', mockPostingKey),
+                AccountStorageService.addAccount('user2', mockPostingKey),
+            ]);
+
+            // Both accounts must be present in the final stored data (neither overwrote the other)
+            expect(storedAccountsJson).not.toBeNull();
+            const finalAccounts = JSON.parse(storedAccountsJson!);
+            expect(finalAccounts).toHaveLength(2);
+            const usernames = finalAccounts.map((a: any) => a.username);
+            expect(usernames).toContain('user1');
+            expect(usernames).toContain('user2');
         });
     });
 

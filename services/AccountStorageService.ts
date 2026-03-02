@@ -66,6 +66,8 @@ const DEFAULT_HIVE_NODES = [
 ];
 
 // Hive username validation regex: 3-16 characters, starts with letter, ends with letter/number, allows dots and hyphens
+// Dots are intentionally permitted to support legacy Hive accounts (e.g. smooth.witness).
+// New account registrations cannot use dots, but existing accounts with dots must remain valid.
 const HIVE_USERNAME_REGEX = /^[a-z][a-z0-9\-.]{1,14}[a-z0-9]$/;
 
 // Maximum number of accounts that can be stored
@@ -105,6 +107,7 @@ export interface AccountKeys {
 class AccountStorageServiceImpl {
     private client: Client;
     private modificationQueue: Promise<void> = Promise.resolve();
+    private migrationPromise: Promise<void> | null = null;
 
     /**
      * @param hiveNodes - Array of Hive API node URLs (optional, for testing)
@@ -114,7 +117,12 @@ class AccountStorageServiceImpl {
     }
 
     /**
-     * Serialize account list modifications to prevent race conditions
+     * Serialize account list modifications to prevent race conditions.
+     *
+     * Not reentrant — callers must not hold this lock when calling methods
+     * that might acquire it. getAccounts() is intentionally NOT locked so
+     * locked methods can call it safely; if getAccounts is ever locked,
+     * all methods that call it inside a lock will deadlock.
      * @private
      */
     private async withModificationLock<T>(
@@ -136,12 +144,24 @@ class AccountStorageServiceImpl {
     }
 
     /**
-     * Migrate from legacy storage format (v1) to v3
+     * Migrate from legacy storage format (v1) to v3 — runs at most once per session.
+     * Subsequent calls return the same Promise so migration is never re-entered.
+     * @private
+     */
+    private migrateFromLegacyStorage(): Promise<void> {
+        if (!this.migrationPromise) {
+            this.migrationPromise = this._runMigration();
+        }
+        return this.migrationPromise;
+    }
+
+    /**
+     * Actual migration logic — invoked only by migrateFromLegacyStorage.
      * Legacy format: hive_username, hive_posting_key
      * New format: hive_accounts_v3 with per-account keys
      * @private
      */
-    private async migrateFromLegacyStorage(): Promise<void> {
+    private async _runMigration(): Promise<void> {
         try {
             // Check if legacy storage exists
             const legacyUsername = await SecureStore.getItemAsync('hive_username');
@@ -153,10 +173,12 @@ class AccountStorageServiceImpl {
                 return; // No legacy data to migrate
             }
 
-            console.log(
-                '[AccountStorageService] Migrating legacy account:',
-                legacyUsername
-            );
+            if (__DEV__) {
+                console.log(
+                    '[AccountStorageService] Migrating legacy account:',
+                    legacyUsername
+                );
+            }
 
             // Normalize username
             const normalizedUsername = this.normalizeUsername(legacyUsername);
@@ -171,9 +193,11 @@ class AccountStorageServiceImpl {
                     (acc: any) => acc.username === normalizedUsername
                 );
                 if (alreadyMigrated) {
-                    console.log(
-                        '[AccountStorageService] Account already migrated, cleaning up legacy keys'
-                    );
+                    if (__DEV__) {
+                        console.log(
+                            '[AccountStorageService] Account already migrated, cleaning up legacy keys'
+                        );
+                    }
                     await SecureStore.deleteItemAsync('hive_username');
                     await SecureStore.deleteItemAsync('hive_posting_key');
                     return;
@@ -214,10 +238,13 @@ class AccountStorageServiceImpl {
             await SecureStore.deleteItemAsync('hive_username');
             await SecureStore.deleteItemAsync('hive_posting_key');
 
-            console.log(
-                '[AccountStorageService] Successfully migrated legacy account'
-            );
+            if (__DEV__) {
+                console.log(
+                    '[AccountStorageService] Successfully migrated legacy account'
+                );
+            }
         } catch (error) {
+            this.migrationPromise = null; // Allow retry on next app launch
             console.error(
                 '[AccountStorageService] Migration failed:',
                 error
@@ -295,76 +322,76 @@ class AccountStorageServiceImpl {
             throw new Error('Posting key is required');
         }
 
-        // Validate keys against blockchain before making any changes
-        await this.validateKeys(normalizedUsername, postingKey, activeKey);
+        return this.withModificationLock(async () => {
+            // Validate keys against blockchain before making any changes
+            await this.validateKeys(normalizedUsername, postingKey, activeKey);
 
-        // Store posting key in SecureStore
-        await SecureStore.setItemAsync(
-            postingKeyStorageKey(normalizedUsername),
-            postingKey.trim(),
-            secureStoreOptions
-        );
-
-        // Determine if this is an update to an existing account
-        const accounts = await this.getAccounts();
-        const existingIndex = accounts.findIndex(
-            acc => acc.username === normalizedUsername
-        );
-
-        // Check maximum account limit for new accounts
-        if (existingIndex < 0 && accounts.length >= MAX_ACCOUNTS) {
-            throw new Error(
-                `Maximum account limit (${MAX_ACCOUNTS}) reached. Remove an account before adding a new one.`
+            // Read accounts list and check guards before any writes
+            const accounts = await this.getAccounts();
+            const existingIndex = accounts.findIndex(
+                acc => acc.username === normalizedUsername
             );
-        }
 
-        // Handle active key: store if provided, remove if not (for updates)
-        if (activeKey && activeKey.trim()) {
+            // Check maximum account limit for new accounts
+            if (existingIndex < 0 && accounts.length >= MAX_ACCOUNTS) {
+                throw new Error(
+                    `Maximum account limit (${MAX_ACCOUNTS}) reached. Remove an account before adding a new one.`
+                );
+            }
+
+            // All guards passed — capture timestamp and begin writes
+            const now = Date.now();
+
+            // Store posting key in SecureStore
             await SecureStore.setItemAsync(
-                activeKeyStorageKey(normalizedUsername),
-                activeKey.trim(),
+                postingKeyStorageKey(normalizedUsername),
+                postingKey.trim(),
                 secureStoreOptions
             );
-        } else if (existingIndex >= 0) {
-            // Remove active key if not provided (cleanup for updates only)
-            await SecureStore.deleteItemAsync(
-                activeKeyStorageKey(normalizedUsername)
+
+            // Handle active key: store if provided, remove if not (for updates)
+            if (activeKey && activeKey.trim()) {
+                await SecureStore.setItemAsync(
+                    activeKeyStorageKey(normalizedUsername),
+                    activeKey.trim(),
+                    secureStoreOptions
+                );
+            } else if (existingIndex >= 0) {
+                // Remove active key if not provided (cleanup for updates only)
+                await SecureStore.deleteItemAsync(
+                    activeKeyStorageKey(normalizedUsername)
+                );
+            }
+
+            // Update account metadata (without avatar - computed on read)
+            const accountDataForStorage = {
+                username: normalizedUsername,
+                hasActiveKey: !!(activeKey && activeKey.trim()),
+                lastUsed: now,
+            };
+
+            // Build storage list from already-fetched accounts (no second read)
+            const storedAccounts = this.stripAvatarForStorage(accounts);
+
+            const storedIndex = storedAccounts.findIndex(
+                (acc) => acc.username === normalizedUsername
             );
-        }
 
-        // Update account metadata (without avatar - computed on read)
-        const accountDataForStorage = {
-            username: normalizedUsername,
-            hasActiveKey: !!(activeKey && activeKey.trim()),
-            lastUsed: Date.now(),
-        };
+            if (storedIndex >= 0) {
+                // Update existing account
+                storedAccounts[storedIndex] = accountDataForStorage;
+            } else {
+                // Add new account
+                storedAccounts.push(accountDataForStorage);
+            }
 
-        // Get current accounts list for storage (without avatar field)
-        const storedAccountsJson = await SecureStore.getItemAsync(
-            ACCOUNTS_STORAGE_KEY
-        );
-        const storedAccounts = storedAccountsJson
-            ? JSON.parse(storedAccountsJson)
-            : [];
-
-        const storedIndex = storedAccounts.findIndex(
-            (acc: any) => acc.username === normalizedUsername
-        );
-
-        if (storedIndex >= 0) {
-            // Update existing account
-            storedAccounts[storedIndex] = accountDataForStorage;
-        } else {
-            // Add new account
-            storedAccounts.push(accountDataForStorage);
-        }
-
-        // Save updated account list (avatar will be computed dynamically on read)
-        await SecureStore.setItemAsync(
-            ACCOUNTS_STORAGE_KEY,
-            JSON.stringify(storedAccounts),
-            secureStoreOptions
-        );
+            // Save updated account list (avatar will be computed dynamically on read)
+            await SecureStore.setItemAsync(
+                ACCOUNTS_STORAGE_KEY,
+                JSON.stringify(storedAccounts),
+                secureStoreOptions
+            );
+        });
     }
 
     /**
@@ -386,9 +413,11 @@ class AccountStorageServiceImpl {
             const parsed = JSON.parse(accountsJson);
 
             if (!Array.isArray(parsed)) {
-                console.warn(
-                    '[AccountStorageService] Invalid accounts format, resetting'
-                );
+                if (__DEV__) {
+                    console.warn(
+                        '[AccountStorageService] Invalid accounts format, resetting'
+                    );
+                }
                 return [];
             }
 

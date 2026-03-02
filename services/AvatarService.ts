@@ -322,7 +322,9 @@ export const avatarService = AvatarService.getInstance();
 
 // Export standalone helper function for generating avatar URLs
 export const getAvatarImageUrl = (username: string): string => {
-  return AvatarService.imagesAvatarUrl(username);
+  const normalized = (username || '').trim().toLowerCase();
+  if (!normalized) return '';
+  return AvatarService.imagesAvatarUrl(normalized);
 };
 
 export type { AvatarLoadResult };
