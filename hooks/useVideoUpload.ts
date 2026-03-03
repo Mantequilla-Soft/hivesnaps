@@ -1,5 +1,5 @@
 import { useReducer, useRef, useCallback, useEffect } from 'react';
-import { Alert, Platform, ActionSheetIOS } from 'react-native';
+import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
     generateVideoThumbnail,
@@ -12,6 +12,10 @@ import {
     VideoUploadProgress,
 } from '../services/threeSpeakUploadService';
 import { uploadImage, getHiveCredentials } from '../utils/imageUploadService';
+
+// Video picker configuration
+const MAX_VIDEO_DURATION_SECONDS = 120; // Business rule: 2-minute cap on video length
+const GALLERY_PICKER_QUALITY = 1; // Maximum quality; compression is handled server-side
 
 /**
  * Single state object for all video upload state
@@ -117,21 +121,28 @@ export function useVideoUpload(currentUsername: string | null) {
     const uploadControllerRef = useRef<AbortController | null>(null);
     const cancelRequestedRef = useRef(false);
     const thumbnailUploadPromiseRef = useRef<Promise<string | null> | null>(null);
-    const isMountedRef = useRef(true);
+    const thumbnailUploadControllerRef = useRef<AbortController | null>(null);
+
+    // Store current state values in ref for stable callback access
+    const stateRef = useRef(state);
+    useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
 
     // Cleanup on unmount: abort requests, clear refs, prevent memory leaks
     useEffect(() => {
         return () => {
-            // Mark component as unmounted
-            isMountedRef.current = false;
-
-            // Abort any ongoing upload
+            // Abort any ongoing uploads
             if (uploadControllerRef.current) {
                 uploadControllerRef.current.abort();
+            }
+            if (thumbnailUploadControllerRef.current) {
+                thumbnailUploadControllerRef.current.abort();
             }
 
             // Clear all refs
             uploadControllerRef.current = null;
+            thumbnailUploadControllerRef.current = null;
             cancelRequestedRef.current = false;
             thumbnailUploadPromiseRef.current = null;
         };
@@ -146,7 +157,11 @@ export function useVideoUpload(currentUsername: string | null) {
             cancelRequestedRef.current = true;
             uploadControllerRef.current.abort();
         }
+        if (thumbnailUploadControllerRef.current) {
+            thumbnailUploadControllerRef.current.abort();
+        }
         uploadControllerRef.current = null;
+        thumbnailUploadControllerRef.current = null;
         cancelRequestedRef.current = false;
         thumbnailUploadPromiseRef.current = null;
         dispatch({ type: 'CLEAR' });
@@ -158,7 +173,13 @@ export function useVideoUpload(currentUsername: string | null) {
      */
     const startUpload = useCallback(async (asset: LocalVideoAsset) => {
         if (!currentUsername) {
-            Alert.alert('Error', 'You must be logged in to upload videos');
+            dispatch({ type: 'UPLOAD_ERROR', payload: 'You must be logged in to upload videos.' });
+            return;
+        }
+
+        // Guard against concurrent calls
+        if (stateRef.current.uploading) {
+            if (__DEV__) console.warn('⚠️ Upload already in progress, ignoring concurrent call');
             return;
         }
 
@@ -178,16 +199,13 @@ export function useVideoUpload(currentUsername: string | null) {
                 },
                 signal: controller.signal,
                 onProgress: progress => {
-                    // Only update if progress is moving forward and component is mounted
-                    if (isMountedRef.current && progress.percentage >= maxPercentageSeen) {
+                    // Only update if progress is moving forward
+                    if (progress.percentage >= maxPercentageSeen) {
                         maxPercentageSeen = progress.percentage;
                         dispatch({ type: 'UPLOAD_PROGRESS', payload: progress });
                     }
                 },
             });
-
-            // Only update state if component is still mounted
-            if (!isMountedRef.current) return;
 
             dispatch({
                 type: 'UPLOAD_SUCCESS',
@@ -199,9 +217,6 @@ export function useVideoUpload(currentUsername: string | null) {
                 try {
                     if (__DEV__) console.log('⏳ Waiting for thumbnail upload to complete...');
                     const thumbnailUrl = await thumbnailUploadPromiseRef.current;
-
-                    // Check if still mounted before making API call
-                    if (!isMountedRef.current) return;
 
                     if (thumbnailUrl) {
                         if (__DEV__) console.log('✅ Thumbnail upload complete, setting on 3Speak...');
@@ -218,16 +233,14 @@ export function useVideoUpload(currentUsername: string | null) {
                 } catch (thumbnailError) {
                     if (__DEV__) console.error('❌ Failed to set thumbnail on 3Speak:', thumbnailError);
                 } finally {
-                    // Always clear promise reference after completion/error
+                    // Always clear refs after completion/error
                     thumbnailUploadPromiseRef.current = null;
+                    thumbnailUploadControllerRef.current = null;
                 }
             } else {
                 if (__DEV__) console.warn('⚠️ No thumbnail upload in progress');
             }
         } catch (error: any) {
-            // Only update state if component is still mounted
-            if (!isMountedRef.current) return;
-
             if (cancelRequestedRef.current) {
                 dispatch({ type: 'CLEAR' });
             } else {
@@ -237,58 +250,24 @@ export function useVideoUpload(currentUsername: string | null) {
             }
         } finally {
             uploadControllerRef.current = null;
+            thumbnailUploadControllerRef.current = null;
             cancelRequestedRef.current = false;
             thumbnailUploadPromiseRef.current = null;
         }
     }, [currentUsername]);
 
     /**
-     * Add video from camera or gallery with UI picker
+     * Add video from the given source (camera or gallery).
+     * Source selection and confirmation dialogs are handled by the caller.
      */
-    const addVideo = useCallback(async () => {
+    const addVideo = useCallback(async (source: 'camera' | 'gallery') => {
         try {
-            if (state.uploading) {
-                Alert.alert('Video Uploading', 'Please wait for the current video upload to finish.');
-                return;
-            }
-
-            if (state.asset || state.assetId) {
-                Alert.alert('Video Already Attached', 'Remove the current video before adding another one.');
-                return;
-            }
-
-            let pickType: 'camera' | 'gallery' | 'cancel';
-
-            if (Platform.OS === 'ios') {
-                pickType = await new Promise(resolve => {
-                    ActionSheetIOS.showActionSheetWithOptions(
-                        { options: ['Cancel', 'Record Video', 'Choose from Library'], cancelButtonIndex: 0 },
-                        buttonIndex => {
-                            if (buttonIndex === 0) resolve('cancel');
-                            else if (buttonIndex === 1) resolve('camera');
-                            else resolve('gallery');
-                        }
-                    );
-                });
-            } else {
-                pickType = await new Promise(resolve => {
-                    Alert.alert(
-                        'Add Video',
-                        'Choose a source',
-                        [
-                            { text: 'Record Video', onPress: () => resolve('camera') },
-                            { text: 'Choose from Library', onPress: () => resolve('gallery') },
-                            { text: 'Cancel', style: 'cancel', onPress: () => resolve('cancel') },
-                        ],
-                        { cancelable: true }
-                    );
-                });
-            }
-
-            if (pickType === 'cancel') return;
+            // Silent guard — the button should be disabled in these states already
+            if (stateRef.current.uploading) return;
+            if (stateRef.current.asset || stateRef.current.assetId) return;
 
             let result: ImagePicker.ImagePickerResult;
-            if (pickType === 'camera') {
+            if (source === 'camera') {
                 const currentPermission = await ImagePicker.getCameraPermissionsAsync();
                 let finalStatus = currentPermission.status;
                 if (finalStatus !== 'granted') {
@@ -296,14 +275,13 @@ export function useVideoUpload(currentUsername: string | null) {
                     finalStatus = requestPermission.status;
                 }
                 if (finalStatus !== 'granted') {
-                    Alert.alert('Camera Permission Required', 'HiveSnaps needs camera access to record video.');
-                    return;
+                    throw new Error('Camera access is required to record video. Please enable it in Settings > Privacy > Camera.');
                 }
 
                 result = await ImagePicker.launchCameraAsync({
                     mediaTypes: ImagePicker.MediaTypeOptions.Videos,
                     videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-                    videoMaxDuration: 120,
+                    videoMaxDuration: MAX_VIDEO_DURATION_SECONDS,
                 });
             } else {
                 const currentPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -313,14 +291,13 @@ export function useVideoUpload(currentUsername: string | null) {
                     finalStatus = requestPermission.status;
                 }
                 if (finalStatus !== 'granted') {
-                    Alert.alert('Library Permission Required', 'HiveSnaps needs photo library access to choose a video.');
-                    return;
+                    throw new Error('Photo library access is required to choose a video. Please enable it in Settings > Privacy > Photos.');
                 }
 
                 result = await ImagePicker.launchImageLibraryAsync({
                     mediaTypes: ImagePicker.MediaTypeOptions.Videos,
                     allowsMultipleSelection: false,
-                    quality: 1,
+                    quality: GALLERY_PICKER_QUALITY,
                 });
             }
 
@@ -329,18 +306,49 @@ export function useVideoUpload(currentUsername: string | null) {
             const pickedVideo = result.assets[0];
             if (!pickedVideo?.uri) throw new Error('Unable to access selected video.');
 
-            const preparedAsset = await prepareLocalVideoAsset(pickedVideo.uri, {
-                filename: pickedVideo.fileName || `snapie-video-${Date.now()}.mp4`,
-                mimeType: pickedVideo.mimeType || 'video/mp4',
-                durationMs: typeof pickedVideo.duration === 'number' ? Math.round(pickedVideo.duration * 1000) : undefined,
-            });
+            // Proactive check: expo-image-picker returns a ph:// URI (instead of file://)
+            // when the video has not been downloaded from iCloud to the device.
+            if (Platform.OS === 'ios' && !pickedVideo.uri.startsWith('file://')) {
+                throw new Error(
+                    'The selected video is not stored on your device. Please download it from iCloud first: Settings > Photos > Download and Keep Originals.'
+                );
+            }
+
+            // Prepare the video asset; catch errors from prepareLocalVideoAsset that
+            // indicate an iCloud-hosted file that was not fully available locally.
+            let preparedAsset: LocalVideoAsset;
+            try {
+                preparedAsset = await prepareLocalVideoAsset(pickedVideo.uri, {
+                    filename: pickedVideo.fileName || `snapie-video-${Date.now()}.mp4`,
+                    mimeType: pickedVideo.mimeType || 'video/mp4',
+                    durationMs: typeof pickedVideo.duration === 'number' ? Math.round(pickedVideo.duration * 1000) : undefined,
+                });
+            } catch (prepareError: any) {
+                const errorMsg = prepareError?.message || String(prepareError);
+                const isICloudError =
+                    errorMsg.includes('PHPhotos') ||
+                    errorMsg.includes('iCloud') ||
+                    errorMsg.includes('no longer exists') ||
+                    errorMsg.includes('size of 0 bytes');
+                if (isICloudError) {
+                    throw new Error(
+                        'The selected video is not stored on your device. Please download it from iCloud first: Settings > Photos > Download and Keep Originals.'
+                    );
+                }
+                throw prepareError;
+            }
 
             let thumbnail: VideoThumbnail | null = null;
             try {
                 thumbnail = await generateVideoThumbnail(pickedVideo.uri);
 
-                // Start uploading thumbnail to Hive images (with automatic fallback to ecency.com)
-                if (__DEV__) console.log('Starting thumbnail upload to Hive images...');
+                // Start uploading thumbnail to images.hive.blog in parallel with video upload
+                if (__DEV__) console.log('Starting thumbnail upload to images.hive.blog...');
+
+                const thumbnailController = new AbortController();
+                thumbnailUploadControllerRef.current = thumbnailController;
+
+
                 thumbnailUploadPromiseRef.current = (async () => {
                     try {
                         if (!currentUsername) {
@@ -367,28 +375,34 @@ export function useVideoUpload(currentUsername: string | null) {
                         });
 
                         const thumbnailUrl = result.url;
-                        // Only update state if component is still mounted
-                        if (isMountedRef.current) {
-                            dispatch({ type: 'THUMBNAIL_UPLOADED', payload: thumbnailUrl });
-                            if (__DEV__) console.log('✅ Thumbnail uploaded to Hive images:', thumbnailUrl);
-                        }
+                        // Guard: don't dispatch into cleared state if upload was cancelled while in flight
+                        if (thumbnailController.signal.aborted) return null;
+                        dispatch({ type: 'THUMBNAIL_UPLOADED', payload: thumbnailUrl });
+                        if (__DEV__) console.log('✅ Thumbnail uploaded to images.hive.blog:', thumbnailUrl);
                         return thumbnailUrl;
-                    } catch (uploadError) {
-                        if (__DEV__) console.error('❌ Failed to upload thumbnail:', uploadError);
+                    } catch (uploadError: any) {
+                        // Don't log if it was cancelled
+                        if (uploadError?.name !== 'AbortError') {
+                            if (__DEV__) console.error('❌ Failed to upload thumbnail:', uploadError);
+                        }
                         return null;
                     }
                 })();
-            } catch (thumbnailError) {
-                console.warn('Failed to generate video thumbnail', thumbnailError);
+            } catch (thumbnailError: any) {
+                // Handle thumbnail generation errors gracefully - don't fail if thumbnail fails
+                const errorMsg = thumbnailError?.message || String(thumbnailError);
+                console.warn('Failed to generate video thumbnail:', errorMsg);
+                // Continue without thumbnail - it's not critical
             }
 
             dispatch({ type: 'SET_ASSET', payload: { asset: preparedAsset, thumbnail } });
             await startUpload(preparedAsset);
         } catch (error: any) {
-            console.error('Video picker error:', error);
-            Alert.alert('Video Error', error instanceof Error ? error.message : 'Failed to add video. Please try again.');
+            if (__DEV__) console.error('Video picker error:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to add video. Please try again.';
+            dispatch({ type: 'UPLOAD_ERROR', payload: errorMessage });
         }
-    }, [state.uploading, state.asset, state.assetId, startUpload]);
+    }, [currentUsername, startUpload]);
 
     /**
      * Cancel ongoing upload
@@ -398,43 +412,45 @@ export function useVideoUpload(currentUsername: string | null) {
             cancelRequestedRef.current = true;
             uploadControllerRef.current.abort();
         }
+        if (thumbnailUploadControllerRef.current) {
+            thumbnailUploadControllerRef.current.abort();
+        }
     }, []);
 
     /**
      * Retry failed upload
      */
     const retry = useCallback(() => {
-        if (state.asset) {
-            startUpload(state.asset);
+        // Guard against concurrent calls
+        if (stateRef.current.uploading) {
+            if (__DEV__) console.warn('⚠️ Upload already in progress, cannot retry');
+            return;
         }
-    }, [state.asset, startUpload]);
+        if (stateRef.current.asset) {
+            startUpload(stateRef.current.asset);
+        }
+    }, [startUpload]);
 
     /**
-     * Remove video with confirmation
+     * Remove video (or cancel an in-progress upload).
+     * Confirmation dialog is the caller's responsibility.
      */
     const remove = useCallback(() => {
-        if (!state.asset && !state.assetId) return;
+        const currentState = stateRef.current;
+        if (!currentState.asset && !currentState.assetId) return;
 
-        Alert.alert(
-            state.uploading ? 'Cancel Upload?' : 'Remove Video?',
-            state.uploading ? 'Do you want to cancel this video upload?' : 'Remove the attached video from your snap?',
-            [
-                { text: 'Keep', style: 'cancel' },
-                {
-                    text: state.uploading ? 'Cancel Upload' : 'Remove',
-                    style: 'destructive',
-                    onPress: () => {
-                        if (state.uploading && uploadControllerRef.current) {
-                            cancelRequestedRef.current = true;
-                            uploadControllerRef.current.abort();
-                        } else {
-                            clear();
-                        }
-                    },
-                },
-            ]
-        );
-    }, [state.uploading, state.asset, state.assetId, clear]);
+        if (currentState.uploading) {
+            if (uploadControllerRef.current) {
+                cancelRequestedRef.current = true;
+                uploadControllerRef.current.abort();
+            }
+            if (thumbnailUploadControllerRef.current) {
+                thumbnailUploadControllerRef.current.abort();
+            }
+        } else {
+            clear();
+        }
+    }, [clear]);
 
     return {
         // State
@@ -451,7 +467,6 @@ export function useVideoUpload(currentUsername: string | null) {
         videoEmbedUrl: state.assetId || null,
         // Actions
         addVideo,
-        startUpload,
         cancel,
         retry,
         remove,
