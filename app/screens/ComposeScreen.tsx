@@ -1,10 +1,9 @@
-import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+import React, { useRef, useMemo, useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   useColorScheme,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,6 +12,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -60,6 +60,10 @@ export default function ComposeScreen() {
 
   // UI-only refs
   const textInputRef = useRef<TextInput>(null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Reset avatar error whenever the URL changes (e.g. avatarService resolves a new URL)
+  useEffect(() => { setAvatarError(false); }, [compose.state.avatarUrl]);
 
   // Memoized colors based on theme from centralized Colors
   const colors = useMemo(() => {
@@ -308,10 +312,13 @@ export default function ComposeScreen() {
           {/* User info */}
           <View style={styles.userRow}>
             {compose.state.avatarUrl ? (
-              <Image
-                source={{ uri: compose.state.avatarUrl }}
+              <ExpoImage
+                source={{ uri: avatarError
+                  ? `https://images.hive.blog/u/${compose.state.currentUsername}/avatar/original`
+                  : compose.state.avatarUrl
+                }}
                 style={styles.avatar}
-                onError={() => { }}
+                onError={() => setAvatarError(true)}
               />
             ) : (
               <View
@@ -395,9 +402,10 @@ export default function ComposeScreen() {
                     key={`${imageUrl}-${index}`}
                     style={styles.imageContainer}
                   >
-                    <Image
+                    <ExpoImage
                       source={{ uri: imageUrl }}
                       style={styles.imagePreview}
+                      contentFit='cover'
                     />
                     <TouchableOpacity
                       style={styles.removeImageButton}
@@ -442,9 +450,10 @@ export default function ComposeScreen() {
                     key={`gif-${gifUrl}-${index}`}
                     style={styles.imageContainer}
                   >
-                    <Image
+                    <ExpoImage
                       source={{ uri: gifUrl }}
                       style={styles.imagePreview}
+                      contentFit='cover'
                     />
                     <TouchableOpacity
                       style={styles.removeImageButton}
@@ -488,7 +497,7 @@ export default function ComposeScreen() {
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   {compose.video.thumbnail ? (
-                    <Image
+                    <ExpoImage
                       source={{ uri: compose.video.thumbnail.uri }}
                       style={{
                         width: 60,
@@ -496,7 +505,7 @@ export default function ComposeScreen() {
                         borderRadius: 6,
                         marginRight: 12
                       }}
-                      resizeMode="cover"
+                      contentFit='cover'
                     />
                   ) : (
                     <View style={{

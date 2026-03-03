@@ -28,7 +28,7 @@ HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScri
 
 ### 🎨 Rich Media Support
 
-- **Image Uploads** - Camera capture or gallery selection with Cloudinary hosting
+- **Image Uploads** - Camera capture or gallery selection with Hive blockchain hosting
 - **GIF Integration** - Powered by Tenor API with search functionality
 - **Video Embedding** - YouTube, 3Speak, and IPFS video support
 - **Instagram Embeds** - Native Instagram post rendering in feed
@@ -80,7 +80,7 @@ HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScri
 
 ### Media & Storage
 
-- **Cloudinary** as fallback for image hosting and optimization
+- **Hive Images** for zero-cost blockchain image hosting (images.hive.blog)
 - **Tenor API** for GIF search and integration
 - **Expo Image Picker** for camera/gallery access
 - **AsyncStorage** for local data persistence
@@ -120,9 +120,6 @@ HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScri
    Create a `.env` file with your API keys:
 
    ```env
-   CLOUDINARY_CLOUD_NAME=your_cloud_name
-   CLOUDINARY_API_KEY=your_api_key
-   CLOUDINARY_API_SECRET=your_api_secret
    TENOR_API_KEY=your_tenor_key
    EXPO_PUBLIC_3SPEAK_API_KEY=your_3speak_api_key
    EXPO_PUBLIC_IPFS_UPLOAD_ENDPOINT=https://ipfs.3speak.tv/api/v0/add
@@ -157,7 +154,7 @@ We standardized avatars to images.hive.blog across the app. See `docs/avatar-uni
 HiveSnaps implements a comprehensive content moderation system:
 
 - **Community Reporting** - Users can report inappropriate content through three-dots menu
-- **Blockchain-native Moderation** - Content moderation via @snapie account voting system  
+- **Blockchain-native Moderation** - Content moderation via @snapie account voting system
 - **Automatic Content Filtering** - Posts with moderation downvotes are hidden from interface
 - **Zero-tolerance Policy** - Strict enforcement against harassment, abuse, and harmful content
 - **Terms of Service** - Required acceptance with App Store compliance for community standards

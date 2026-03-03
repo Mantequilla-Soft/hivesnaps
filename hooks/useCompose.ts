@@ -384,9 +384,10 @@ export function useCompose({
                 // Convert each image smartly - only converts HEIC, preserves GIF/PNG
                 // Recompress JPEGs to bound upload size when selecting multiple images
                 const uploadPromises = result.assets.map(async (asset, index) => {
-                    const converted = await convertImageSmart(asset.uri, undefined, 0.8);
+                    const converted = await convertImageSmart(asset.uri, asset.fileName ?? undefined, 0.8);
 
-                    // For JPEGs, recompress to quality 0.8 to keep upload size bounded
+                    // For JPEGs only, recompress to quality 0.8 to keep upload size bounded.
+                    // Never recompress GIFs — ImageManipulator would flatten the animation.
                     let fileUri = converted.uri;
                     let fileType = converted.type;
                     if (converted.type === 'image/jpeg') {
@@ -403,7 +404,7 @@ export function useCompose({
                         type: fileType,
                     };
                     const uploadResult = await uploadImageSmart(fileToUpload, state.currentUsername);
-                    console.log(`[useCompose] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
+                    if (__DEV__) console.log(`[useCompose] Image ${index + 1} uploaded via ${uploadResult.provider} (cost: $${uploadResult.cost})`);
                     return uploadResult.url;
                 });
 

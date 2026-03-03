@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   useColorScheme,
   Linking,
@@ -13,6 +12,7 @@ import {
   Alert,
   Share,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Clipboard } from 'react-native';
@@ -284,18 +284,10 @@ const Snap: React.FC<SnapProps> = ({
             }
           }}
         >
-          <Image
+          <ExpoImage
             source={{ uri: src }}
-            style={{
-              width: '100%',
-              aspectRatio: 1.2,
-              maxHeight: 340,
-              borderRadius: 14,
-              marginVertical: 10,
-              alignSelf: 'center',
-              backgroundColor: '#eee',
-            }}
-            resizeMode='cover'
+            style={styles.markdownImage}
+            contentFit='cover'
             accessibilityLabel={alt || 'image'}
           />
         </Pressable>
@@ -626,10 +618,10 @@ const Snap: React.FC<SnapProps> = ({
                 <FontAwesome name='close' size={28} color='#fff' />
               </TouchableOpacity>
               {modalImageUrl && (
-                <Image
+                <ExpoImage
                   source={{ uri: modalImageUrl }}
                   style={styles.fullImage}
-                  resizeMode='contain'
+                  contentFit='contain'
                 />
               )}
             </View>
@@ -653,7 +645,7 @@ const Snap: React.FC<SnapProps> = ({
               accessibilityRole='button'
               accessibilityLabel={`View ${author}'s profile`}
             >
-              <Image
+              <ExpoImage
                 source={
                   avatarUrl
                     ? { uri: avatarUrl }
@@ -671,7 +663,7 @@ const Snap: React.FC<SnapProps> = ({
             </Pressable>
             <View style={styles.topRightCluster}>
               {viaHiveSnaps && (
-                <Image
+                <ExpoImage
                   source={require('../../assets/images/hivesnaps-badge.png')}
                   style={styles.avatar}
                   accessibilityLabel='Posted with HiveSnaps'
@@ -743,16 +735,10 @@ const Snap: React.FC<SnapProps> = ({
                   }
                 }}
               >
-                <Image
+                <ExpoImage
                   source={{ uri: url }}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    backgroundColor: '#eee',
-                  }}
-                  resizeMode='cover'
+                  style={styles.feedImage}
+                  contentFit='cover'
                 />
               </Pressable>
             ))}
@@ -773,16 +759,10 @@ const Snap: React.FC<SnapProps> = ({
                   }
                 }}
               >
-                <Image
+                <ExpoImage
                   source={{ uri: url }}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    backgroundColor: '#eee',
-                  }}
-                  resizeMode='cover'
+                  style={styles.feedImage}
+                  contentFit='cover'
                 />
               </Pressable>
             ))}
@@ -1280,6 +1260,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
+  },
+  markdownImage: {
+    width: '100%',
+    aspectRatio: 1.2,
+    maxHeight: 340,
+    borderRadius: 14,
+    marginVertical: 10,
+    alignSelf: 'center',
+    backgroundColor: '#eee',
+  },
+  feedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: '#eee',
   },
 });
 

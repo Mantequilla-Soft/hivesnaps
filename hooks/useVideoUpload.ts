@@ -339,8 +339,8 @@ export function useVideoUpload(currentUsername: string | null) {
             try {
                 thumbnail = await generateVideoThumbnail(pickedVideo.uri);
 
-                // Start uploading thumbnail to images.hive.blog in parallel with video upload
-                if (__DEV__) console.log('Starting thumbnail upload to images.hive.blog...');
+                // Start uploading thumbnail to Hive images (with automatic fallback to ecency.com)
+                if (__DEV__) console.log('Starting thumbnail upload to Hive images...');
                 thumbnailUploadPromiseRef.current = (async () => {
                     try {
                         if (!currentUsername) {
@@ -364,14 +364,13 @@ export function useVideoUpload(currentUsername: string | null) {
                             provider: 'hive',
                             username: credentials.username,
                             privateKey: credentials.privateKey,
-                            fallbackToCloudinary: false,
                         });
 
                         const thumbnailUrl = result.url;
                         // Only update state if component is still mounted
                         if (isMountedRef.current) {
                             dispatch({ type: 'THUMBNAIL_UPLOADED', payload: thumbnailUrl });
-                            if (__DEV__) console.log('✅ Thumbnail uploaded to images.hive.blog:', thumbnailUrl);
+                            if (__DEV__) console.log('✅ Thumbnail uploaded to Hive images:', thumbnailUrl);
                         }
                         return thumbnailUrl;
                     } catch (uploadError) {
