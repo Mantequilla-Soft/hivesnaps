@@ -2,10 +2,12 @@
  * Image Converter Utility
  * Converts HEIC and other image formats to JPEG
  * Ensures web compatibility for images uploaded from iOS devices
+ * Handles iOS ph:// URIs from the Photo Library
  */
 
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 export interface ConvertedImage {
   uri: string;
@@ -16,8 +18,9 @@ export interface ConvertedImage {
 /**
  * Converts an image to JPEG format
  * Handles HEIC images from iOS devices automatically
+ * Also handles iOS ph:// URIs from the Photo Library
  * 
- * @param uri - The URI of the image to convert
+ * @param uri - The URI of the image to convert (supports file:// and ph:// schemes)
  * @param quality - JPEG quality (0-1), defaults to 0.8
  * @returns Converted image with JPEG format
  */
@@ -26,13 +29,8 @@ export async function convertToJPEG(
   quality: number = 0.8
 ): Promise<ConvertedImage> {
   try {
-    // Check if file exists
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (!fileInfo.exists) {
-      throw new Error(`Image file not found: ${uri}`);
-    }
-
     // Use ImageManipulator to convert to JPEG
+    // ImageManipulator handles both file:// and ph:// URIs on iOS natively
     // This automatically handles HEIC and other formats
     const result = await ImageManipulator.manipulateAsync(
       uri,
@@ -80,9 +78,48 @@ export interface SmartConversionResult {
 }
 
 /**
- * Smart image conversion - only converts HEIC/HEIF to JPEG, preserves GIFs and PNGs
+ * Checks if a URI is an iOS Photo Library reference (ph://) that needs normalization
+ */
+function isIOSPhotoLibraryURI(uri: string): boolean {
+  return Platform.OS === 'ios' && (uri.startsWith('ph://') || uri.startsWith('assets-library://'));
+}
+
+/**
+ * Normalizes an iOS Photo Library URI to a file:// URI by copying to cache
+ * On Android or for file:// URIs, returns the original URI
  * 
- * @param uri - The URI of the image
+ * @param uri - The source URI
+ * @param extension - File extension to use for the destination
+ * @returns Normalized file:// URI
+ */
+async function normalizeURIToFile(uri: string, extension: string): Promise<string> {
+  if (!isIOSPhotoLibraryURI(uri)) {
+    return uri;
+  }
+
+  // Copy from photo library to cache directory
+  const destPath = `${FileSystem.cacheDirectory}image-${Date.now()}.${extension}`;
+
+  if (__DEV__) {
+    console.log(`[imageConverter] Copying from ph:// to file:// URI`);
+  }
+
+  try {
+    await FileSystem.copyAsync({ from: uri, to: destPath });
+    return destPath;
+  } catch (error) {
+    if (__DEV__) {
+      console.error('[imageConverter] Failed to copy from photo library:', error);
+    }
+    throw new Error(`Failed to access image from photo library: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Smart image conversion - only converts HEIC/HEIF to JPEG, preserves GIFs and PNGs
+ * Handles iOS ph:// URIs by normalizing them to file:// URIs
+ * 
+ * @param uri - The URI of the image (supports file://, ph://, and assets-library:// schemes)
  * @param originalFileName - Original file name (optional, for extension detection)
  * @param quality - JPEG quality for conversion (0-1), defaults to 0.8
  * @returns File info ready for upload with proper mime type
@@ -113,29 +150,40 @@ export async function convertImageSmart(
       };
     }
 
-    // Preserve GIF animations and PNG transparency
+    // Preserve GIF animations - normalize ph:// URI to file:// via copy
     if (extension === 'gif') {
       console.log('[imageConverter] Preserving GIF animation');
+      const normalizedUri = await normalizeURIToFile(uri, 'gif');
       return {
-        uri,
+        uri: normalizedUri,
         type: 'image/gif',
         name: originalFileName || `image-${Date.now()}.gif`,
       };
     }
 
+    // Preserve PNG transparency using ImageManipulator (handles ph:// URIs natively)
     if (extension === 'png') {
-      console.log('[imageConverter] Preserving PNG transparency');
-      return {
+      console.log('[imageConverter] Processing PNG (preserving transparency)');
+      // ImageManipulator handles ph:// URIs and outputs file:// URI while preserving PNG format
+      const result = await ImageManipulator.manipulateAsync(
         uri,
+        [], // No transformations
+        { format: ImageManipulator.SaveFormat.PNG }
+      );
+      return {
+        uri: result.uri,
         type: 'image/png',
         name: originalFileName || `image-${Date.now()}.png`,
+        width: result.width,
+        height: result.height,
       };
     }
 
-    // For JPEG and other formats, pass through as JPEG
-    console.log('[imageConverter] Passing through as JPEG');
+    // For JPEG and other formats, normalize ph:// URI if needed and pass through
+    console.log('[imageConverter] Processing as JPEG');
+    const normalizedUri = await normalizeURIToFile(uri, extension || 'jpg');
     return {
-      uri,
+      uri: normalizedUri,
       type: 'image/jpeg',
       name: originalFileName || `image-${Date.now()}.jpg`,
     };

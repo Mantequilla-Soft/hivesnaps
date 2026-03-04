@@ -130,10 +130,10 @@ export const useReply = (
 
     try {
       // Use static import for ImagePicker
-      const { launchImageLibraryAsync, MediaTypeOptions } = ImagePicker;
+      const { launchImageLibraryAsync } = ImagePicker;
 
       const result = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.8,
       });

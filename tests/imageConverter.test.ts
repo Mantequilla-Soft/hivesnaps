@@ -9,13 +9,13 @@ import * as ImageManipulator from 'expo-image-manipulator';
 
 // Mock dependencies
 jest.mock('expo-file-system/legacy');
-jest.mock('expo-image-manipulator');
-
-// Mock SaveFormat enum
-const mockSaveFormat = {
-  JPEG: 'JPEG',
-  PNG: 'PNG',
-};
+jest.mock('expo-image-manipulator', () => ({
+  manipulateAsync: jest.fn(),
+  SaveFormat: {
+    JPEG: 'jpeg',
+    PNG: 'png',
+  },
+}));
 
 describe('imageConverter', () => {
   beforeEach(() => {
@@ -25,13 +25,7 @@ describe('imageConverter', () => {
 
   describe('convertToJPEG', () => {
     it('should successfully convert a valid image to JPEG', async () => {
-      // Mock file exists
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
-      // Mock manipulateAsync response
+      // Mock manipulateAsync response (handles both file:// and ph:// URIs)
       (ImageManipulator.manipulateAsync as jest.Mock).mockResolvedValue({
         uri: 'file:///converted/image.jpg',
         width: 1920,
@@ -52,31 +46,22 @@ describe('imageConverter', () => {
         [],
         {
           compress: 0.8,
-          format: mockSaveFormat.JPEG,
+          format: ImageManipulator.SaveFormat.JPEG,
         }
       );
     });
 
-    it('should throw error if file does not exist', async () => {
-      // Mock file doesn't exist
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: false,
-      });
+    it('should throw error if ImageManipulator fails to access file', async () => {
+      // Now ImageManipulator handles file access directly and will throw if file doesn't exist
+      const testError = new Error('File not found');
+      (ImageManipulator.manipulateAsync as jest.Mock).mockRejectedValue(testError);
 
       await expect(convertToJPEG('file:///nonexistent/image.heic', 0.8))
         .rejects
-        .toThrow('Image file not found');
-
-      // ImageManipulator should never be called
-      expect(ImageManipulator.manipulateAsync).not.toHaveBeenCalled();
+        .toThrow('Failed to convert image to JPEG');
     });
 
     it('should use default quality parameter', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
       (ImageManipulator.manipulateAsync as jest.Mock).mockResolvedValue({
         uri: 'file:///converted/image.jpg',
         width: 1920,
@@ -96,11 +81,6 @@ describe('imageConverter', () => {
     });
 
     it('should handle conversion errors gracefully', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
       const testError = new Error('ImageManipulator failed');
       (ImageManipulator.manipulateAsync as jest.Mock).mockRejectedValue(testError);
 
@@ -110,11 +90,6 @@ describe('imageConverter', () => {
     });
 
     it('should respect custom quality parameter', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
       (ImageManipulator.manipulateAsync as jest.Mock).mockResolvedValue({
         uri: 'file:///converted/image.jpg',
         width: 1920,
@@ -129,7 +104,7 @@ describe('imageConverter', () => {
         expect.any(Array),
         {
           compress: 0.95,
-          format: mockSaveFormat.JPEG,
+          format: ImageManipulator.SaveFormat.JPEG,
         }
       );
     });
@@ -137,11 +112,6 @@ describe('imageConverter', () => {
 
   describe('convertMultipleToJPEG', () => {
     it('should convert multiple images in parallel', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
       (ImageManipulator.manipulateAsync as jest.Mock).mockResolvedValue({
         uri: 'file:///converted/image.jpg',
         width: 1920,
@@ -174,11 +144,6 @@ describe('imageConverter', () => {
     });
 
     it('should reject if any conversion fails', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
       // First two succeed, third fails
       (ImageManipulator.manipulateAsync as jest.Mock)
         .mockResolvedValueOnce({ uri: 'file:///converted/1.jpg', width: 100, height: 100 })
@@ -197,11 +162,6 @@ describe('imageConverter', () => {
     });
 
     it('should use default quality parameter', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({
-        exists: true,
-        size: 1000000,
-      });
-
       (ImageManipulator.manipulateAsync as jest.Mock).mockResolvedValue({
         uri: 'file:///converted/image.jpg',
         width: 1920,

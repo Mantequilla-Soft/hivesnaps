@@ -348,7 +348,7 @@ export function useCompose({
                 result = await ImagePicker.launchCameraAsync({
                     allowsEditing: true,
                     quality: 0.8,
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                 });
             } else {
                 const currentPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -369,7 +369,7 @@ export function useCompose({
                 }
 
                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     allowsEditing: false,
                     quality: 0.8,
                     allowsMultipleSelection: true,

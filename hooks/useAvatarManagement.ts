@@ -127,7 +127,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
           allowsEditing: true,
           quality: 0.8,
           aspect: [1, 1], // Square aspect ratio for avatar
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
         });
       } else {
         // Media library permission handling
@@ -170,7 +170,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
         }
 
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: true,
           quality: 0.8,
           aspect: [1, 1], // Square aspect ratio for avatar
