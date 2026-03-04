@@ -185,7 +185,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
 
       try {
         // Smart conversion - only converts HEIC, preserves original format
-        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
+        const converted = await convertImageSmart(asset.uri, asset.fileName ?? undefined, 0.8);
 
         const fileToSave = {
           uri: converted.uri,
