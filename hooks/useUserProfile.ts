@@ -1,14 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile as useUserProfileGlobal } from '../store/context';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 export const useUserProfile = (username: string | null) => {
   // Prefer global state for avatar if available

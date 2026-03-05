@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { useFollowingList, useMutedList, useCurrentUser } from '../store/context';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
@@ -25,12 +25,7 @@ import type { ActiveVote } from '../services/ModerationService';
  * - Integrates with shared state management for following lists (eliminates redundant API calls)
  */
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 /**
  * Maximum number of containers (Hive posts with snaps) to keep in memory.

@@ -2,7 +2,8 @@ import { useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, Platform, ActionSheetIOS } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { postSnapWithBeneficiaries } from '../services/snapPostingService';
@@ -14,12 +15,7 @@ import { useEdit } from './useEdit';
 import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
 
-const HIVE_NODES = [
-    'https://api.hive.blog',
-    'https://api.deathwing.me',
-    'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 // ===== Types =====
 

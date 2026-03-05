@@ -3,7 +3,7 @@
  * Supports ecency.com, peakd.com, and hive.blog post links
  */
 
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { detectPostType, type PostInfo } from './postTypeDetector';
 import { avatarService, type AvatarLoadResult } from '../services/AvatarService';
 
@@ -43,11 +43,8 @@ const HIVE_DOMAINS = ['ecency.com', 'peakd.com', 'hive.blog', 'snapie.io', 'www.
 
 type HiveDomain = typeof HIVE_DOMAINS[number];
 
-const client = new Client([
-  'https://api.hive.blog',
-  'https://api.hivekings.com',
-  'https://anyx.io',
-]);
+const client = getClient();
+
 
 export interface HivePostInfo {
   author: string;

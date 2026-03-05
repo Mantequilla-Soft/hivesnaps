@@ -1,16 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import * as ImagePicker from 'expo-image-picker';
 import { convertImageSmart } from '../utils/imageConverter';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 export interface ReplyTarget {
   author: string;

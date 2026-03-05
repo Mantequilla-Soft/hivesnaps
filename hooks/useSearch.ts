@@ -1,14 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarService } from '../services/AvatarService';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 export interface SearchResult {
   name: string;

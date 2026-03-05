@@ -1,12 +1,7 @@
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
 
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 export interface HiveNotification {
   id: number;

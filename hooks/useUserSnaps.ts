@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
 import { avatarService } from '../services/AvatarService';
 
@@ -22,12 +22,7 @@ export interface UserSnap {
   [key: string]: any;
 }
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 // Cache for user snaps to avoid refetching
 const userSnapsCache = new Map<

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile } from '../store/context';
 import { vestsToHp } from '../utils/hiveCalculations';
@@ -23,12 +23,7 @@ export interface ProfileData {
   unclaimedVests?: number;
 }
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 export const useProfileData = (username: string | undefined) => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
