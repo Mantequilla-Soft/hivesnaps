@@ -21,7 +21,7 @@ import * as Linking from 'expo-linking';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppStore } from '../../store/context';
 import { getTheme, palette } from '../../constants/Colors';
-import { getClient, hiveCall } from '../../services/HiveClient';
+import { getClient } from '../../services/HiveClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FIELD_WIDTH = SCREEN_WIDTH * 0.8;
@@ -60,7 +60,7 @@ export default function LoginScreen() {
         if (storedUsername && storedPostingKey) {
           // Validate stored credentials before auto-login
           const privKey = PrivateKey.from(storedPostingKey);
-          const account = await hiveCall(() => getClient().database.getAccounts([storedUsername]));
+          const account = await getClient().database.getAccounts([storedUsername]);
 
           if (account && account[0]) {
             const pubPosting = privKey.createPublic().toString();
@@ -115,7 +115,7 @@ export default function LoginScreen() {
 
       // Step 1: Validate posting key with Hive blockchain
       const privKey = PrivateKey.from(postingWif);
-      const account = await hiveCall(() => getClient().database.getAccounts([cleanUsername]));
+      const account = await getClient().database.getAccounts([cleanUsername]);
       if (!account || !account[0]) throw new Error('Account not found');
       const pubPosting = privKey.createPublic().toString();
       const postingAuths = account[0].posting.key_auths.map(([key]) => key);
