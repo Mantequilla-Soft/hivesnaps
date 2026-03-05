@@ -1,7 +1,4 @@
-import { getClient } from '../services/HiveClient';
-
-
-const client = getClient();
+import { getCurrentNode } from '../services/HiveClient';
 
 export interface HiveNotification {
   id: number;
@@ -34,7 +31,7 @@ export async function fetchNotifications(
   limit: number = 50
 ): Promise<HiveNotification[]> {
   try {
-    const response = await fetch('https://api.hive.blog', {
+    const response = await fetch(getCurrentNode(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
