@@ -11,7 +11,9 @@ import { Client } from '@hiveio/dhive';
 const HIVE_NODES = [
   'https://api.deathwing.me',
   'https://api.openhive.network',
-  'https://api.hive.blog',
+  'https://techcoderx.com',
+  'https://api.c0ff33a.uk',
+  'https://rpc.mahdiyari.info',
 ];
 
 const NODE_TIMEOUT_MS = 8000;
