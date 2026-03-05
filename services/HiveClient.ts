@@ -13,6 +13,7 @@
 import { Client } from '@hiveio/dhive';
 
 const HIVE_NODES = [
+  'https://api.hive.blog',
   'https://api.deathwing.me',
   'https://api.openhive.network',
   'https://techcoderx.com',
