@@ -32,7 +32,7 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="hivesnaps"/>
+        <data android:scheme="snapie"/>
         <data android:scheme="exp+hivesnaps"/>
       </intent-filter>
       <intent-filter data-generated="true">

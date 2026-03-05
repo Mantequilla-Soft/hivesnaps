@@ -2,7 +2,7 @@
   "expo": {
     "name": "snapie",
     "owner": "menobass",
-    "slug": "snapie",
+    "slug": "hivesnaps",
     "version": "1.2.1",
     "orientation": "portrait",
     "platforms": [
@@ -20,7 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.snapie.app",
+      "bundleIdentifier": "com.jose.antonio.mena.hivesnaps",
       "buildNumber": "1.2.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -35,7 +35,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.menobass.snapie",
+      "package": "com.menobass.hivesnaps",
       "versionCode": 2,
       "intentFilters": [
         {
