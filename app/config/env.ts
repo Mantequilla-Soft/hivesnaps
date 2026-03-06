@@ -32,6 +32,9 @@ export const AUDIO_API_ENDPOINT = process.env.EXPO_PUBLIC_AUDIO_API_ENDPOINT || 
 export const IPFS_UPLOAD_ENDPOINT = process.env.EXPO_PUBLIC_IPFS_UPLOAD_ENDPOINT || 'https://ipfs.3speak.tv/api/v0/add';
 export const IPFS_GATEWAY_URL = process.env.EXPO_PUBLIC_IPFS_GATEWAY_URL || 'https://ipfs.3speak.tv/ipfs';
 
+// Ecency Chat API (Mattermost proxy)
+export const ECENCY_API_BASE_URL = process.env.EXPO_PUBLIC_ECENCY_API_BASE_URL || 'https://ecency.com/api/mattermost';
+
 // 3Speak Image Server Configuration
 export const THREESPEAK_IMAGE_SERVER = process.env.EXPO_PUBLIC_THREESPEAK_IMAGE_SERVER || 'https://images.3speak.tv';
 export const THREESPEAK_IMAGE_API_KEY = process.env.EXPO_PUBLIC_THREESPEAK_IMAGE_API_KEY || '';

@@ -40,6 +40,7 @@ import { formatVotingPower } from '../../utils/calculateVotingPower';
 
 // Shared state management
 import { useAppStore, useCurrentUser, useAppDebug, useFollowCacheManagement } from '../../store/context';
+import { useChat } from '../../context/ChatContext';
 
 // Components
 import Snap from '../components/Snap';
@@ -131,6 +132,7 @@ const FeedScreenRefactored = () => {
   // Always use the context username for all logic
   const username = useCurrentUser();
   const { handleLogout: logout } = useAuth();
+  const { openChat, dmsUnreadCount } = useChat();
 
   // User profile and voting power data
   const {
@@ -851,6 +853,24 @@ const FeedScreenRefactored = () => {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <FontAwesome name='search' size={22} color={colors.icon} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginRight: 12 }}
+              onPress={openChat}
+              accessibilityLabel='Open chat'
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={{ position: 'relative' }}>
+                <FontAwesome name='comments' size={22} color={colors.icon} />
+                {dmsUnreadCount > 0 && (
+                  <NotificationBadge
+                    count={dmsUnreadCount}
+                    size='small'
+                    color='#FF3B30'
+                    visible={true}
+                  />
+                )}
+              </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.bellBtn}
