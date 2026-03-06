@@ -866,7 +866,7 @@ const FeedScreenRefactored = () => {
                   <NotificationBadge
                     count={dmsUnreadCount}
                     size='small'
-                    color='#FF3B30'
+                    color={theme.error}
                     visible={true}
                   />
                 )}
@@ -881,7 +881,7 @@ const FeedScreenRefactored = () => {
                 <NotificationBadge
                   count={unreadCount}
                   size='small'
-                  color='#FF3B30'
+                  color={theme.error}
                   visible={unreadCount > 0}
                 />
               </View>

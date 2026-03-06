@@ -126,12 +126,14 @@ export const useEcencyChat = (
   // Refs
   const selectedChannelRef = useRef<EcencyChatChannel | null>(null);
   const usersMapRef = useRef<Record<string, EcencyChatUser>>({});
+  const channelsRef = useRef<EcencyChatChannel[]>([]);
   const unreadSyncTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const isInitializedRef = useRef(false);
 
   // Keep refs in sync
   selectedChannelRef.current = selectedChannel;
   usersMapRef.current = usersMap;
+  channelsRef.current = channels;
   isInitializedRef.current = isInitialized;
 
   // --------------------------------------------------------------------------
@@ -156,7 +158,7 @@ export const useEcencyChat = (
       const total = unreads.totalUnread || 0;
 
       setTotalUnread(total);
-      setCommunityUnread(total - dmUnread);
+      setCommunityUnread(Math.max(0, total - dmUnread));
       setDmsUnread(dmUnread);
 
       const perChannel: Record<string, number> = {};
@@ -221,12 +223,20 @@ export const useEcencyChat = (
         return [...prev, enrichedPost];
       });
     } else {
-      // Message for another channel — bump unread
+      // Message for another channel — bump unread counts
       setChannelUnreads(prev => ({
         ...prev,
         [channelId]: (prev[channelId] || 0) + 1,
       }));
       setTotalUnread(prev => prev + 1);
+
+      // Also bump the appropriate tab badge (DM vs community)
+      const channel = channelsRef.current.find(c => c.id === channelId);
+      if (channel?.type === 'D') {
+        setDmsUnread(prev => prev + 1);
+      } else {
+        setCommunityUnread(prev => prev + 1);
+      }
     }
   }, []);
 
@@ -255,8 +265,9 @@ export const useEcencyChat = (
     setMessages(prev =>
       prev.map(m => {
         if (m.id !== post_id) return m;
-        const reactions = { ...(m.metadata?.reactions || {}) };
-        const users = [...(reactions[emoji_name] || [])];
+        const reactions: Record<string, unknown> = { ...(m.metadata?.reactions || {}) };
+        const existing = reactions[emoji_name];
+        const users: string[] = Array.isArray(existing) ? [...existing] : [];
 
         if (isAdd && !users.includes(user_id)) {
           users.push(user_id);
@@ -283,6 +294,13 @@ export const useEcencyChat = (
     }
   }, []);
 
+  const handleWsDisconnect = useCallback(() => {
+    setIsConnected(false);
+    if (__DEV__) {
+      console.log('[useEcencyChat] WebSocket disconnected');
+    }
+  }, []);
+
   // --------------------------------------------------------------------------
   // WebSocket Lifecycle
   // --------------------------------------------------------------------------
@@ -299,6 +317,7 @@ export const useEcencyChat = (
     // Subscribe to events
     const unsubs = [
       ecencyChatService.ws.on('hello', handleWsHello),
+      ecencyChatService.ws.on('disconnect', handleWsDisconnect),
       ecencyChatService.ws.on('posted', handleWsPosted),
       ecencyChatService.ws.on('post_edited', handleWsPostEdited),
       ecencyChatService.ws.on('post_deleted', handleWsPostDeleted),
@@ -311,7 +330,7 @@ export const useEcencyChat = (
       ecencyChatService.ws.disconnect();
       setIsConnected(false);
     };
-  }, [isInitialized, handleWsHello, handleWsPosted, handleWsPostEdited, handleWsPostDeleted, handleWsReaction]);
+  }, [isInitialized, handleWsHello, handleWsDisconnect, handleWsPosted, handleWsPostEdited, handleWsPostDeleted, handleWsReaction]);
 
   // --------------------------------------------------------------------------
   // App State: reconnect on foreground, sync unreads
@@ -562,7 +581,8 @@ export const useEcencyChat = (
       const message = messages.find(m => m.id === postId);
       const userId = ecencyChatService.getUserId();
       const emojiName = ecencyChatService.emojiCharToName(emoji);
-      const hasReaction = message?.metadata?.reactions?.[emojiName]?.includes(userId || '') || false;
+      const reactionUsers = message?.metadata?.reactions?.[emojiName];
+      const hasReaction = Array.isArray(reactionUsers) && reactionUsers.includes(userId || '');
 
       await ecencyChatService.toggleReaction(selectedChannel.id, postId, emoji, !hasReaction);
       // WebSocket 'reaction_added/removed' event will update state

@@ -69,14 +69,36 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 
   // Single hook instance — all chat state lives here
-  const chatHook = useEcencyChat(username, isChatModalOpen);
-
   const {
     isInitialized,
     isInitializing,
+    initError,
+    channels,
+    communityChannel,
+    dmChannels,
+    selectedChannel,
+    messages,
+    messagesLoading,
+    usersMap,
+    totalUnread,
+    communityUnread,
+    dmsUnread,
+    channelUnreads,
+    activeTab,
+    isChatOpen,
+    isConnected,
     initialize,
+    selectChannel,
+    setActiveTab,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    toggleReaction,
+    refreshChannels,
+    refreshMessages,
+    markAsRead,
     startDm,
-  } = chatHook;
+  } = useEcencyChat(username, isChatModalOpen);
 
   // Auto-initialize chat when user is logged in
   useEffect(() => {
@@ -102,15 +124,52 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setIsChatModalOpen(true);
   }, [isInitialized, initialize, startDm]);
 
-  // Memoize context value to prevent unnecessary re-renders of consumers
+  // Memoize context value with explicit dependencies (not the hook object)
   const value = useMemo<ChatContextValue>(() => ({
-    ...chatHook,
+    isInitialized,
+    isInitializing,
+    initError,
+    channels,
+    communityChannel,
+    dmChannels,
+    selectedChannel,
+    messages,
+    messagesLoading,
+    usersMap,
+    totalUnread,
+    communityUnread,
+    dmsUnread,
+    channelUnreads,
+    activeTab,
+    isChatOpen,
+    isConnected,
+    initialize,
+    selectChannel,
+    setActiveTab,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    toggleReaction,
+    refreshChannels,
+    refreshMessages,
+    markAsRead,
+    startDm,
     isChatModalOpen,
     openChat,
     closeChat,
     startDmWithUser,
-    dmsUnreadCount: chatHook.dmsUnread,
-  }), [chatHook, isChatModalOpen, openChat, closeChat, startDmWithUser]);
+    dmsUnreadCount: dmsUnread,
+  }), [
+    isInitialized, isInitializing, initError,
+    channels, communityChannel, dmChannels, selectedChannel,
+    messages, messagesLoading, usersMap,
+    totalUnread, communityUnread, dmsUnread, channelUnreads,
+    activeTab, isChatOpen, isConnected,
+    initialize, selectChannel, setActiveTab,
+    sendMessage, editMessage, deleteMessage, toggleReaction,
+    refreshChannels, refreshMessages, markAsRead, startDm,
+    isChatModalOpen, openChat, closeChat, startDmWithUser,
+  ]);
 
   return (
     <ChatContext.Provider value={value}>

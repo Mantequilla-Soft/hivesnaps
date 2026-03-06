@@ -58,7 +58,7 @@ export interface EcencyChatMessage {
   username?: string;
   // Reactions
   metadata?: {
-    reactions?: Record<string, string[]>; // emoji_name -> user_ids
+    reactions?: Record<string, unknown>; // emoji_name -> user_ids[] (WS) or indexed objects (API)
   };
 }
 
@@ -111,11 +111,12 @@ export type WebSocketEventType =
   | 'reaction_added'
   | 'reaction_removed'
   | 'typing'
-  | 'user_updated';
+  | 'user_updated'
+  | 'disconnect'; // Custom event emitted by WebSocketManager on close
 
 export interface WebSocketEvent {
   event: WebSocketEventType;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   broadcast?: {
     channel_id?: string;
     user_id?: string;
@@ -228,6 +229,7 @@ class WebSocketManager {
 
     this.socket.onclose = () => {
       this._isConnected = false;
+      this.emit({ event: 'disconnect', data: {} });
       if (__DEV__) {
         console.log('[WebSocketManager] Disconnected, scheduling reconnect');
       }
@@ -241,6 +243,12 @@ class WebSocketManager {
 
   private scheduleReconnect(): void {
     if (!this.token) return; // Don't reconnect if disconnected intentionally
+
+    // Clear any existing timer to prevent parallel reconnect attempts
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     const delay = Math.min(
       1000 * Math.pow(2, this.reconnectAttempts),
@@ -329,20 +337,20 @@ class EcencyChatServiceImpl {
   buildAccessToken(username: string, postingWif: string): string {
     const timestamp = Math.floor(Date.now() / 1000);
 
-    const payload: any = {
+    const basePayload = {
       signed_message: { type: 'code', app: HIVESIGNER_APP_ID },
       authors: [username],
       timestamp,
     };
 
-    const message = JSON.stringify(payload);
+    const message = JSON.stringify(basePayload);
     const hash = cryptoUtils.sha256(message);
 
     // Sign with posting key
     const signature = PrivateKey.fromString(postingWif).sign(hash).toString();
 
     // Attach signature
-    payload.signatures = [signature];
+    const payload = { ...basePayload, signatures: [signature] };
 
     // Base64url encode (RN doesn't support 'base64url', so we convert manually)
     const base64 = Buffer.from(JSON.stringify(payload)).toString('base64');
@@ -544,7 +552,7 @@ class EcencyChatServiceImpl {
   private async makeRequest<T>(
     path: string,
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
-    body?: any
+    body?: Record<string, unknown>
   ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -653,7 +661,7 @@ class EcencyChatServiceImpl {
   }
 
   async sendMessage(channelId: string, message: string, rootId?: string): Promise<EcencyChatMessage> {
-    const body: any = { message };
+    const body: Record<string, unknown> = { message };
     if (rootId) {
       body.rootId = rootId;
     }
@@ -699,23 +707,24 @@ class EcencyChatServiceImpl {
   // --------------------------------------------------------------------------
 
   async createDirectChannel(username: string): Promise<EcencyChatChannel> {
-    const response = await this.makeRequest<any>('/direct', 'POST', { username });
+    const response = await this.makeRequest<Record<string, unknown>>('/direct', 'POST', { username });
 
     if (__DEV__) {
       console.log('[EcencyChatService] createDirectChannel response:', JSON.stringify(response, null, 2));
     }
 
-    if (response?.id) {
-      return response as EcencyChatChannel;
-    }
-    if (response?.channel?.id) {
-      return response.channel as EcencyChatChannel;
-    }
-    if (response?.data?.id) {
-      return response.data as EcencyChatChannel;
+    // API may return the channel directly or wrapped in a property
+    const channel = response as Record<string, unknown>;
+    if (channel?.id) {
+      return channel as unknown as EcencyChatChannel;
     }
 
-    return response;
+    const nested = (channel?.channel ?? channel?.data) as Record<string, unknown> | undefined;
+    if (nested?.id) {
+      return nested as unknown as EcencyChatChannel;
+    }
+
+    throw new Error('Failed to create direct channel: unexpected response format');
   }
 
   async searchUsers(query: string): Promise<EcencyChatUser[]> {

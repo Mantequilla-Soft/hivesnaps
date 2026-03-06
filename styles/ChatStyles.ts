@@ -1,40 +1,50 @@
 /**
  * Chat Styles
  * Centralized styles for all chat-related components
+ * Uses the app's centralized color system from constants/Colors.ts
  */
 
 import { StyleSheet } from 'react-native';
+import { getTheme, palette } from '../constants/Colors';
 
 // ============================================================================
 // Color Helpers
 // ============================================================================
 
-export const getChatColors = (isDark: boolean) => ({
-  // Bubble
-  bubble: '#1DA1F2',
-  bubbleShadow: isDark ? '#000' : '#1DA1F2',
-  bubbleIcon: '#FFFFFF',
-  
-  // Badge
-  badge: '#FF3B30',
-  badgeText: '#FFFFFF',
-  
-  // Screen
-  background: isDark ? '#000000' : '#FFFFFF',
-  headerBg: isDark ? '#1C1C1E' : '#F5F5F5',
-  cardBg: isDark ? '#1C1C1E' : '#FFFFFF',
-  text: isDark ? '#FFFFFF' : '#000000',
-  textSecondary: isDark ? '#8E8E93' : '#6B7280',
-  accent: '#1DA1F2',
-  
-  // Messages
-  messageBg: isDark ? '#2C2C2E' : '#E5E5EA',
-  inputBg: isDark ? '#2C2C2E' : '#FFFFFF',
-  reactionBg: isDark ? '#3A3A3C' : '#F0F0F0',
-  
-  // Borders
-  border: isDark ? 'rgba(128, 128, 128, 0.3)' : 'rgba(128, 128, 128, 0.3)',
-});
+export const getChatColors = (isDark: boolean) => {
+  const theme = getTheme(isDark ? 'dark' : 'light');
+
+  return {
+    // Bubble
+    bubble: palette.primary,
+    bubbleShadow: isDark ? palette.darkBackground : palette.primary,
+    bubbleIcon: palette.white,
+
+    // Badge
+    badge: theme.error,
+    badgeText: palette.white,
+
+    // Screen
+    background: theme.background,
+    headerBg: theme.card,
+    cardBg: theme.card,
+    text: theme.text,
+    textSecondary: theme.textSecondary,
+    accent: palette.primary,
+
+    // Messages
+    messageBg: theme.bubble,
+    inputBg: theme.background,
+    reactionBg: theme.card,
+
+    // Borders
+    border: theme.border,
+
+    // Error
+    errorBg: isDark ? palette.darkBubble : palette.lightBackgroundHighlight,
+    errorText: theme.error,
+  };
+};
 
 // ============================================================================
 // ChatScreen Styles
@@ -46,7 +56,7 @@ export const createChatScreenStyles = () => {
     container: {
       flex: 1,
     },
-    
+
     // Loading & Error States
     loadingContainer: {
       flex: 1,
@@ -80,7 +90,7 @@ export const createChatScreenStyles = () => {
       borderRadius: 8,
     },
     retryButtonText: {
-      color: '#FFFFFF',
+      color: palette.white,
       fontWeight: '600',
     },
 
@@ -141,7 +151,7 @@ export const createChatScreenStyles = () => {
       paddingHorizontal: 4,
     },
     tabBadgeText: {
-      color: '#FFFFFF',
+      color: palette.white,
       fontSize: 11,
       fontWeight: 'bold',
     },
@@ -316,7 +326,7 @@ export const createChatScreenStyles = () => {
       paddingHorizontal: 6,
     },
     dmBadgeText: {
-      color: '#FFFFFF',
+      color: palette.white,
       fontSize: 12,
       fontWeight: 'bold',
     },

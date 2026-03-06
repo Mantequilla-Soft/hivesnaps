@@ -108,17 +108,27 @@ const ChatTabBar: React.FC<{
  * Message reactions display (extracted from MessageBubble to avoid IIFE)
  */
 const MessageReactions: React.FC<{
-  reactions: Record<string, any>;
+  reactions: Record<string, unknown>;
   onReaction: (emoji: string) => void;
   isDark: boolean;
   styles: ReturnType<typeof createChatScreenStyles>;
 }> = memo(({ reactions, onReaction, isDark, styles }) => {
   const colors = getChatColors(isDark);
 
-  // Transform reactions from indexed object to grouped by emoji
+  // Reactions can be in two shapes:
+  // 1. Record<string, string[]> (emoji_name -> user_ids) from WS handler
+  // 2. Record<string, {emoji_name, user_id}> (indexed) from API
+  // Normalize to shape 1
   const reactionsByEmoji: Record<string, string[]> = {};
-  Object.values(reactions).forEach((reaction: any) => {
-    if (reaction?.emoji_name) {
+  for (const [key, value] of Object.entries(reactions)) {
+    if (Array.isArray(value)) {
+      // Already in emoji_name -> user_ids format
+      if (value.length > 0) {
+        reactionsByEmoji[key] = value as string[];
+      }
+    } else if (value && typeof value === 'object' && 'emoji_name' in value) {
+      // Indexed object format: { emoji_name, user_id }
+      const reaction = value as { emoji_name: string; user_id?: string };
       const emojiName = reaction.emoji_name;
       if (!reactionsByEmoji[emojiName]) {
         reactionsByEmoji[emojiName] = [];
@@ -127,7 +137,7 @@ const MessageReactions: React.FC<{
         reactionsByEmoji[emojiName].push(reaction.user_id);
       }
     }
-  });
+  }
 
   const emojiEntries = Object.entries(reactionsByEmoji);
   if (emojiEntries.length === 0) return null;
@@ -686,8 +696,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ username, onClose }) => 
 
             {/* Inline error message */}
             {dmError && (
-              <View style={[inlineErrorStyles.container, { backgroundColor: isDark ? '#3D2020' : '#FFEBEE' }]}>
-                <Text style={[inlineErrorStyles.text, { color: isDark ? '#FF8A80' : '#D32F2F' }]}>
+              <View style={[inlineErrorStyles.container, { backgroundColor: colors.errorBg }]}>
+                <Text style={[inlineErrorStyles.text, { color: colors.errorText }]}>
                   {dmError}
                 </Text>
               </View>
