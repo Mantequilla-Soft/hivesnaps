@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../../styles/colors';
 
 type Tone = 'default' | 'danger';
@@ -24,12 +25,13 @@ interface ActionSheetProps {
 
 const ActionSheet: React.FC<ActionSheetProps> = ({ visible, onClose, items, colors }) => {
   const appColors = useAppColors();
+  const insets = useSafeAreaInsets();
   const c = colors || { text: appColors.text, bubble: appColors.bubble, border: appColors.border };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: c.bubble, borderColor: c.border }]}> 
+        <View style={[styles.sheet, { backgroundColor: c.bubble, borderColor: c.border, paddingBottom: Math.max(insets.bottom, 10) }]}>
           {items.map((item, idx) => (
             <TouchableOpacity
               key={`${item.label}-${idx}`}
