@@ -97,8 +97,15 @@ async function normalizeURIToFile(uri: string, extension: string): Promise<strin
     return uri;
   }
 
+  if (!FileSystem.cacheDirectory) {
+    throw new Error('Cache directory unavailable');
+  }
+
+  // Sanitize extension to prevent invalid cache paths (ph:// URIs may lack proper extensions)
+  const safeExtension = /^[a-z0-9]+$/i.test(extension) ? extension : 'jpg';
+
   // Copy from photo library to cache directory
-  const destPath = `${FileSystem.cacheDirectory}image-${Date.now()}.${extension}`;
+  const destPath = `${FileSystem.cacheDirectory}image-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${safeExtension}`;
 
   if (__DEV__) {
     console.log(`[imageConverter] Copying from ph:// to file:// URI`);
@@ -161,25 +168,34 @@ export async function convertImageSmart(
       };
     }
 
-    // Preserve PNG transparency using ImageManipulator (handles ph:// URIs natively)
+    // Preserve PNG transparency — only run through ImageManipulator for ph:// URIs
     if (extension === 'png') {
-      console.log('[imageConverter] Processing PNG (preserving transparency)');
-      // ImageManipulator handles ph:// URIs and outputs file:// URI while preserving PNG format
-      const result = await ImageManipulator.manipulateAsync(
-        uri,
-        [], // No transformations
-        { format: ImageManipulator.SaveFormat.PNG }
-      );
+      if (isIOSPhotoLibraryURI(uri)) {
+        console.log('[imageConverter] Converting ph:// PNG via ImageManipulator');
+        const result = await ImageManipulator.manipulateAsync(
+          uri,
+          [],
+          { format: ImageManipulator.SaveFormat.PNG }
+        );
+        return {
+          uri: result.uri,
+          type: 'image/png',
+          name: originalFileName || `image-${Date.now()}.png`,
+          width: result.width,
+          height: result.height,
+        };
+      }
+      console.log('[imageConverter] Preserving PNG as-is (already file:// URI)');
       return {
-        uri: result.uri,
+        uri,
         type: 'image/png',
         name: originalFileName || `image-${Date.now()}.png`,
-        width: result.width,
-        height: result.height,
       };
     }
 
-    // For JPEG and other formats, normalize ph:// URI if needed and pass through
+    // JPEG requires no format conversion, so we copy to file:// manually via
+    // normalizeURIToFile since we can't use ImageManipulator without re-encoding.
+    // (HEIC/PNG use ImageManipulator which handles ph:// natively as part of conversion.)
     console.log('[imageConverter] Processing as JPEG');
     const normalizedUri = await normalizeURIToFile(uri, extension || 'jpg');
     return {
