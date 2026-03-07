@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform, ActionSheetIOS, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
@@ -9,13 +10,6 @@ import { avatarService } from '../services/AvatarService';
 import { saveAvatarImage } from '../utils/avatarUtils';
 import { useAppStore } from '../store/context';
 import { convertImageSmart } from '../utils/imageConverter';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export const useAvatarManagement = (currentUsername: string | null) => {
   const [editAvatarModalVisible, setEditAvatarModalVisible] = useState(false);
@@ -247,7 +241,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
       }
 
       // Get current account data to preserve existing metadata
-      const accounts = await client.database.getAccounts([currentUsername]);
+      const accounts = await hiveCallWithFailover(client => client.database.getAccounts([currentUsername]));
       if (!accounts || !accounts[0]) throw new Error('Account not found');
 
       const account = accounts[0];
@@ -303,7 +297,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
         },
       ] as const;
 
-      await client.broadcast.sendOperations([operation], activeKey);
+      await hiveCallWithFailover(client => client.broadcast.sendOperations([operation], activeKey));
 
       // Update global user profile with new avatar URL
       // Convert reputation to number if needed

@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
 import * as SecureStore from 'expo-secure-store';
 import { useFollowCacheManagement } from '../store/context';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 
 export const useFollowManagement = (
   currentUsername: string | null,
@@ -38,12 +32,12 @@ export const useFollowManagement = (
 
       // Check following status - get all users that currentUsername follows
       // Parameters: [follower, startFollowing, followType, limit]
-      const following = await client.call('condenser_api', 'get_following', [
+      const following = await hiveCallWithFailover(client => client.call('condenser_api', 'get_following', [
         currentUsername,
         '',
         'blog',
         1000,
-      ]);
+      ]));
       console.log(
         `📊 Following API returned ${following?.length || 0} results`
       );
@@ -68,12 +62,12 @@ export const useFollowManagement = (
       setIsFollowing(isCurrentlyFollowing);
 
       // Check mute status - get all users that currentUsername ignores
-      const ignoring = await client.call('condenser_api', 'get_following', [
+      const ignoring = await hiveCallWithFailover(client => client.call('condenser_api', 'get_following', [
         currentUsername,
         '',
         'ignore',
         1000,
-      ]);
+      ]));
       console.log(`🔇 Ignoring API returned ${ignoring?.length || 0} results`);
 
       const isCurrentlyMuting =
@@ -134,7 +128,7 @@ export const useFollowManagement = (
       ];
 
       // Broadcast the follow operation
-      await client.broadcast.json(
+      await hiveCallWithFailover(client => client.broadcast.json(
         {
           required_auths: [],
           required_posting_auths: [currentUsername],
@@ -142,7 +136,7 @@ export const useFollowManagement = (
           json: JSON.stringify(followOp),
         },
         postingKey
-      );
+      ));
 
       setIsFollowing(true);
       
@@ -184,7 +178,7 @@ export const useFollowManagement = (
       ];
 
       // Broadcast the unfollow operation
-      await client.broadcast.json(
+      await hiveCallWithFailover(client => client.broadcast.json(
         {
           required_auths: [],
           required_posting_auths: [currentUsername],
@@ -192,7 +186,7 @@ export const useFollowManagement = (
           json: JSON.stringify(unfollowOp),
         },
         postingKey
-      );
+      ));
 
       setIsFollowing(false);
       
@@ -234,7 +228,7 @@ export const useFollowManagement = (
       ];
 
       // Broadcast the mute operation
-      await client.broadcast.json(
+      await hiveCallWithFailover(client => client.broadcast.json(
         {
           required_auths: [],
           required_posting_auths: [currentUsername],
@@ -242,7 +236,7 @@ export const useFollowManagement = (
           json: JSON.stringify(muteOp),
         },
         postingKey
-      );
+      ));
 
       setIsMuted(true);
       
@@ -284,7 +278,7 @@ export const useFollowManagement = (
       ];
 
       // Broadcast the unmute operation
-      await client.broadcast.json(
+      await hiveCallWithFailover(client => client.broadcast.json(
         {
           required_auths: [],
           required_posting_auths: [currentUsername],
@@ -292,7 +286,7 @@ export const useFollowManagement = (
           json: JSON.stringify(unmuteOp),
         },
         postingKey
-      );
+      ));
 
       setIsMuted(false);
       

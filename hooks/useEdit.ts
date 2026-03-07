@@ -1,17 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import * as ImagePicker from 'expo-image-picker';
 import { convertImageSmart } from '../utils/imageConverter';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export interface EditTarget {
   author: string;
@@ -254,10 +248,10 @@ export const useEdit = (
       }
 
       // Get the original post to preserve parent relationships
-      const originalPost = await client.database.call('get_content', [
+      const originalPost = await hiveCallWithFailover(client => client.database.call('get_content', [
         target.author,
         target.permlink,
-      ]);
+      ]));
 
       // Parse existing metadata and add edited flag
       let existingMetadata: any = {};
@@ -295,7 +289,7 @@ export const useEdit = (
       }
 
       // Edit the post/reply using same author/permlink with new content
-      await client.broadcast.comment(
+      await hiveCallWithFailover(client => client.broadcast.comment(
         {
           parent_author: originalPost.parent_author, // Keep original parent
           parent_permlink: originalPost.parent_permlink, // Keep original parent permlink
@@ -306,7 +300,7 @@ export const useEdit = (
           json_metadata: JSON.stringify(json_metadata),
         },
         postingKey
-      );
+      ));
 
       // Close modal and reset state
       closeEditModal();

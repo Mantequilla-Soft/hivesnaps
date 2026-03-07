@@ -1,13 +1,7 @@
 import { useState } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import * as SecureStore from 'expo-secure-store';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export const useRewardsManagement = (
   currentUsername: string | null,
@@ -50,7 +44,7 @@ export const useRewardsManagement = (
       });
 
       // Broadcast the claim_reward_balance operation
-      await client.broadcast.sendOperations(
+      await hiveCallWithFailover(client => client.broadcast.sendOperations(
         [
           [
             'claim_reward_balance',
@@ -63,7 +57,7 @@ export const useRewardsManagement = (
           ],
         ],
         postingKey
-      );
+      ));
 
       console.log('Rewards claimed successfully!');
 
@@ -83,9 +77,9 @@ export const useRewardsManagement = (
 
           try {
             // Fetch updated account data
-            const accounts = await client.database.call('get_accounts', [
+            const accounts = await hiveCallWithFailover(client => client.database.call('get_accounts', [
               [currentUsername],
-            ]);
+            ]));
             if (accounts && accounts[0]) {
               const account = accounts[0];
 

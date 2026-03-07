@@ -2,7 +2,7 @@
  * Utility to detect post types (snap vs regular Hive post)
  */
 
-import { Client } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 
 export interface PostInfo {
   author: string;
@@ -37,15 +37,8 @@ async function checkParentChainForSnap(
   });
 
   try {
-    // Use statically imported Client from @hiveio/dhive
-    const client = new Client([
-      'https://api.hive.blog',
-      'https://api.hivekings.com',
-      'https://anyx.io',
-    ]);
-
     // Get the post data
-    const post = await client.database.call('get_content', [author, permlink]);
+    const post = await hiveCallWithFailover(client => client.database.call('get_content', [author, permlink]));
 
     if (!post) {
       console.log(`[postTypeDetector] No post found at depth ${depth}`);

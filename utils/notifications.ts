@@ -1,12 +1,4 @@
-import { Client } from '@hiveio/dhive';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-
-const client = new Client(HIVE_NODES);
+import { hiveCallWithFailover } from '../services/HiveClient';
 
 export interface HiveNotification {
   id: number;

@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile as useUserProfileGlobal } from '../store/context';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export const useUserProfile = (username: string | null) => {
   // Prefer global state for avatar if available
@@ -38,7 +31,7 @@ export const useUserProfile = (username: string | null) => {
       setLoading(true);
       setError(null);
       try {
-        const accounts = await client.database.getAccounts([username]);
+        const accounts = await hiveCallWithFailover(client => client.database.getAccounts([username]));
         if (didCancel) return;
         if (accounts && accounts.length > 0) {
           const account = accounts[0];
@@ -87,7 +80,7 @@ export const useUserProfile = (username: string | null) => {
   const refreshProfile = useCallback(() => {
     if (!username) return;
     setLoading(true);
-    client.database.getAccounts([username]).then(
+    hiveCallWithFailover(client => client.database.getAccounts([username])).then(
       (accounts) => {
         if (accounts && accounts.length > 0) {
           const account = accounts[0];

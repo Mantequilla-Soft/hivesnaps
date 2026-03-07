@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
 import { avatarService } from '../services/AvatarService';
 
@@ -21,13 +21,6 @@ export interface UserSnap {
   posting_json_metadata?: string;
   [key: string]: any;
 }
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 // Cache for user snaps to avoid refetching
 const userSnapsCache = new Map<
@@ -79,7 +72,7 @@ export const useUserSnaps = (username: string | undefined) => {
       console.log('Fetching recent snaps for user:', username);
 
       // Get latest posts by @peak.snaps (container account) - optimized to get more posts in parallel
-      const discussions = await client.database.call(
+      const discussions = await hiveCallWithFailover(client => client.database.call(
         'get_discussions_by_blog',
         [
           {
@@ -87,15 +80,15 @@ export const useUserSnaps = (username: string | undefined) => {
             limit: 5, // Increased to get more container posts
           },
         ]
-      );
+      ));
 
       // Fetch all replies in parallel instead of sequentially
       const replyPromises = discussions.map(async (post: any) => {
         try {
-          const replies: UserSnap[] = await client.database.call(
+          const replies: UserSnap[] = await hiveCallWithFailover(client => client.database.call(
             'get_content_replies',
             [post.author, post.permlink]
-          );
+          ));
           return replies.filter(reply => reply.author === username);
         } catch (replyError) {
           console.log(

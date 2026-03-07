@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Client } from '@hiveio/dhive';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 
 export const useHiveData = () => {
   const [hivePrice, setHivePrice] = useState(1);
@@ -18,11 +11,11 @@ export const useHiveData = () => {
     const initializeUpvoteData = async () => {
       try {
         // Fetch reward fund
-        const fund = await client.database.call('get_reward_fund', ['post']);
+        const fund = await hiveCallWithFailover(client => client.database.call('get_reward_fund', ['post']));
         setRewardFund(fund);
 
         // Fetch global props
-        const props = await client.database.getDynamicGlobalProperties();
+        const props = await hiveCallWithFailover(client => client.database.getDynamicGlobalProperties());
         setGlobalProps(props);
 
         // Fetch hive price

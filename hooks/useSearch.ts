@@ -1,14 +1,7 @@
 import { useState, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarService } from '../services/AvatarService';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export interface SearchResult {
   name: string;
@@ -56,15 +49,15 @@ export const useSearch = (): UseSearchReturn => {
     async (query: string): Promise<SearchResult[]> => {
       try {
         // Search for users using Hive's lookup_accounts API
-        const usernames = await client.database.call('lookup_accounts', [
+        const usernames = await hiveCallWithFailover(client => client.database.call('lookup_accounts', [
           query.toLowerCase(),
           10,
-        ]);
+        ]));
 
         if (usernames.length === 0) return [];
 
         // Get account details for found usernames
-        const accounts = await client.database.getAccounts(usernames);
+        const accounts = await hiveCallWithFailover(client => client.database.getAccounts(usernames));
 
         // Use unified avatar service and deterministic URLs
         const usersWithAvatars = accounts.map(account => {

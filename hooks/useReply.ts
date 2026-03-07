@@ -1,16 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
 import * as SecureStore from 'expo-secure-store';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import * as ImagePicker from 'expo-image-picker';
 import { convertImageSmart } from '../utils/imageConverter';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 
 export interface ReplyTarget {
   author: string;
@@ -275,7 +269,7 @@ export const useReply = (
       }
 
       // Post to Hive blockchain
-      await client.broadcast.comment(
+      await hiveCallWithFailover(client => client.broadcast.comment(
         {
           parent_author,
           parent_permlink,
@@ -286,7 +280,7 @@ export const useReply = (
           json_metadata: JSON.stringify(json_metadata),
         },
         postingKey
-      );
+      ));
 
       // Close modal and reset state
       closeReplyModal();

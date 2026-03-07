@@ -1,15 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { sortByPayoutRecursive } from '../utils/sortRepliesByPayout';
-import { Client } from '@hiveio/dhive';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
 import { avatarService } from '../services/AvatarService';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 
 // Default maximum depth for fetching nested replies
 const DEFAULT_MAX_REPLY_DEPTH = 10;
@@ -97,15 +90,15 @@ export const useConversationData = (
 
       try {
         // Robust shallow replies fetch via dhive client (handles node rotation + JSON)
-        const shallowReplies: any[] = await client.database
-          .call('get_content_replies', [author, permlink])
+        const shallowReplies: any[] = await hiveCallWithFailover(client => client.database
+          .call('get_content_replies', [author, permlink]))
           .catch(() => [] as any[]);
 
         // Batch fetch full content for all replies in parallel
         const fullContentArr = await Promise.all(
           shallowReplies.map((reply: { author: string; permlink: string }) =>
-            client.database
-              .call('get_content', [reply.author, reply.permlink])
+            hiveCallWithFailover(client => client.database
+              .call('get_content', [reply.author, reply.permlink]))
               .catch(() => reply)
           )
         );
@@ -185,10 +178,10 @@ export const useConversationData = (
 
     try {
       // Fetch the main post
-      const post = await client.database.call('get_content', [
+      const post = await hiveCallWithFailover(client => client.database.call('get_content', [
         author,
         permlink,
-      ]);
+      ]));
 
       // Avatar: deterministic images.hive.blog with immediate value and background warm
       const cachedMain = avatarService.getCachedAvatarUrl(post.author);
@@ -304,10 +297,10 @@ export const useConversationData = (
 
     try {
       // Fetch the main post without setting loading state
-      const post = await client.database.call('get_content', [
+      const post = await hiveCallWithFailover(client => client.database.call('get_content', [
         author,
         permlink,
-      ]);
+      ]));
 
   // Fetch replies tree without setting loading state (preserve community inheritance)
   const tree = await fetchRepliesTreeWithContent(

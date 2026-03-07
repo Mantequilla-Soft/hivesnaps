@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
 import { calculateVotingPower } from '../utils/calculateVotingPower';
 import { useCurrentUser } from '../store/context';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 
 export const useVotingPower = () => {
   const username = useCurrentUser(); // Get current user from global state
@@ -27,7 +20,7 @@ export const useVotingPower = () => {
     setError(null);
 
     try {
-      const [account] = await client.database.getAccounts([username]);
+      const [account] = await hiveCallWithFailover(client => client.database.getAccounts([username]));
       if (!account) {
         console.log('Account not found:', username);
         setLoading(false);

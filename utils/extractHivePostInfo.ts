@@ -3,7 +3,7 @@
  * Supports ecency.com, peakd.com, and hive.blog post links
  */
 
-import { Client } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import { detectPostType, type PostInfo } from './postTypeDetector';
 import { avatarService, type AvatarLoadResult } from '../services/AvatarService';
 
@@ -43,11 +43,6 @@ const HIVE_DOMAINS = ['ecency.com', 'peakd.com', 'hive.blog', 'snapie.io', 'www.
 
 type HiveDomain = typeof HIVE_DOMAINS[number];
 
-const client = new Client([
-  'https://api.hive.blog',
-  'https://api.hivekings.com',
-  'https://anyx.io',
-]);
 
 export interface HivePostInfo {
   author: string;
@@ -381,7 +376,7 @@ export async function fetchHivePostInfo(
 
     // Fetch post content and author avatar in parallel (avatar via unified service)
     const [post, avatarUrl] = await Promise.all([
-      client.database.call('get_content', [author, permlink]),
+      hiveCallWithFailover(client => client.database.call('get_content', [author, permlink])),
       fetchAuthorAvatar(author),
     ]);
 
@@ -661,10 +656,10 @@ export async function getHivePostPreviewNavigationInfo(url: string): Promise<{
       // const client = new Client([...]);
       try {
         // Get the post data to check for snap indicators
-        const post = await client.database.call('get_content', [
+        const post = await hiveCallWithFailover(client => client.database.call('get_content', [
           postInfo.author,
           postInfo.permlink,
-        ]);
+        ]));
 
         if (post) {
           // Check for snap indicators without using the full detectPostType logic

@@ -1,16 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { hiveCallWithFailover } from '../services/HiveClient';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export interface VoteValue {
   hbd: string;
@@ -106,7 +100,7 @@ export const useUpvote = (
         // Fetch account object for vote value calculation
         let accountObj = null;
         if (username) {
-          const accounts = await client.database.getAccounts([username]);
+          const accounts = await hiveCallWithFailover(client => client.database.getAccounts([username]));
           accountObj = accounts && accounts[0] ? accounts[0] : null;
           setStoredAccountObj(accountObj); // Store for later use
         }
@@ -134,7 +128,7 @@ export const useUpvote = (
         // Try to calculate vote value with default weight
         let accountObj = null;
         if (username) {
-          const accounts = await client.database.getAccounts([username]);
+          const accounts = await hiveCallWithFailover(client => client.database.getAccounts([username]));
           accountObj = accounts && accounts[0] ? accounts[0] : null;
           setStoredAccountObj(accountObj); // Store for later use
         }
@@ -185,7 +179,7 @@ export const useUpvote = (
       if (weight < 1) weight = 1;
 
       // Use dhive to broadcast vote
-      await client.broadcast.vote(
+      await hiveCallWithFailover(client => client.broadcast.vote(
         {
           voter: username,
           author: upvoteTarget.author,
@@ -193,7 +187,7 @@ export const useUpvote = (
           weight,
         },
         postingKey
-      );
+      ));
 
       // Persist the vote weight after successful vote
       await AsyncStorage.setItem('hivesnaps_vote_weight', String(voteWeight));
@@ -213,7 +207,7 @@ export const useUpvote = (
         let calculatedVoteValue = voteValue;
         if (!calculatedVoteValue && username) {
           try {
-            const accounts = await client.database.getAccounts([username]);
+            const accounts = await hiveCallWithFailover(client => client.database.getAccounts([username]));
             const accountObj = accounts && accounts[0] ? accounts[0] : null;
             if (accountObj && globalProps && rewardFund) {
               calculatedVoteValue = calculateVoteValue(

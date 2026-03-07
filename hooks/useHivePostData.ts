@@ -1,15 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { sortByPayoutRecursive } from '../utils/sortRepliesByPayout';
-import { Client } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 
 // Types for Hive post data
 export interface HivePostData {
@@ -125,10 +118,10 @@ export const useHivePostData = (
 
       try {
         // Fetch shallow comments
-        const commentsResponse = await client.database.call('get_content_replies', [
+        const commentsResponse = await hiveCallWithFailover(client => client.database.call('get_content_replies', [
           postAuthor,
           postPermlink,
-        ]);
+        ]));
 
         if (!commentsResponse || !Array.isArray(commentsResponse)) {
           return [];
@@ -137,8 +130,8 @@ export const useHivePostData = (
         // Batch fetch full content for all comments in parallel
         const fullContentArr = await Promise.all(
           commentsResponse.map((comment: { author: string; permlink: string }) =>
-            client.database
-              .call('get_content', [comment.author, comment.permlink])
+            hiveCallWithFailover(client => client.database
+              .call('get_content', [comment.author, comment.permlink]))
               .catch(() => comment)
           )
         );
@@ -220,7 +213,7 @@ export const useHivePostData = (
       console.log('[useHivePostData] Fetching post data from Hive...');
       
       // Fetch the post
-      const postData = await client.database.call('get_content', [author, permlink]);
+      const postData = await hiveCallWithFailover(client => client.database.call('get_content', [author, permlink]));
 
       if (!postData || !postData.author) {
         setState(prev => ({

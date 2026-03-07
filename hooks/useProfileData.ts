@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Client } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 import { useUserProfile } from '../store/context';
 import { vestsToHp } from '../utils/hiveCalculations';
 
@@ -22,13 +22,6 @@ export interface ProfileData {
   unclaimedHbd?: number;
   unclaimedVests?: number;
 }
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 export const useProfileData = (username: string | undefined) => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -60,7 +53,7 @@ export const useProfileData = (username: string | undefined) => {
       console.log('Fetching account data for:', username);
 
       // Method 1: dhive get_accounts
-      const accounts = await client.database.call('get_accounts', [[username]]);
+      const accounts = await hiveCallWithFailover(client => client.database.call('get_accounts', [[username]]));
       if (!accounts || !accounts[0]) {
         throw new Error('Account not found');
       }
@@ -145,7 +138,7 @@ export const useProfileData = (username: string | undefined) => {
 
       // Fetch global dynamic properties for HP calculation
       const fetchedGlobalProps =
-        await client.database.getDynamicGlobalProperties();
+        await hiveCallWithFailover(client => client.database.getDynamicGlobalProperties());
       setGlobalProps(fetchedGlobalProps);
       console.log(
         'Global props total_vesting_fund_hive:',
@@ -291,9 +284,9 @@ export const useProfileData = (username: string | undefined) => {
 
       // Fetch accurate follow counts using the proper API
       try {
-        const followCount = await client.database.call('get_follow_count', [
+        const followCount = await hiveCallWithFailover(client => client.database.call('get_follow_count', [
           username,
-        ]);
+        ]));
         console.log('Follow count API result:', followCount);
 
         // Update profile with accurate follow counts

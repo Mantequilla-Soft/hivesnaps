@@ -1,4 +1,4 @@
-import { Client } from '@hiveio/dhive';
+import { hiveCallWithFailover } from './HiveClient';
 import { MOD_ALLOWLIST, MOD_TTL_MS } from '../config/moderation';
 
 export interface ModerationVerdict {
@@ -12,14 +12,6 @@ export interface ActiveVote {
   percent?: number; // hundredths of a percent (Hive style)
   rshares?: number;
 }
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-
-const client = new Client(HIVE_NODES);
 
 const allowlist = new Set(MOD_ALLOWLIST.map(u => u.toLowerCase()));
 
@@ -83,7 +75,7 @@ class ModerationServiceImpl {
     const p = (async (): Promise<ModerationVerdict> => {
       try {
         // Fetch votes and validate the response shape defensively before use
-        const raw: unknown = await client.database.call('get_active_votes', [author, permlink]);
+        const raw: unknown = await hiveCallWithFailover(client => client.database.call('get_active_votes', [author, permlink]));
         const votes: ActiveVote[] | undefined = Array.isArray(raw)
           ? (raw.filter((v: any) => v && typeof v.voter === 'string') as ActiveVote[])
           : undefined;

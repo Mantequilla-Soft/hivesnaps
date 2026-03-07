@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Client } from '@hiveio/dhive';
 import { useFollowingList, useMutedList, useCurrentUser } from '../store/context';
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
 import { fetchMutedList } from '../services/HiveMuteService';
@@ -24,13 +24,6 @@ import type { ActiveVote } from '../services/ModerationService';
  * - Memory efficient with configurable max containers
  * - Integrates with shared state management for following lists (eliminates redundant API calls)
  */
-
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 /**
  * Maximum number of containers (Hive posts with snaps) to keep in memory.
@@ -528,7 +521,7 @@ export function useFeedData(): UseFeedDataReturn {
         console.log('📦 [QCP] permlink', state.containerMap.getLastPermlink());
         // Fetch containers from peak.snaps (using limit parameter)
         console.log('📦 [FetchSnaps] Fetching containers with limit', limit);
-        const discussions = await client.database.call(
+        const discussions = await hiveCallWithFailover(client => client.database.call(
           'get_discussions_by_blog',
           [
             {
@@ -538,7 +531,7 @@ export function useFeedData(): UseFeedDataReturn {
               start_permlink: state.containerMap.getLastPermlink() || '',
             },
           ]
-        );
+        ));
 
         console.log('📦 [FetchSnaps] Found', discussions.length, 'containers');
 
@@ -565,10 +558,10 @@ export function useFeedData(): UseFeedDataReturn {
             discussion.permlink
           );
           // Fetch all snaps (replies) for this container
-          const replies: Snap[] | null = await client.database.call(
+          const replies: Snap[] | null = await hiveCallWithFailover(client => client.database.call(
             'get_content_replies',
             [discussion.author, discussion.permlink]
-          );
+          ));
 
           // Handle null replies (API can return null)
           if (!replies) {
@@ -675,7 +668,7 @@ export function useFeedData(): UseFeedDataReturn {
 
     // Fetch the latest container
     try {
-      const discussions = await client.database.call(
+      const discussions = await hiveCallWithFailover(client => client.database.call(
         'get_discussions_by_blog',
         [
           {
@@ -683,16 +676,16 @@ export function useFeedData(): UseFeedDataReturn {
             limit: 1,
           },
         ]
-      );
+      ));
       if (!discussions || discussions.length === 0) {
         setState(prev => ({ ...prev, loading: false }));
         return;
       }
       const containerPost = discussions[0];
-      const replies: Snap[] = await client.database.call(
+      const replies: Snap[] = await hiveCallWithFailover(client => client.database.call(
         'get_content_replies',
         [containerPost.author, containerPost.permlink]
-      );
+      ));
       const sortedSnaps = replies.sort(
         (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()
       );
@@ -863,12 +856,12 @@ export function useFeedData(): UseFeedDataReturn {
       }
       try {
         setFollowingLoading(true);
-        const following = await client.database.call('get_following', [
+        const following = await hiveCallWithFailover(client => client.database.call('get_following', [
           username,
           '',
           'blog',
           1000,
-        ]);
+        ]));
         const followingUsernames = following.map((f: any) => f.following);
         console.log(
           '👤 [fetchAndCacheFollowingList] Fetched',

@@ -15,6 +15,7 @@ import * as SecureStore from 'expo-secure-store';
 import { PrivateKey, Client } from '@hiveio/dhive';
 import type { PublicKey } from '@hiveio/dhive';
 import { getAvatarImageUrl } from './AvatarService';
+import { HIVE_NODES, hiveCallWithFailover } from './HiveClient';
 
 /**
  * Custom error classes for better error handling and testing
@@ -58,12 +59,6 @@ const postingKeyStorageKey = (username: string) =>
 const activeKeyStorageKey = (username: string) =>
     `account:${username}:activeKey`;
 
-// Default Hive API nodes for key validation
-const DEFAULT_HIVE_NODES = [
-    'https://api.hive.blog',
-    'https://api.deathwing.me',
-    'https://api.openhive.network',
-];
 
 // Hive username validation regex: 3-16 characters, starts with letter, ends with letter/number, allows dots and hyphens
 // Dots are intentionally permitted to support legacy Hive accounts (e.g. smooth.witness).
@@ -112,7 +107,7 @@ class AccountStorageServiceImpl {
     /**
      * @param hiveNodes - Array of Hive API node URLs (optional, for testing)
      */
-    constructor(hiveNodes: string[] = DEFAULT_HIVE_NODES) {
+    constructor(hiveNodes: string[] = HIVE_NODES) {
         this.client = new Client(hiveNodes);
     }
 
@@ -731,7 +726,7 @@ class AccountStorageServiceImpl {
     ): Promise<void> {
         try {
             // Get account data from blockchain
-            const accounts = await this.client.database.getAccounts([username]);
+            const accounts = await hiveCallWithFailover(client => client.database.getAccounts([username]));
 
             if (!accounts || accounts.length === 0) {
                 throw new Error(`Account @${username} not found on Hive blockchain`);
@@ -795,7 +790,7 @@ class AccountStorageServiceImpl {
         try {
             // Use provided account or fetch from blockchain
             if (!account) {
-                const accounts = await this.client.database.getAccounts([username]);
+                const accounts = await hiveCallWithFailover(client => client.database.getAccounts([username]));
 
                 if (!accounts || accounts.length === 0) {
                     throw new AccountNotFoundError(username);

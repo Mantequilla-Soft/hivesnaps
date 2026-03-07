@@ -2,8 +2,9 @@ import { useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, Platform, ActionSheetIOS } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
 import { avatarService } from '../services/AvatarService';
+import { getHiveClient, hiveCallWithFailover } from '../services/HiveClient';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { postSnapWithBeneficiaries } from '../services/snapPostingService';
 import { convertImageSmart, convertToJPEG } from '../utils/imageConverter';
@@ -14,12 +15,6 @@ import { useEdit } from './useEdit';
 import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
 
-const HIVE_NODES = [
-    'https://api.hive.blog',
-    'https://api.deathwing.me',
-    'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
 
 // ===== Types =====
 
@@ -690,9 +685,9 @@ export function useCompose({
             }
 
             // Get latest @peak.snaps post (container)
-            const discussions = await client.database.call('get_discussions_by_blog', [
+            const discussions = await hiveCallWithFailover(client => client.database.call('get_discussions_by_blog', [
                 { tag: 'peak.snaps', limit: 1 },
-            ]);
+            ]));
             if (!discussions || discussions.length === 0) {
                 throw new Error('No container post found.');
             }
@@ -717,7 +712,7 @@ export function useCompose({
                     : undefined,
             });
 
-            await postSnapWithBeneficiaries(
+            await hiveCallWithFailover(client => postSnapWithBeneficiaries(
                 client,
                 {
                     parentAuthor: container.author,
@@ -731,7 +726,7 @@ export function useCompose({
                     hasAudio: !!state.audioEmbedUrl,
                 },
                 postingKey
-            );
+            ));
 
             console.log('[useCompose] Post published successfully');
 
