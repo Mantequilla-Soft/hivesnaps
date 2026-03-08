@@ -85,9 +85,14 @@ function isIOSPhotoLibraryURI(uri: string): boolean {
 }
 
 /**
- * Normalizes an iOS Photo Library URI to a file:// URI by copying to cache
- * On Android or for file:// URIs, returns the original URI
- * 
+ * Normalizes an iOS Photo Library URI to a file:// URI.
+ * On Android or for file:// URIs, returns the original URI.
+ *
+ * Strategy:
+ *  1. Try FileSystem.copyAsync (preserves original bytes — important for GIFs).
+ *  2. If copyAsync can't handle the ph:// URI, fall back to ImageManipulator
+ *     which handles ph:// natively but re-encodes the image (loses GIF animation).
+ *
  * @param uri - The source URI
  * @param extension - File extension to use for the destination
  * @returns Normalized file:// URI
@@ -108,17 +113,32 @@ async function normalizeURIToFile(uri: string, extension: string): Promise<strin
   const destPath = `${FileSystem.cacheDirectory}image-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${safeExtension}`;
 
   if (__DEV__) {
-    console.log(`[imageConverter] Copying from ph:// to file:// URI`);
+    console.log(`[imageConverter] Normalizing ph:// URI to file://`);
   }
 
+  // Attempt 1: copyAsync preserves original bytes (critical for GIF animations)
   try {
     await FileSystem.copyAsync({ from: uri, to: destPath });
     return destPath;
-  } catch (error) {
+  } catch (copyError) {
     if (__DEV__) {
-      console.error('[imageConverter] Failed to copy from photo library:', error);
+      console.warn('[imageConverter] copyAsync failed for ph:// URI, falling back to ImageManipulator:', copyError);
     }
-    throw new Error(`Failed to access image from photo library: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+
+  // Attempt 2: ImageManipulator can resolve ph:// URIs natively but re-encodes
+  // the image (GIF animations will be lost, JPEG may lose quality)
+  try {
+    const format = safeExtension === 'png'
+      ? ImageManipulator.SaveFormat.PNG
+      : ImageManipulator.SaveFormat.JPEG;
+    const result = await ImageManipulator.manipulateAsync(uri, [], { format });
+    return result.uri;
+  } catch (manipError) {
+    if (__DEV__) {
+      console.error('[imageConverter] ImageManipulator fallback also failed:', manipError);
+    }
+    throw new Error(`Failed to access image from photo library: ${manipError instanceof Error ? manipError.message : 'Unknown error'}`);
   }
 }
 
