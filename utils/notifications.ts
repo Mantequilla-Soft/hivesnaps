@@ -1,4 +1,4 @@
-import { getCurrentNode } from '../services/HiveClient';
+import { getCurrentNode, hiveCall } from '../services/HiveClient';
 
 export interface HiveNotification {
   id: number;
@@ -31,18 +31,19 @@ export async function fetchNotifications(
   limit: number = 50
 ): Promise<HiveNotification[]> {
   try {
-    const response = await fetch(getCurrentNode(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'bridge.account_notifications',
-        params: { account, limit },
-        id: 1,
-      }),
+    const data = await hiveCall(async () => {
+      const response = await fetch(getCurrentNode(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'bridge.account_notifications',
+          params: { account, limit },
+          id: 1,
+        }),
+      });
+      return response.json();
     });
-
-    const data = await response.json();
     return data.result || [];
   } catch (error) {
     console.error('Error fetching notifications:', error);

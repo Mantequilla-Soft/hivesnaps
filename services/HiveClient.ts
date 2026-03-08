@@ -4,9 +4,10 @@
  * dhive's built-in failover does not work reliably on React Native —
  * requests to a dead node hang indefinitely instead of rotating.
  *
- * On startup, this module fetches the live node list from PeakD's beacon
- * API, filters to healthy nodes that support broadcast, and sorts by
- * score. A hardcoded fallback list is used if the beacon is unreachable.
+ * On the first Hive call (and lazily every 10 minutes thereafter), this
+ * module fetches the live node list from PeakD's beacon API, filters to
+ * healthy nodes that support broadcast, and sorts by score. A hardcoded
+ * fallback list is used if the beacon is unreachable.
  *
  * Every method call on the returned client proxy is automatically wrapped
  * with a timeout and node rotation, so callers can use
@@ -48,7 +49,7 @@ const FALLBACK_NODES = [
 let nodeList: string[] = [...FALLBACK_NODES];
 let currentNodeIndex = 0;
 let currentClient = new Client([nodeList[currentNodeIndex]]);
-let beaconRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let lastRefreshedAt = 0;
 
 // --- Beacon fetching ---
 
@@ -117,31 +118,25 @@ async function refreshNodeList(): Promise<void> {
 }
 
 /**
- * Initializes the node list from the beacon API and starts periodic refresh.
- * Safe to call multiple times — subsequent calls are no-ops.
- * Called automatically on first import, but callers can await it if they
- * want to ensure the beacon list is loaded before the first RPC call.
+ * Lazily refreshes the beacon node list if it's stale.
+ * Called automatically before each hiveCall — no timers or eager fetches.
  */
-let initPromise: Promise<void> | null = null;
+let refreshPromise: Promise<void> | null = null;
 
-export function initHiveClient(): Promise<void> {
-  if (!initPromise) {
-    initPromise = (async () => {
-      await refreshNodeList();
+async function maybeRefreshNodeList(): Promise<void> {
+  const now = Date.now();
+  if (now - lastRefreshedAt < BEACON_REFRESH_INTERVAL_MS) return;
 
-      // Periodically refresh in the background
-      if (!beaconRefreshTimer) {
-        beaconRefreshTimer = setInterval(() => {
-          refreshNodeList().catch(() => {});
-        }, BEACON_REFRESH_INTERVAL_MS);
-      }
-    })();
+  // Coalesce concurrent refresh attempts
+  if (!refreshPromise) {
+    refreshPromise = refreshNodeList()
+      .then(() => { lastRefreshedAt = Date.now(); })
+      .catch(() => { /* keep using current list */ })
+      .finally(() => { refreshPromise = null; });
   }
-  return initPromise;
-}
 
-// Kick off immediately on import — non-blocking
-initHiveClient().catch(() => {});
+  await refreshPromise;
+}
 
 // --- Node rotation ---
 
@@ -189,6 +184,8 @@ async function hiveCallOnce<T>(fn: () => Promise<T>): Promise<T> {
  * Only used for read operations — broadcast uses hiveCallOnce.
  */
 export async function hiveCall<T>(fn: () => Promise<T>): Promise<T> {
+  await maybeRefreshNodeList();
+
   let lastError: unknown;
   const maxAttempts = nodeList.length;
 
