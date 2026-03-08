@@ -24,6 +24,7 @@ describe('imageConverter', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global as any).__DEV__ = true;
+    Platform.OS = 'android'; // reset to a known baseline
     // Default: cacheDirectory is available
     Object.defineProperty(FileSystem, 'cacheDirectory', {
       value: 'file:///cache/',
@@ -247,7 +248,7 @@ describe('imageConverter', () => {
         Platform.OS = 'ios';
         (mockFileSystem.copyAsync as jest.Mock).mockRejectedValue(new Error('copyAsync failed'));
         (ImageManipulator.manipulateAsync as jest.Mock).mockResolvedValue({
-          uri: 'file:///manipulated/image.jpg',
+          uri: 'file:///manipulated/animation_fallback.gif',
           width: 200,
           height: 200,
         });
@@ -255,8 +256,8 @@ describe('imageConverter', () => {
         const result = await convertImageSmart('ph://asset-123', 'animation.gif');
 
         expect(result.type).toBe('image/gif');
-        // Falls back to ImageManipulator URI
-        expect(result.uri).toBe('file:///manipulated/image.jpg');
+        // Falls back to ImageManipulator URI (GIF animation lost in fallback)
+        expect(result.uri).toBe('file:///manipulated/animation_fallback.gif');
       });
     });
 

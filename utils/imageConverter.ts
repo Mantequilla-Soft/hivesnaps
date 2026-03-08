@@ -109,7 +109,7 @@ async function normalizeURIToFile(uri: string, extension: string): Promise<strin
   // Sanitize extension to prevent invalid cache paths (ph:// URIs may lack proper extensions)
   const safeExtension = /^[a-z0-9]+$/i.test(extension) ? extension : 'jpg';
 
-  // Copy from photo library to cache directory
+  // TODO: clean up destPath after upload completes (tracked in PR #195)
   const destPath = `${FileSystem.cacheDirectory}image-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${safeExtension}`;
 
   if (__DEV__) {
@@ -160,13 +160,13 @@ export async function convertImageSmart(
     // Determine file extension
     const extension = (originalFileName || uri).toLowerCase().split('.').pop() || '';
 
-    console.log('[imageConverter] Smart conversion - file extension:', extension);
+    if (__DEV__) console.log('[imageConverter] Smart conversion - file extension:', extension);
 
     // Only convert HEIC/HEIF to JPEG (iOS photos)
     const needsConversion = extension === 'heic' || extension === 'heif';
 
     if (needsConversion) {
-      console.log('[imageConverter] Converting HEIC/HEIF to JPEG');
+      if (__DEV__) console.log('[imageConverter] Converting HEIC/HEIF to JPEG');
       const converted = await convertToJPEG(uri, quality);
       return {
         uri: converted.uri,
@@ -179,7 +179,7 @@ export async function convertImageSmart(
 
     // Preserve GIF animations - normalize ph:// URI to file:// via copy
     if (extension === 'gif') {
-      console.log('[imageConverter] Preserving GIF animation');
+      if (__DEV__) console.log('[imageConverter] Preserving GIF animation');
       const normalizedUri = await normalizeURIToFile(uri, 'gif');
       return {
         uri: normalizedUri,
@@ -191,7 +191,7 @@ export async function convertImageSmart(
     // Preserve PNG transparency — only run through ImageManipulator for ph:// URIs
     if (extension === 'png') {
       if (isIOSPhotoLibraryURI(uri)) {
-        console.log('[imageConverter] Converting ph:// PNG via ImageManipulator');
+        if (__DEV__) console.log('[imageConverter] Converting ph:// PNG via ImageManipulator');
         const result = await ImageManipulator.manipulateAsync(
           uri,
           [],
@@ -205,7 +205,7 @@ export async function convertImageSmart(
           height: result.height,
         };
       }
-      console.log('[imageConverter] Preserving PNG as-is (already file:// URI)');
+      if (__DEV__) console.log('[imageConverter] Preserving PNG as-is (already file:// URI)');
       return {
         uri,
         type: 'image/png',
@@ -216,7 +216,7 @@ export async function convertImageSmart(
     // JPEG requires no format conversion, so we copy to file:// manually via
     // normalizeURIToFile since we can't use ImageManipulator without re-encoding.
     // (HEIC/PNG use ImageManipulator which handles ph:// natively as part of conversion.)
-    console.log('[imageConverter] Processing as JPEG');
+    if (__DEV__) console.log('[imageConverter] Processing as JPEG');
     const normalizedUri = await normalizeURIToFile(uri, extension || 'jpg');
     return {
       uri: normalizedUri,
