@@ -163,8 +163,30 @@ export function getCurrentNode(): string {
 // --- Failover call wrapper ---
 
 /**
+ * Executes a single call with a timeout. No retry — used for broadcast
+ * operations where retrying could submit duplicate transactions.
+ */
+async function hiveCallOnce<T>(fn: () => Promise<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const result = await Promise.race([
+    fn(),
+    new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error(`Hive node timeout after ${NODE_TIMEOUT_MS}ms: ${getCurrentNode()}`)),
+        NODE_TIMEOUT_MS,
+      );
+    }),
+  ]);
+
+  clearTimeout(timeoutId);
+  return result;
+}
+
+/**
  * Wraps a dhive call with a timeout and automatic node rotation.
  * Tries each node once. If all nodes fail, throws the last error.
+ * Only used for read operations — broadcast uses hiveCallOnce.
  */
 export async function hiveCall<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
@@ -172,20 +194,7 @@ export async function hiveCall<T>(fn: () => Promise<T>): Promise<T> {
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-      const result = await Promise.race([
-        fn(),
-        new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(
-            () => reject(new Error(`Hive node timeout after ${NODE_TIMEOUT_MS}ms: ${getCurrentNode()}`)),
-            NODE_TIMEOUT_MS,
-          );
-        }),
-      ]);
-
-      clearTimeout(timeoutId);
-      return result;
+      return await hiveCallOnce(fn);
     } catch (err) {
       lastError = err;
       console.warn(
@@ -202,13 +211,18 @@ export async function hiveCall<T>(fn: () => Promise<T>): Promise<T> {
 // --- Failover proxy ---
 
 /**
- * Creates a recursive proxy that wraps every function call with `hiveCall`.
+ * Creates a recursive proxy that wraps every function call with failover.
  * Sub-objects like `client.database` and `client.broadcast` are themselves
  * proxied so that `client.database.getAccounts(...)` is automatically
  * wrapped with timeout + retry.
+ *
+ * Broadcast operations are NOT retried across nodes to prevent duplicate
+ * transactions — they get a single attempt with a timeout. If a broadcast
+ * times out, the caller receives the error and can decide whether to retry.
  */
-function createFailoverProxy(getTarget: () => any): Client {
+function createFailoverProxy(getTarget: () => any, isBroadcast = false): Client {
   const subProxies = new Map<string | symbol, any>();
+  const wrapper = isBroadcast ? hiveCallOnce : hiveCall;
 
   return new Proxy({} as Client, {
     get(_target, prop) {
@@ -216,14 +230,15 @@ function createFailoverProxy(getTarget: () => any): Client {
 
       if (typeof value === 'function') {
         return (...args: any[]) =>
-          hiveCall(() => value.apply(getTarget(), args));
+          wrapper(() => value.apply(getTarget(), args));
       }
 
       // For sub-objects (database, broadcast, etc.), return a stable
       // recursive proxy so property access chains work correctly.
       if (value != null && typeof value === 'object') {
         if (!subProxies.has(prop)) {
-          subProxies.set(prop, createFailoverProxy(() => getTarget()[prop]));
+          const childIsBroadcast = isBroadcast || prop === 'broadcast';
+          subProxies.set(prop, createFailoverProxy(() => getTarget()[prop], childIsBroadcast));
         }
         return subProxies.get(prop);
       }
