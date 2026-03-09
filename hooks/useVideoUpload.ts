@@ -279,7 +279,7 @@ export function useVideoUpload(currentUsername: string | null) {
                 }
 
                 result = await ImagePicker.launchCameraAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                    mediaTypes: ['videos'],
                     videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
                     videoMaxDuration: MAX_VIDEO_DURATION_SECONDS,
                 });
@@ -295,7 +295,7 @@ export function useVideoUpload(currentUsername: string | null) {
                 }
 
                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                    mediaTypes: ['videos'],
                     allowsMultipleSelection: false,
                     quality: GALLERY_PICKER_QUALITY,
                 });

@@ -127,7 +127,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
           allowsEditing: true,
           quality: 0.8,
           aspect: [1, 1], // Square aspect ratio for avatar
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
         });
       } else {
         // Media library permission handling
@@ -170,7 +170,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
         }
 
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: true,
           quality: 0.8,
           aspect: [1, 1], // Square aspect ratio for avatar
@@ -185,7 +185,7 @@ export const useAvatarManagement = (currentUsername: string | null) => {
 
       try {
         // Smart conversion - only converts HEIC, preserves original format
-        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
+        const converted = await convertImageSmart(asset.uri, asset.fileName ?? undefined, 0.8);
 
         const fileToSave = {
           uri: converted.uri,

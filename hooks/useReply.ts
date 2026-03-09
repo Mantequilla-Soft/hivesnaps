@@ -130,10 +130,10 @@ export const useReply = (
 
     try {
       // Use static import for ImagePicker
-      const { launchImageLibraryAsync, MediaTypeOptions } = ImagePicker;
+      const { launchImageLibraryAsync } = ImagePicker;
 
       const result = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.8,
       });
@@ -142,7 +142,7 @@ export const useReply = (
         const asset = result.assets[0];
 
         // Smart conversion - only converts HEIC, preserves GIFs
-        const converted = await convertImageSmart(asset.uri, asset.fileName, 0.8);
+        const converted = await convertImageSmart(asset.uri, asset.fileName ?? undefined, 0.8);
 
         const fileToUpload = {
           uri: converted.uri,
