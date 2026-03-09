@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Client, PrivateKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 export const useUpvoteManagement = (
   currentUsername: string | null,

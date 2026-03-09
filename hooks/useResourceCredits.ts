@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 
 interface ResourceCreditsData {
   account: string;
@@ -46,12 +46,7 @@ export const useResourceCredits = (username: string | null) => {
     setError(null);
 
     try {
-      const client = new Client([
-        'https://api.hive.blog',
-        'https://api.hivekings.com',
-        'https://anyx.io',
-        'https://api.openhive.network',
-      ]);
+      const client = getClient();
 
       const response = await client.call('rc_api', 'find_rc_accounts', {
         accounts: [username],

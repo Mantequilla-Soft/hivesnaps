@@ -12,9 +12,10 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { PrivateKey, Client } from '@hiveio/dhive';
-import type { PublicKey } from '@hiveio/dhive';
+import { PrivateKey } from '@hiveio/dhive';
+import type { PublicKey, Client } from '@hiveio/dhive';
 import { getAvatarImageUrl } from './AvatarService';
+import { getClient } from './HiveClient';
 
 /**
  * Custom error classes for better error handling and testing
@@ -58,12 +59,7 @@ const postingKeyStorageKey = (username: string) =>
 const activeKeyStorageKey = (username: string) =>
     `account:${username}:activeKey`;
 
-// Default Hive API nodes for key validation
-const DEFAULT_HIVE_NODES = [
-    'https://api.hive.blog',
-    'https://api.deathwing.me',
-    'https://api.openhive.network',
-];
+// Node list removed — uses centralized HiveClient
 
 // Hive username validation regex: 3-16 characters, starts with letter, ends with letter/number, allows dots and hyphens
 // Dots are intentionally permitted to support legacy Hive accounts (e.g. smooth.witness).
@@ -110,10 +106,10 @@ class AccountStorageServiceImpl {
     private migrationPromise: Promise<void> | null = null;
 
     /**
-     * @param hiveNodes - Array of Hive API node URLs (optional, for testing)
+     * @param hiveClient - Optional dhive Client instance (for testing)
      */
-    constructor(hiveNodes: string[] = DEFAULT_HIVE_NODES) {
-        this.client = new Client(hiveNodes);
+    constructor(hiveClient?: Client) {
+        this.client = hiveClient ?? getClient();
     }
 
     /**

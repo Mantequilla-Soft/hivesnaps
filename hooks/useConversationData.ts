@@ -1,15 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { sortByPayoutRecursive } from '../utils/sortRepliesByPayout';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
 import { avatarService } from '../services/AvatarService';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 // Default maximum depth for fetching nested replies
 const DEFAULT_MAX_REPLY_DEPTH = 10;

@@ -2,7 +2,7 @@
  * Utility to detect post types (snap vs regular Hive post)
  */
 
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 
 export interface PostInfo {
   author: string;
@@ -37,12 +37,7 @@ async function checkParentChainForSnap(
   });
 
   try {
-    // Use statically imported Client from @hiveio/dhive
-    const client = new Client([
-      'https://api.hive.blog',
-      'https://api.hivekings.com',
-      'https://anyx.io',
-    ]);
+    const client = getClient();
 
     // Get the post data
     const post = await client.database.call('get_content', [author, permlink]);

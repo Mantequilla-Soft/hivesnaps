@@ -22,7 +22,7 @@ import { calculateVoteValue } from '../../utils/calculateVoteValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Snap from '../components/Snap';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../../services/HiveClient';
 import UpvoteModal from '../../components/UpvoteModal';
 // useEdit removed - now using ComposeScreen for edit
 
@@ -62,13 +62,7 @@ const twitterColors = {
   },
 };
 
-// Use local client instance (copied from FeedScreen)
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://anyx.io',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 interface Snap {
   [key: string]: any;

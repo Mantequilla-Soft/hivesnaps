@@ -1,4 +1,4 @@
-import { Client } from '@hiveio/dhive';
+import { getClient } from './HiveClient';
 import { MOD_ALLOWLIST, MOD_TTL_MS } from '../config/moderation';
 
 export interface ModerationVerdict {
@@ -13,13 +13,8 @@ export interface ActiveVote {
   rshares?: number;
 }
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
 
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 const allowlist = new Set(MOD_ALLOWLIST.map(u => u.toLowerCase()));
 

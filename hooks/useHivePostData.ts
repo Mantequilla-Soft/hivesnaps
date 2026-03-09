@@ -1,15 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { sortByPayoutRecursive } from '../utils/sortRepliesByPayout';
-import { Client } from '@hiveio/dhive';
+import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
 
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.deathwing.me',
-  'https://api.openhive.network',
-];
-const client = new Client(HIVE_NODES);
+const client = getClient();
 
 // Types for Hive post data
 export interface HivePostData {
