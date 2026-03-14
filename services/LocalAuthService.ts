@@ -46,6 +46,14 @@ export interface BiometricCapabilities {
     supportedTypes: AuthenticationType[];
 }
 
+// ─── Constants ──────────────────────────────────────────────────────────────────
+
+const CANCEL_ERRORS: ReadonlySet<string> = new Set([
+    'user_cancel',
+    'system_cancel',
+    'app_cancel',
+]);
+
 // ─── Service Implementation ─────────────────────────────────────────────────────
 
 class LocalAuthServiceImpl {
@@ -70,18 +78,11 @@ class LocalAuthServiceImpl {
             return;
         }
 
-        // Distinguish cancellation from actual failure
-        const cancelErrors: ReadonlySet<string> = new Set([
-            'user_cancel',
-            'system_cancel',
-            'app_cancel',
-        ]);
-
-        if (cancelErrors.has(result.error)) {
+        if (result.error && CANCEL_ERRORS.has(result.error)) {
             throw new AuthCancelledError();
         }
 
-        throw new AuthFailedError(result.error);
+        throw new AuthFailedError(result.error ?? 'unknown');
     }
 
     /**
