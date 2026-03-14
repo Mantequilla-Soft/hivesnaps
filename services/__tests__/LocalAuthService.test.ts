@@ -89,12 +89,12 @@ describe('LocalAuthService', () => {
                 error: 'lockout',
             });
 
-            const error = await localAuthService
-                .authenticate()
-                .catch((e: unknown) => e as Error);
-
-            expect(error).toBeInstanceOf(AuthFailedError);
-            expect(error.message).toContain('lockout');
+            await expect(localAuthService.authenticate()).rejects.toThrow(
+                AuthFailedError
+            );
+            await expect(localAuthService.authenticate()).rejects.toThrow(
+                'lockout'
+            );
         });
 
         it('throws AuthFailedError on not_enrolled', async () => {
