@@ -19,6 +19,7 @@ import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarService } from '../../services/AvatarService';
 import { calculateVoteValue } from '../../utils/calculateVoteValue';
+import { useHiveData } from '../../hooks/useHiveData';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Snap from '../components/Snap';
@@ -218,39 +219,7 @@ const DiscoveryScreen = () => {
     hbd: string;
     usd: string;
   } | null>(null);
-  const [globalProps, setGlobalProps] = useState<any | null>(null);
-  const [rewardFund, setRewardFund] = useState<any | null>(null);
-  const [hivePrice, setHivePrice] = useState<number>(1);
-  // Fetch Hive global properties, reward fund, and price on mount
-  useEffect(() => {
-    const fetchHiveProps = async () => {
-      try {
-        const props = await client.database.getDynamicGlobalProperties();
-        setGlobalProps(props);
-        const fund = await client.database.call('get_reward_fund', ['post']);
-        setRewardFund(fund);
-      } catch (err) {
-        setGlobalProps(null);
-        setRewardFund(null);
-      }
-    };
-    fetchHiveProps();
-    // Fetch HIVE price (reuse logic from FeedScreen if available)
-    const fetchHivePrice = async () => {
-      try {
-        // You may want to use a shared utility for this
-        const res = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=hive&vs_currencies=usd'
-        );
-        const data = await res.json();
-        setHivePrice(data.hive?.usd || 1);
-      } catch {
-        setHivePrice(1);
-      }
-    };
-    fetchHivePrice();
-    // Remove AsyncStorage username fetch, now handled in hashtag effect
-  }, []);
+  const { medianPrice, globalProps, rewardFund } = useHiveData();
 
   const handleUpvotePress = async ({
     author,
@@ -285,7 +254,7 @@ const DiscoveryScreen = () => {
           globalProps,
           rewardFund,
           weight,
-          hivePrice
+          medianPrice
         );
         setVoteValue(calcValue);
       } else {
@@ -431,7 +400,7 @@ const DiscoveryScreen = () => {
               globalProps,
               rewardFund,
               val,
-              hivePrice
+              medianPrice
             );
             setVoteValue(calcValue);
           } else {

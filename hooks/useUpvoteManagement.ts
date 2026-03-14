@@ -12,7 +12,7 @@ export const useUpvoteManagement = (
   currentUsername: string | null,
   globalProps: any,
   rewardFund: any,
-  hivePrice: number
+  medianPrice: number
 ) => {
   const [upvoteModalVisible, setUpvoteModalVisible] = useState(false);
   const [upvoteTarget, setUpvoteTarget] = useState<{
@@ -28,25 +28,6 @@ export const useUpvoteManagement = (
     usd: string;
   } | null>(null);
 
-  // Initialize reward fund and hive price
-  useEffect(() => {
-    const initializeUpvoteData = async () => {
-      try {
-        // Fetch reward fund
-        const fund = await client.database.call('get_reward_fund', ['post']);
-
-        // Fetch hive price
-        const response = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=hive&vs_currencies=usd'
-        );
-        const data = await response.json();
-        const price = data.hive?.usd || 1;
-      } catch (error) {
-        console.log('Error initializing upvote data:', error);
-      }
-    };
-    initializeUpvoteData();
-  }, []);
 
   // Handle upvote for Snap component integration (opens modal)
   const handleSnapUpvoteFromComponent = async (target: {
@@ -75,7 +56,7 @@ export const useUpvoteManagement = (
           globalProps,
           rewardFund,
           weight,
-          hivePrice
+          medianPrice
         );
         setVoteValue(calcValue);
       } else {
@@ -174,7 +155,7 @@ export const useUpvoteManagement = (
             globalProps,
             rewardFund,
             newWeight,
-            hivePrice
+            medianPrice
           );
           setVoteValue(calcValue);
         }

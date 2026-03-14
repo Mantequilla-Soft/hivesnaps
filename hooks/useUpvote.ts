@@ -46,7 +46,7 @@ export const useUpvote = (
   username: string | null,
   globalProps: any,
   rewardFund: any,
-  hivePrice: number,
+  medianPrice: number,
   updateSnap?: (author: string, permlink: string, updates: any) => void,
   updateReply?: (author: string, permlink: string, updates: any) => void
 ): UseUpvoteReturn => {
@@ -73,7 +73,7 @@ export const useUpvote = (
             globalProps,
             rewardFund,
             voteWeight,
-            hivePrice
+            medianPrice
           );
           setVoteValue(calcValue);
         } else {
@@ -86,7 +86,7 @@ export const useUpvote = (
     };
 
     recalculateVoteValue();
-  }, [voteWeight, upvoteModalVisible, username, globalProps, rewardFund, hivePrice, voteWeightLoading, storedAccountObj]);
+  }, [voteWeight, upvoteModalVisible, username, globalProps, rewardFund, medianPrice, voteWeightLoading, storedAccountObj]);
 
   const openUpvoteModal = useCallback(
     async (target: UpvoteTarget) => {
@@ -109,18 +109,13 @@ export const useUpvote = (
 
         // Calculate initial vote value
         if (accountObj && globalProps && rewardFund) {
-          console.log('[VoteValueDebug] accountObj:', accountObj);
-          console.log('[VoteValueDebug] globalProps:', globalProps);
-          console.log('[VoteValueDebug] rewardFund:', rewardFund);
-          console.log('[VoteValueDebug] hivePrice:', hivePrice);
           const calcValue = calculateVoteValue(
             accountObj,
             globalProps,
             rewardFund,
             weight,
-            hivePrice
+            medianPrice
           );
-          console.log('[VoteValueDebug] calculateVoteValue result:', calcValue);
           setVoteValue(calcValue);
         } else {
           setVoteValue(null);
@@ -140,7 +135,7 @@ export const useUpvote = (
             globalProps,
             rewardFund,
             100,
-            hivePrice
+            medianPrice
           );
           setVoteValue(calcValue);
         } else {
@@ -151,7 +146,7 @@ export const useUpvote = (
       setVoteWeightLoading(false);
       setUpvoteModalVisible(true);
     },
-    [username, globalProps, rewardFund, hivePrice]
+    [username, globalProps, rewardFund, medianPrice]
   );
 
   const closeUpvoteModal = useCallback(() => {
@@ -217,7 +212,7 @@ export const useUpvote = (
                 globalProps,
                 rewardFund,
                 voteWeight,
-                hivePrice
+                medianPrice
               );
             }
           } catch (err) {

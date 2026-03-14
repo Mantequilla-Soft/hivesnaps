@@ -41,7 +41,7 @@ const HivePostScreen = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const currentUsername = useCurrentUser();
-  const { hivePrice, globalProps, rewardFund } = useHiveData();
+  const { medianPrice, globalProps, rewardFund } = useHiveData();
 
   console.log('[HivePostScreen] Component loaded with params:', {
     author,
@@ -81,7 +81,7 @@ const HivePostScreen = () => {
     closeUpvoteModal,
     setVoteWeight,
     confirmUpvote,
-  } = useUpvote(currentUsername, globalProps, rewardFund, hivePrice, handleUpdatePost, updateComment);
+  } = useUpvote(currentUsername, globalProps, rewardFund, medianPrice, handleUpdatePost, updateComment);
 
   // Removed useReply and useGifPicker hooks - now using ComposeScreen for reply
 

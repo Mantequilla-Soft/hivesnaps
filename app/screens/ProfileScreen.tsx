@@ -70,7 +70,7 @@ const ProfileScreen = () => {
     profile,
     loading,
   });
-  const { hivePrice, rewardFund } = useHiveData();
+  const { medianPrice, rewardFund } = useHiveData();
   const {
     isFollowing,
     isMuted,
@@ -129,7 +129,7 @@ const ProfileScreen = () => {
     currentUsername,
     globalProps,
     rewardFund,
-    hivePrice,
+    medianPrice,
     updateSnap
   );
 
