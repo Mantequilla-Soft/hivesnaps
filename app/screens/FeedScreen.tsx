@@ -193,7 +193,7 @@ const FeedScreenRefactored = () => {
     return filtered;
   }, [snaps, mutedList]);
 
-  const { medianPrice, globalProps, rewardFund } = useHiveData();
+  const { medianPrice, rewardFund } = useHiveData();
 
   const {
     upvoteModalVisible,
@@ -208,7 +208,7 @@ const FeedScreenRefactored = () => {
     setVoteWeight,
     confirmUpvote,
     updateSnapsOptimistically,
-  } = useUpvote(username, globalProps, rewardFund, medianPrice, updateSnap);
+  } = useUpvote(username, rewardFund, medianPrice, updateSnap);
 
   const {
     query: searchQuery,

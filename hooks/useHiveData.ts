@@ -28,8 +28,9 @@ export const useHiveData = () => {
         // priceData = { base: "0.063 HBD", quote: "1.000 HIVE" }
         const base = parseFloat(priceData.base);
         const quote = parseFloat(priceData.quote);
-        if (quote > 0) {
-          setMedianPrice(base / quote);
+        const price = base / quote;
+        if (Number.isFinite(price)) {
+          setMedianPrice(price);
         }
       } catch (error) {
         console.log('Error initializing upvote data:', error);

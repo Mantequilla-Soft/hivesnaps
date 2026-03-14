@@ -8,7 +8,6 @@
  * and the vote weight slider (1-100%).
  *
  * @param account Hive account object (from dhive)
- * @param globalProps Dynamic global properties (from dhive)
  * @param rewardFund Reward fund object (from dhive)
  * @param voteWeight Vote weight (1-100)
  * @param medianPrice HIVE median price in HBD (from get_current_median_history_price)
@@ -16,12 +15,11 @@
  */
 export function calculateVoteValue(
   account: any,
-  globalProps: any,
   rewardFund: any,
   voteWeight: number,
   medianPrice?: number
 ): { hbd: string; usd: string } {
-  if (!account || !globalProps || !rewardFund || !voteWeight)
+  if (!account || !rewardFund || !voteWeight)
     return { hbd: '0.000', usd: '0.00' };
 
   // Parse vesting shares (VESTS)
@@ -46,6 +44,8 @@ export function calculateVoteValue(
   const rshares = (effectiveVests * 1e6 * voteWeightFraction) / 50;
 
   // Reward fund
+  // recent_claims is a large integer (~5e17); parseFloat may lose low-order
+  // digits, but the resulting precision loss is negligible for an estimate.
   const recentClaims = parseFloat(rewardFund.recent_claims);
   const rewardBalance = parseFloat(
     (rewardFund.reward_balance || '0').replace(' HIVE', '')

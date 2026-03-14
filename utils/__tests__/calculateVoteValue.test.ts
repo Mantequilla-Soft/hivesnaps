@@ -19,11 +19,6 @@ const mockAccount = {
   voting_power: 5000, // 50% VP — should NOT affect result post-fork
 };
 
-const mockGlobalProps = {
-  total_vesting_shares: '400000000000.000000 VESTS',
-  total_vesting_fund_hive: '200000000.000 HIVE',
-};
-
 const mockRewardFund = {
   recent_claims: '500000000000000000', // 5e17
   reward_balance: '800000.000 HIVE',
@@ -34,23 +29,21 @@ const medianPrice = 0.3;
 
 describe('calculateVoteValue', () => {
   it('returns zero for missing inputs', () => {
-    expect(calculateVoteValue(null, mockGlobalProps, mockRewardFund, 100, medianPrice))
+    expect(calculateVoteValue(null, mockRewardFund, 100, medianPrice))
       .toEqual({ hbd: '0.000', usd: '0.00' });
-    expect(calculateVoteValue(mockAccount, null, mockRewardFund, 100, medianPrice))
+    expect(calculateVoteValue(mockAccount, null, 100, medianPrice))
       .toEqual({ hbd: '0.000', usd: '0.00' });
-    expect(calculateVoteValue(mockAccount, mockGlobalProps, null, 100, medianPrice))
-      .toEqual({ hbd: '0.000', usd: '0.00' });
-    expect(calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 0, medianPrice))
+    expect(calculateVoteValue(mockAccount, mockRewardFund, 0, medianPrice))
       .toEqual({ hbd: '0.000', usd: '0.00' });
   });
 
   it('returns zero when median price is not available', () => {
-    const result = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100);
+    const result = calculateVoteValue(mockAccount, mockRewardFund, 100);
     expect(result).toEqual({ hbd: '0.000', usd: '0.00' });
   });
 
   it('calculates a non-zero value at 100% weight', () => {
-    const result = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, medianPrice);
+    const result = calculateVoteValue(mockAccount, mockRewardFund, 100, medianPrice);
     const hbd = parseFloat(result.hbd);
     const usd = parseFloat(result.usd);
 
@@ -63,9 +56,9 @@ describe('calculateVoteValue', () => {
     const accountHalfVP = { ...mockAccount, voting_power: 5000 };  // 50% VP
     const accountLowVP = { ...mockAccount, voting_power: 1000 };   // 10% VP
 
-    const resultFull = calculateVoteValue(accountFullVP, mockGlobalProps, mockRewardFund, 100, medianPrice);
-    const resultHalf = calculateVoteValue(accountHalfVP, mockGlobalProps, mockRewardFund, 100, medianPrice);
-    const resultLow = calculateVoteValue(accountLowVP, mockGlobalProps, mockRewardFund, 100, medianPrice);
+    const resultFull = calculateVoteValue(accountFullVP, mockRewardFund, 100, medianPrice);
+    const resultHalf = calculateVoteValue(accountHalfVP, mockRewardFund, 100, medianPrice);
+    const resultLow = calculateVoteValue(accountLowVP, mockRewardFund, 100, medianPrice);
 
     // All should be identical — VP doesn't matter post-fork
     expect(resultFull.hbd).toBe(resultHalf.hbd);
@@ -75,9 +68,9 @@ describe('calculateVoteValue', () => {
   });
 
   it('vote value scales linearly with vote weight', () => {
-    const result100 = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, medianPrice);
-    const result50 = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 50, medianPrice);
-    const result25 = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 25, medianPrice);
+    const result100 = calculateVoteValue(mockAccount, mockRewardFund, 100, medianPrice);
+    const result50 = calculateVoteValue(mockAccount, mockRewardFund, 50, medianPrice);
+    const result25 = calculateVoteValue(mockAccount, mockRewardFund, 25, medianPrice);
 
     const val100 = parseFloat(result100.hbd);
     const val50 = parseFloat(result50.hbd);
@@ -98,15 +91,15 @@ describe('calculateVoteValue', () => {
       voting_power: 10000,
     };
 
-    const resultOriginal = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, medianPrice);
-    const resultSimple = calculateVoteValue(simpleAccount, mockGlobalProps, mockRewardFund, 100, medianPrice);
+    const resultOriginal = calculateVoteValue(mockAccount, mockRewardFund, 100, medianPrice);
+    const resultSimple = calculateVoteValue(simpleAccount, mockRewardFund, 100, medianPrice);
 
     // Both have 1,400,000 effective VESTS, so values should match
     expect(resultOriginal.hbd).toBe(resultSimple.hbd);
   });
 
   it('produces a sane value (not inflated by $1 default price)', () => {
-    const result = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, medianPrice);
+    const result = calculateVoteValue(mockAccount, mockRewardFund, 100, medianPrice);
     const usd = parseFloat(result.usd);
 
     // With realistic chain data and median price ~$0.30, a ~1.4M VESTS account
@@ -116,9 +109,9 @@ describe('calculateVoteValue', () => {
   });
 
   it('higher median price produces higher value', () => {
-    const resultLow = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, 0.06);
-    const resultMid = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, 0.30);
-    const resultHigh = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, 1.00);
+    const resultLow = calculateVoteValue(mockAccount, mockRewardFund, 100, 0.06);
+    const resultMid = calculateVoteValue(mockAccount, mockRewardFund, 100, 0.30);
+    const resultHigh = calculateVoteValue(mockAccount, mockRewardFund, 100, 1.00);
 
     const valLow = parseFloat(resultLow.hbd);
     const valMid = parseFloat(resultMid.hbd);
@@ -138,7 +131,7 @@ describe('calculateVoteValue', () => {
     const expectedHIVE = (expectedRshares / recentClaims) * rewardBalance;
     const expectedHBD = expectedHIVE * medianPrice;
 
-    const result = calculateVoteValue(mockAccount, mockGlobalProps, mockRewardFund, 100, medianPrice);
+    const result = calculateVoteValue(mockAccount, mockRewardFund, 100, medianPrice);
     expect(parseFloat(result.hbd)).toBeCloseTo(expectedHBD, 3);
   });
 });

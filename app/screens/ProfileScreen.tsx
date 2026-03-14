@@ -127,7 +127,6 @@ const ProfileScreen = () => {
     setVoteWeight,
   } = useUpvote(
     currentUsername,
-    globalProps,
     rewardFund,
     medianPrice,
     updateSnap

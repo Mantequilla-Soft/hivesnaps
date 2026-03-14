@@ -95,7 +95,7 @@ const ConversationScreenRefactored = () => {
     updateReply,
   } = useConversationData(author, permlink, currentUsername);
 
-  const { medianPrice, globalProps, rewardFund } = useHiveData();
+  const { medianPrice, rewardFund } = useHiveData();
 
   const {
     upvoteModalVisible,
@@ -112,7 +112,6 @@ const ConversationScreenRefactored = () => {
     updateSnapsOptimistically,
   } = useUpvote(
     currentUsername,
-    globalProps,
     rewardFund,
     medianPrice,
     updateSnap,
