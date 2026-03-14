@@ -4,7 +4,10 @@
  */
 
 import * as LocalAuthentication from 'expo-local-authentication';
-import { AuthenticationType, SecurityLevel } from 'expo-local-authentication';
+
+const { AuthenticationType, SecurityLevel } = jest.requireActual(
+    'expo-local-authentication'
+) as typeof LocalAuthentication;
 
 jest.mock('expo-local-authentication');
 
@@ -86,12 +89,12 @@ describe('LocalAuthService', () => {
                 error: 'lockout',
             });
 
-            await expect(localAuthService.authenticate()).rejects.toThrow(
-                AuthFailedError
-            );
-            await expect(localAuthService.authenticate()).rejects.toThrow(
-                'lockout'
-            );
+            const error = await localAuthService
+                .authenticate()
+                .catch((e: unknown) => e as Error);
+
+            expect(error).toBeInstanceOf(AuthFailedError);
+            expect(error.message).toContain('lockout');
         });
 
         it('throws AuthFailedError on not_enrolled', async () => {
@@ -191,7 +194,7 @@ describe('LocalAuthService', () => {
     // ─── isAvailable ─────────────────────────────────────────────────────────
 
     describe('isAvailable', () => {
-        it('returns true when hardware exists and user is enrolled', async () => {
+        it('returns true when biometrics are enrolled', async () => {
             mockedAuth.hasHardwareAsync.mockResolvedValue(true);
             mockedAuth.isEnrolledAsync.mockResolvedValue(true);
             mockedAuth.getEnrolledLevelAsync.mockResolvedValue(
@@ -204,26 +207,24 @@ describe('LocalAuthService', () => {
             await expect(localAuthService.isAvailable()).resolves.toBe(true);
         });
 
-        it('returns false when no hardware', async () => {
+        it('returns true when only device passcode is set (SECRET level)', async () => {
+            mockedAuth.hasHardwareAsync.mockResolvedValue(false);
+            mockedAuth.isEnrolledAsync.mockResolvedValue(false);
+            mockedAuth.getEnrolledLevelAsync.mockResolvedValue(
+                SecurityLevel.SECRET
+            );
+            mockedAuth.supportedAuthenticationTypesAsync.mockResolvedValue([]);
+
+            await expect(localAuthService.isAvailable()).resolves.toBe(true);
+        });
+
+        it('returns false when security level is NONE', async () => {
             mockedAuth.hasHardwareAsync.mockResolvedValue(false);
             mockedAuth.isEnrolledAsync.mockResolvedValue(false);
             mockedAuth.getEnrolledLevelAsync.mockResolvedValue(
                 SecurityLevel.NONE
             );
             mockedAuth.supportedAuthenticationTypesAsync.mockResolvedValue([]);
-
-            await expect(localAuthService.isAvailable()).resolves.toBe(false);
-        });
-
-        it('returns false when hardware exists but not enrolled', async () => {
-            mockedAuth.hasHardwareAsync.mockResolvedValue(true);
-            mockedAuth.isEnrolledAsync.mockResolvedValue(false);
-            mockedAuth.getEnrolledLevelAsync.mockResolvedValue(
-                SecurityLevel.NONE
-            );
-            mockedAuth.supportedAuthenticationTypesAsync.mockResolvedValue([
-                AuthenticationType.FINGERPRINT,
-            ]);
 
             await expect(localAuthService.isAvailable()).resolves.toBe(false);
         });

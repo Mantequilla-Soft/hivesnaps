@@ -100,12 +100,18 @@ class LocalAuthServiceImpl {
     }
 
     /**
-     * Convenience check: returns `true` when the device both has biometric
-     * hardware AND the user has enrolled at least one credential.
+     * Convenience check: returns `true` when the device can authenticate
+     * the user via biometrics OR device passcode.
+     *
+     * Because {@link authenticate} enables device fallback
+     * (`disableDeviceFallback: false`), a device-level passcode is
+     * sufficient even without biometric hardware or enrollment.
+     * We therefore check the security level rather than requiring
+     * both hardware presence and enrollment.
      */
     async isAvailable(): Promise<boolean> {
-        const { hasHardware, isEnrolled } = await this.getCapabilities();
-        return hasHardware && isEnrolled;
+        const { securityLevel } = await this.getCapabilities();
+        return securityLevel !== LocalAuthentication.SecurityLevel.NONE;
     }
 }
 
