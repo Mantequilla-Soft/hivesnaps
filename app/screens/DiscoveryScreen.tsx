@@ -1,30 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { PrivateKey } from '@hiveio/dhive';
 import { useColorScheme, StyleSheet } from 'react-native';
 import {
   View,
   FlatList,
   Text,
   ActivityIndicator,
-  Modal,
-  Pressable,
   TouchableOpacity,
-  TextInput,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
-// ContentModal removed - now using ComposeScreen for edit
-import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarService } from '../../services/AvatarService';
-import { calculateVoteValue } from '../../utils/calculateVoteValue';
+import { useHiveData } from '../../hooks/useHiveData';
+import { useUpvote } from '../../hooks/useUpvote';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Snap from '../components/Snap';
 import { getClient } from '../../services/HiveClient';
 import UpvoteModal from '../../components/UpvoteModal';
-// useEdit removed - now using ComposeScreen for edit
 
 // Use local twitterColors definition (copied from FeedScreen)
 const twitterColors = {
@@ -204,104 +197,35 @@ const DiscoveryScreen = () => {
     fetchHashtagSnaps(currentUsername ?? undefined);
   };
 
-  // Upvote modal state and logic (copied/adapted from FeedScreen)
-  const [upvoteModalVisible, setUpvoteModalVisible] = useState(false);
-  const [upvoteTarget, setUpvoteTarget] = useState<{
-    author: string;
-    permlink: string;
-  } | null>(null);
-  const [voteWeight, setVoteWeight] = useState(100);
-  const [voteWeightLoading, setVoteWeightLoading] = useState(false);
-  const [upvoteLoading, setUpvoteLoading] = useState(false);
-  const [upvoteSuccess, setUpvoteSuccess] = useState(false);
-  const [voteValue, setVoteValue] = useState<{
-    hbd: string;
-    usd: string;
-  } | null>(null);
-  const [globalProps, setGlobalProps] = useState<any | null>(null);
-  const [rewardFund, setRewardFund] = useState<any | null>(null);
-  const [hivePrice, setHivePrice] = useState<number>(1);
-  // Fetch Hive global properties, reward fund, and price on mount
-  useEffect(() => {
-    const fetchHiveProps = async () => {
-      try {
-        const props = await client.database.getDynamicGlobalProperties();
-        setGlobalProps(props);
-        const fund = await client.database.call('get_reward_fund', ['post']);
-        setRewardFund(fund);
-      } catch (err) {
-        setGlobalProps(null);
-        setRewardFund(null);
-      }
-    };
-    fetchHiveProps();
-    // Fetch HIVE price (reuse logic from FeedScreen if available)
-    const fetchHivePrice = async () => {
-      try {
-        // You may want to use a shared utility for this
-        const res = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=hive&vs_currencies=usd'
-        );
-        const data = await res.json();
-        setHivePrice(data.hive?.usd || 1);
-      } catch {
-        setHivePrice(1);
-      }
-    };
-    fetchHivePrice();
-    // Remove AsyncStorage username fetch, now handled in hashtag effect
+  const { medianPrice, rewardFund } = useHiveData();
+
+  const updateSnapInList = useCallback((author: string, permlink: string, updates: any) => {
+    setSnaps(prevSnaps =>
+      prevSnaps.map(snap => {
+        if (snap.author === author && snap.permlink === permlink) {
+          return { ...snap, ...updates, hasUpvoted: true };
+        }
+        return snap;
+      })
+    );
   }, []);
 
-  const handleUpvotePress = async ({
-    author,
-    permlink,
-  }: {
-    author: string;
-    permlink: string;
-  }) => {
-    setUpvoteTarget({ author, permlink });
-    setVoteWeightLoading(true);
-    try {
-      // Load last used vote weight if available
-      const val = await AsyncStorage.getItem('hivesnaps_vote_weight');
-      const weight = val !== null ? Number(val) : 100;
-      setVoteWeight(weight);
-      // Ensure globalProps and rewardFund are loaded before calculating vote value
-      if (!globalProps || !rewardFund) {
-        const props = await client.database.getDynamicGlobalProperties();
-        setGlobalProps(props);
-        const fund = await client.database.call('get_reward_fund', ['post']);
-        setRewardFund(fund);
-      }
-      // Calculate vote value if possible
-      let accountObj = null;
-      if (currentUsername) {
-        const accounts = await client.database.getAccounts([currentUsername]);
-        accountObj = accounts && accounts[0] ? accounts[0] : null;
-      }
-      if (accountObj && globalProps && rewardFund) {
-        const calcValue = calculateVoteValue(
-          accountObj,
-          globalProps,
-          rewardFund,
-          weight,
-          hivePrice
-        );
-        setVoteValue(calcValue);
-      } else {
-        setVoteValue(null);
-      }
-    } finally {
-      setVoteWeightLoading(false);
-      setUpvoteModalVisible(true);
-    }
-  };
+  const {
+    upvoteModalVisible,
+    voteWeight,
+    voteWeightLoading,
+    upvoteLoading,
+    upvoteSuccess,
+    voteValue,
+    openUpvoteModal,
+    closeUpvoteModal,
+    setVoteWeight,
+    confirmUpvote,
+  } = useUpvote(currentUsername, rewardFund, medianPrice, updateSnapInList);
 
-  const handleUpvoteCancel = () => {
-    setUpvoteModalVisible(false);
-    setUpvoteTarget(null);
-    setVoteValue(null);
-    // Do not reset voteWeight, keep last used value
+  const handleUpvotePress = ({ author, permlink }: { author: string; permlink: string }) => {
+    const snap = snaps.find(s => s.author === author && s.permlink === permlink);
+    openUpvoteModal({ author, permlink, snap });
   };
 
   // Handle edit press
@@ -321,84 +245,6 @@ const DiscoveryScreen = () => {
     });
   };
 
-  const handleUpvoteConfirm = async () => {
-    if (!upvoteTarget) return;
-    setUpvoteLoading(true);
-    setUpvoteSuccess(false);
-    try {
-      // Get posting key from SecureStore
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
-      if (!postingKeyStr)
-        throw new Error('No posting key found. Please log in again.');
-      const postingKey = PrivateKey.fromString(postingKeyStr);
-
-      // Ensure user is logged in
-      if (!currentUsername) {
-        throw new Error('User not logged in. Please log in again.');
-      }
-
-      // Broadcast vote
-      await client.broadcast.vote(
-        {
-          voter: currentUsername,
-          author: upvoteTarget.author,
-          permlink: upvoteTarget.permlink,
-          weight: voteWeight * 100, // dhive expects 10000 = 100%
-        },
-        postingKey
-      );
-
-      // Persist the vote weight after successful vote
-      await AsyncStorage.setItem('hivesnaps_vote_weight', String(voteWeight));
-
-      // Optimistically update UI - add payout calculation (use USD since app displays in dollars)
-      const estimatedValueIncrease = voteValue ? parseFloat(voteValue.usd) : 0;
-      setSnaps(prevSnaps =>
-        prevSnaps.map(snap => {
-          if (
-            snap.author === upvoteTarget.author &&
-            snap.permlink === upvoteTarget.permlink
-          ) {
-            const currentPayout =
-              snap.payout ||
-              parseFloat(
-                snap.pending_payout_value?.replace(' HBD', '') || '0'
-              );
-            const newPayout = currentPayout + estimatedValueIncrease;
-
-            return {
-              ...snap,
-              hasUpvoted: true,
-              net_votes: (snap.net_votes || 0) + 1,
-              payout: newPayout,
-              pending_payout_value: `${newPayout.toFixed(3)} HBD`,
-              active_votes: Array.isArray(snap.active_votes)
-                ? [
-                  ...snap.active_votes,
-                  { voter: currentUsername, percent: voteWeight * 100 },
-                ]
-                : [{ voter: currentUsername, percent: voteWeight * 100 }],
-            };
-          }
-          return snap;
-        })
-      );
-
-      setUpvoteLoading(false);
-      setUpvoteSuccess(true);
-      // Close modal without refresh - maintain scroll position!
-      setTimeout(() => {
-        setUpvoteModalVisible(false);
-        setUpvoteSuccess(false);
-        setUpvoteTarget(null);
-        setVoteValue(null);
-      }, 1500);
-    } catch {
-      setUpvoteLoading(false);
-      setUpvoteSuccess(false);
-    }
-  };
-
   return (
     <View
       style={{
@@ -415,29 +261,9 @@ const DiscoveryScreen = () => {
         voteWeightLoading={voteWeightLoading}
         upvoteLoading={upvoteLoading}
         upvoteSuccess={upvoteSuccess}
-        onClose={handleUpvoteCancel}
-        onConfirm={handleUpvoteConfirm}
-        onVoteWeightChange={async val => {
-          setVoteWeight(val);
-          // Live update vote value
-          let accountObj = null;
-          if (currentUsername) {
-            const accounts = await client.database.getAccounts([currentUsername]);
-            accountObj = accounts && accounts[0] ? accounts[0] : null;
-          }
-          if (accountObj && globalProps && rewardFund) {
-            const calcValue = calculateVoteValue(
-              accountObj,
-              globalProps,
-              rewardFund,
-              val,
-              hivePrice
-            );
-            setVoteValue(calcValue);
-          } else {
-            setVoteValue(null);
-          }
-        }}
+        onClose={closeUpvoteModal}
+        onConfirm={confirmUpvote}
+        onVoteWeightChange={setVoteWeight}
         colors={colors}
       />
 

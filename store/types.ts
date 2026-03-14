@@ -94,7 +94,7 @@ export interface HivePost {
 }
 
 export interface HiveData {
-  hivePrice: number | null;
+  medianPrice: number | null;
   globalProps: any | null;
   rewardFund: any | null;
   lastUpdated: number;

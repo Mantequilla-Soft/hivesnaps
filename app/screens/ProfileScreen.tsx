@@ -70,7 +70,7 @@ const ProfileScreen = () => {
     profile,
     loading,
   });
-  const { hivePrice, rewardFund } = useHiveData();
+  const { medianPrice, rewardFund } = useHiveData();
   const {
     isFollowing,
     isMuted,
@@ -127,9 +127,8 @@ const ProfileScreen = () => {
     setVoteWeight,
   } = useUpvote(
     currentUsername,
-    globalProps,
     rewardFund,
-    hivePrice,
+    medianPrice,
     updateSnap
   );
 
