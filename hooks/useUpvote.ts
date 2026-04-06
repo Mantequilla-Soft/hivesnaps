@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
 import * as SecureStore from 'expo-secure-store';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
@@ -44,9 +45,8 @@ interface UseUpvoteReturn {
 
 export const useUpvote = (
   username: string | null,
-  globalProps: any,
   rewardFund: any,
-  hivePrice: number,
+  medianPrice: number,
   updateSnap?: (author: string, permlink: string, updates: any) => void,
   updateReply?: (author: string, permlink: string, updates: any) => void
 ): UseUpvoteReturn => {
@@ -59,6 +59,8 @@ export const useUpvote = (
   const [voteWeightLoading, setVoteWeightLoading] = useState(false);
   const [storedAccountObj, setStoredAccountObj] = useState<any | null>(null);
 
+  const { updateSnapInArray, createUpvoteUpdate } = useOptimisticUpdates();
+
   // Recalculate vote value whenever vote weight changes and modal is open
   useEffect(() => {
     const recalculateVoteValue = async () => {
@@ -67,13 +69,12 @@ export const useUpvote = (
       }
 
       try {
-        if (storedAccountObj && globalProps && rewardFund) {
+        if (storedAccountObj && rewardFund) {
           const calcValue = calculateVoteValue(
             storedAccountObj,
-            globalProps,
             rewardFund,
             voteWeight,
-            hivePrice
+            medianPrice
           );
           setVoteValue(calcValue);
         } else {
@@ -86,7 +87,7 @@ export const useUpvote = (
     };
 
     recalculateVoteValue();
-  }, [voteWeight, upvoteModalVisible, username, globalProps, rewardFund, hivePrice, voteWeightLoading, storedAccountObj]);
+  }, [voteWeight, upvoteModalVisible, username, rewardFund, medianPrice, voteWeightLoading, storedAccountObj]);
 
   const openUpvoteModal = useCallback(
     async (target: UpvoteTarget) => {
@@ -108,19 +109,13 @@ export const useUpvote = (
         }
 
         // Calculate initial vote value
-        if (accountObj && globalProps && rewardFund) {
-          console.log('[VoteValueDebug] accountObj:', accountObj);
-          console.log('[VoteValueDebug] globalProps:', globalProps);
-          console.log('[VoteValueDebug] rewardFund:', rewardFund);
-          console.log('[VoteValueDebug] hivePrice:', hivePrice);
+        if (accountObj && rewardFund) {
           const calcValue = calculateVoteValue(
             accountObj,
-            globalProps,
             rewardFund,
             weight,
-            hivePrice
+            medianPrice
           );
-          console.log('[VoteValueDebug] calculateVoteValue result:', calcValue);
           setVoteValue(calcValue);
         } else {
           setVoteValue(null);
@@ -134,13 +129,12 @@ export const useUpvote = (
           accountObj = accounts && accounts[0] ? accounts[0] : null;
           setStoredAccountObj(accountObj); // Store for later use
         }
-        if (accountObj && globalProps && rewardFund) {
+        if (accountObj && rewardFund) {
           const calcValue = calculateVoteValue(
             accountObj,
-            globalProps,
             rewardFund,
             100,
-            hivePrice
+            medianPrice
           );
           setVoteValue(calcValue);
         } else {
@@ -151,7 +145,7 @@ export const useUpvote = (
       setVoteWeightLoading(false);
       setUpvoteModalVisible(true);
     },
-    [username, globalProps, rewardFund, hivePrice]
+    [username, rewardFund, medianPrice]
   );
 
   const closeUpvoteModal = useCallback(() => {
@@ -169,6 +163,9 @@ export const useUpvote = (
     setUpvoteSuccess(false);
 
     try {
+      // Haptic feedback before vote
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
       // Retrieve posting key from secure store
       const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
       if (!postingKeyStr)
@@ -194,6 +191,9 @@ export const useUpvote = (
       // Persist the vote weight after successful vote
       await AsyncStorage.setItem('hivesnaps_vote_weight', String(voteWeight));
 
+      // Success haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
       setUpvoteLoading(false);
       setUpvoteSuccess(true);
 
@@ -211,13 +211,12 @@ export const useUpvote = (
           try {
             const accounts = await client.database.getAccounts([username]);
             const accountObj = accounts && accounts[0] ? accounts[0] : null;
-            if (accountObj && globalProps && rewardFund) {
+            if (accountObj && rewardFund) {
               calculatedVoteValue = calculateVoteValue(
                 accountObj,
-                globalProps,
                 rewardFund,
                 voteWeight,
-                hivePrice
+                medianPrice
               );
             }
           } catch (err) {
@@ -248,8 +247,6 @@ export const useUpvote = (
         console.log('[useUpvote] Update data:', updateData);
 
         // Determine if this is a reply or main snap
-        // Check for parent_author field (but exclude 'peak.snaps' which is a container)
-        // or permlink pattern that starts with "re-"
         const isReply =
           (upvoteTarget.snap.parent_author &&
             upvoteTarget.snap.parent_author !== '' &&
@@ -284,12 +281,12 @@ export const useUpvote = (
     } catch (err) {
       setUpvoteLoading(false);
       setUpvoteSuccess(false);
+      // Error haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMsg = err instanceof Error ? err.message : JSON.stringify(err);
       alert('Upvote failed: ' + errorMsg);
     }
-  }, [upvoteTarget, username, voteWeight]);
-
-  const { updateSnapInArray, createUpvoteUpdate } = useOptimisticUpdates();
+  }, [upvoteTarget, username, voteWeight, rewardFund, voteValue, medianPrice, updateSnap, updateReply, createUpvoteUpdate]);
 
   const updateSnapsOptimistically = useCallback(
     (

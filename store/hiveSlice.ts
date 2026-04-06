@@ -23,7 +23,7 @@ function isCacheExpired<T>(item: CacheItem<T>): boolean {
 // Initial state
 export const initialHiveState: HiveState = {
   data: {
-    hivePrice: null,
+    medianPrice: null,
     globalProps: null,
     rewardFund: null,
     lastUpdated: 0,

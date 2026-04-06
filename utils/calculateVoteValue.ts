@@ -1,31 +1,26 @@
 // utils/calculateVoteValue.ts
 // Utility function to estimate Hive vote value for a given user and vote weight.
-// Returns value in HBD, with at least 3 decimal places.
 
 /**
  * Calculates the estimated vote value for a Hive user.
+ * Post-fork: voting power no longer affects the dollar value of a vote,
+ * only how fast mana depletes. So rshares depend only on effective vests
+ * and the vote weight slider (1-100%).
+ *
  * @param account Hive account object (from dhive)
- * @param globalProps Dynamic global properties (from dhive)
  * @param rewardFund Reward fund object (from dhive)
  * @param voteWeight Vote weight (1-100)
- * @param hivePrice Current HIVE price in USD
- * @returns Estimated value in HIVE and USD (author's share, before curation split)
+ * @param medianPrice HIVE median price in HBD (from get_current_median_history_price)
+ * @returns Estimated value in HBD and USD
  */
 export function calculateVoteValue(
   account: any,
-  globalProps: any,
   rewardFund: any,
   voteWeight: number,
-  hivePrice?: number // optional, defaults to 1
+  medianPrice?: number
 ): { hbd: string; usd: string } {
-  if (!account || !globalProps || !rewardFund || !voteWeight)
+  if (!account || !rewardFund || !voteWeight)
     return { hbd: '0.000', usd: '0.00' };
-
-  // Debug logs for input
-  console.log('[VoteCalcDebug] account:', account);
-  console.log('[VoteCalcDebug] globalProps:', globalProps);
-  console.log('[VoteCalcDebug] rewardFund:', rewardFund);
-  console.log('[VoteCalcDebug] voteWeight:', voteWeight);
 
   // Parse vesting shares (VESTS)
   const vestingShares = parseFloat(
@@ -40,64 +35,36 @@ export function calculateVoteValue(
   const effectiveVests =
     vestingShares + receivedVestingShares - delegatedVestingShares;
 
-  // Get global blockchain parameters
-  const totalVestingShares = parseFloat(
-    globalProps.total_vesting_shares.replace(' VESTS', '')
-  );
-  const totalVestingFundHive = parseFloat(
-    globalProps.total_vesting_fund_hive.replace(' HIVE', '')
-  );
+  // Vote weight in basis points (1-10000)
+  const voteWeightBP = Math.round(voteWeight * 100);
+  const voteWeightFraction = Math.min(Math.max(voteWeightBP / 10000, 0), 1);
 
-  // Convert HP to VESTS (if you want to use HP as input, otherwise use effectiveVests directly)
-  // const hp = effectiveVests * (totalVestingFundHive / totalVestingShares);
-  // const totalVests = (hp * totalVestingShares) / totalVestingFundHive;
-  // For now, use effectiveVests as VESTS
-  const totalVests = effectiveVests;
-
-  // Voting power and vote weight
-  const votingPower = account.voting_power || 10000; // out of 10000
-  const voteWeightBP = Math.round(voteWeight * 100); // basis points (1-10000)
-
-  // Calculate vote strength and weight as percent
-  const voteStrength = Math.min(Math.max(votingPower / 100, 0), 100);
-  const voteWeightPercent = Math.min(Math.max(voteWeightBP / 100, 0), 100);
-  const votePowerFactor = (voteStrength / 100) * (voteWeightPercent / 100);
-
-  // Official Hive rshares formula
-  // rshares = voting_power * vests * 1e6 / 10000
-  const finalVest = totalVests * 1e6;
-  const power = (votePowerFactor * 10000) / 50;
-  const rshares = (power * finalVest) / 10000;
+  // Post-fork rshares: full power vote, only scaled by weight slider
+  // rshares = effectiveVests * 1e6 * weight / 50
+  const rshares = (effectiveVests * 1e6 * voteWeightFraction) / 50;
 
   // Reward fund
+  // recent_claims is a large integer (~5e17); parseFloat may lose low-order
+  // digits, but the resulting precision loss is negligible for an estimate.
   const recentClaims = parseFloat(rewardFund.recent_claims);
   const rewardBalance = parseFloat(
     (rewardFund.reward_balance || '0').replace(' HIVE', '')
   );
 
-  // Get Hive price (default 1 if not provided)
-  const price = typeof hivePrice === 'number' && hivePrice > 0 ? hivePrice : 1;
+  // Get median price (default 0 if not provided — will show $0.00)
+  const price =
+    typeof medianPrice === 'number' && medianPrice > 0 ? medianPrice : 0;
 
-  // Calculate vote value (full vote value as shown in frontends)
+  // Calculate vote value
   let voteValueHIVE = 0;
   if (recentClaims > 0) {
     voteValueHIVE = (rshares / recentClaims) * rewardBalance;
   }
-  // Full payout in HBD (dollars), matching Hive frontends
-  const voteValueHBD = voteValueHIVE; // 1 HIVE = 1 HBD for display
-  const voteValueUSD = voteValueHIVE * price;
-
-  // Debug logs for verification
-  console.log('[VoteCalcDebug] effectiveVests:', effectiveVests);
-  console.log('[VoteCalcDebug] rshares:', rshares);
-  console.log('[VoteCalcDebug] recentClaims:', recentClaims);
-  console.log('[VoteCalcDebug] rewardBalance:', rewardBalance);
-  console.log('[VoteCalcDebug] voteValueHIVE:', voteValueHIVE);
-  console.log('[VoteCalcDebug] hivePriceUSD:', price);
-  console.log('[VoteCalcDebug] voteValueUSD:', voteValueUSD);
+  // Convert to HBD using median price
+  const voteValueHBD = voteValueHIVE * price;
 
   return {
     hbd: voteValueHBD.toFixed(3),
-    usd: voteValueUSD.toFixed(2),
+    usd: voteValueHBD.toFixed(2),
   };
 }
