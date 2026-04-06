@@ -392,9 +392,16 @@ const ProfileScreen = () => {
               onResnapPress={handleResnapPress}
             />
 
-            {/* Logout Button - Only show for own profile */}
+            {/* Account actions - Only show for own profile */}
             {isOwnProfile && (
               <View style={styles.logoutSection}>
+                <TouchableOpacity
+                  style={[styles.logoutButton, { marginBottom: 12 }]}
+                  onPress={() => router.push('/screens/AccountSelectionScreen')}
+                >
+                  <FontAwesome name='exchange' size={18} color='#fff' />
+                  <Text style={styles.logoutButtonText}>Switch Account</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.logoutButton, { backgroundColor: '#E74C3C' }]}
                   onPress={async () => {
