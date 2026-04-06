@@ -54,10 +54,11 @@ const secureStoreOptions = {
 };
 
 // Helper functions to generate storage keys
+// Note: SecureStore only allows alphanumeric, ".", "-", "_" — no colons
 const postingKeyStorageKey = (username: string) =>
-    `account:${username}:postingKey`;
+    `account_${username}_postingKey`;
 const activeKeyStorageKey = (username: string) =>
-    `account:${username}:activeKey`;
+    `account_${username}_activeKey`;
 
 // Node list removed — uses centralized HiveClient
 
