@@ -10,7 +10,10 @@
       "android"
     ],
     "icon": "./assets/images/appicon.png",
-    "scheme": "snapie",
+    "scheme": [
+      "hivesnaps",
+      "snapie"
+    ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
