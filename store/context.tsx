@@ -5,8 +5,8 @@
  */
 
 import React, { createContext, useContext, useReducer, useCallback, ReactNode, useEffect, useMemo } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { AppState, AppAction, UserProfile } from './types';
+import { accountStorageService } from '../services/AccountStorageService';
 import { appReducer, initialAppState, appSelectors } from './reducer';
 import { userSelectors } from './userSlice';
 import { hiveSelectors } from './hiveSlice';
@@ -110,19 +110,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, dispatch] = useReducer(appReducer, initialAppState);
   console.log('🚀 [AppProvider] useReducer successful');
 
-  // Initialize current user from SecureStore on app mount
+  // Initialize current user from AccountStorageService on app mount
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        const storedUsername = await SecureStore.getItemAsync('hive_username');
+        const storedUsername = await accountStorageService.getCurrentAccountUsername();
         if (storedUsername) {
-          console.log('🔐 [AppProvider] Loaded username from SecureStore:', storedUsername);
+          console.log('🔐 [AppProvider] Loaded username from AccountStorageService:', storedUsername);
           dispatch({ type: 'USER_SET_CURRENT', payload: storedUsername });
+          const hasActive = await accountStorageService.hasActiveKey(storedUsername);
+          dispatch({ type: 'USER_SET_HAS_ACTIVE_KEY', payload: hasActive });
         } else {
           console.log('🔐 [AppProvider] No stored username found');
         }
       } catch (error) {
-        console.error('🔐 [AppProvider] Error loading username from SecureStore:', error);
+        console.error('🔐 [AppProvider] Error loading username from AccountStorageService:', error);
       }
     };
 
@@ -357,8 +359,7 @@ export function useAuth() {
 
   const handleLogout = React.useCallback(async () => {
     try {
-      await SecureStore.deleteItemAsync('hive_username');
-      await SecureStore.deleteItemAsync('hive_posting_key');
+      await accountStorageService.clearCurrentAccountUsername();
       setCurrentUser(null);
     } catch (err) {
       throw new Error(

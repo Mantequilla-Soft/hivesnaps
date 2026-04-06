@@ -15,13 +15,11 @@ import {
 import { useState, useEffect } from 'react';
 import { Text, View } from '../../components/Themed';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import { PrivateKey } from '@hiveio/dhive';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppStore } from '../../store/context';
 import { getTheme, palette } from '../../constants/Colors';
-import { getClient } from '../../services/HiveClient';
+import { accountStorageService } from '../../services/AccountStorageService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FIELD_WIDTH = SCREEN_WIDTH * 0.8;
@@ -47,50 +45,29 @@ export default function LoginScreen() {
   };
   const router = useRouter();
   const { authenticate } = useAuth();
-  const { setCurrentUser } = useAppStore();
+  const { setCurrentUser, setHasActiveKey } = useAppStore();
 
   // Auto-login functionality
   useEffect(() => {
     const checkStoredCredentials = async () => {
       try {
-        const storedUsername = await SecureStore.getItemAsync('hive_username');
-        const storedPostingKey =
-          await SecureStore.getItemAsync('hive_posting_key');
-
-        if (storedUsername && storedPostingKey) {
-          // Validate stored credentials before auto-login
-          const privKey = PrivateKey.from(storedPostingKey);
-          const account = await getClient().database.getAccounts([storedUsername]);
-
-          if (account && account[0]) {
-            const pubPosting = privKey.createPublic().toString();
-            const postingAuths = account[0].posting.key_auths.map(
-              ([key]) => key
-            );
-
-            if (postingAuths.includes(pubPosting)) {
-              // Valid Hive credentials found, now get JWT token
-              console.log('[Auto-login] Valid Hive credentials, getting JWT token...');
-
-              const jwtSuccess = await authenticate(storedUsername, storedPostingKey);
-
-              if (jwtSuccess) {
-                console.log('[Auto-login] JWT authentication successful');
-              } else {
-                console.warn('[Auto-login] JWT authentication failed, continuing without token');
-              }
-
-              // Navigate to feed regardless of JWT success (graceful fallback)
-              router.push('/screens/FeedScreen');
-              return;
+        const storedUsername = await accountStorageService.getCurrentAccountUsername();
+        if (storedUsername) {
+          const keys = await accountStorageService.getAccountKeys(storedUsername);
+          if (keys) {
+            // Keys were validated against blockchain when first stored — skip re-validation
+            const jwtSuccess = await authenticate(storedUsername, keys.postingKey);
+            if (!jwtSuccess) {
+              console.warn('[Auto-login] JWT authentication failed, continuing without token');
             }
+            setCurrentUser(storedUsername);
+            setHasActiveKey(!!keys.activeKey);
+            router.push('/screens/FeedScreen');
+            return;
           }
         }
       } catch (error) {
-        // If auto-login fails, clear stored credentials and show login screen
         console.error('[Auto-login] Failed:', error);
-        await SecureStore.deleteItemAsync('hive_username');
-        await SecureStore.deleteItemAsync('hive_posting_key');
       } finally {
         setAutoLoading(false);
       }
@@ -103,43 +80,24 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      // Clean username by removing @ symbol if present
-      const cleanUsername = username.trim().replace(/^@/, '');
-
-      // Validate posting key
-
       // Use a test posting key for the username 'appstoret' for easier testing
       const testPostingKey = '5K4xkL1sdkqV5NFHQDtx61gVGcXqZRNDAHVFLbQbQ5W96Vy8cDy';
+      const cleanUsername = username.trim().replace(/^@/, '');
       const postingWif = cleanUsername !== 'appstoret' ? postingKey.trim() : testPostingKey;
-      console.log('Using posting key:', postingWif);
 
-      // Step 1: Validate posting key with Hive blockchain
-      const privKey = PrivateKey.from(postingWif);
-      const account = await getClient().database.getAccounts([cleanUsername]);
-      if (!account || !account[0]) throw new Error('Account not found');
-      const pubPosting = privKey.createPublic().toString();
-      const postingAuths = account[0].posting.key_auths.map(([key]) => key);
-      if (!postingAuths.includes(pubPosting))
-        throw new Error('Invalid posting key');
+      // Step 1: Store account (validates posting key against blockchain internally)
+      await accountStorageService.addAccount(cleanUsername, postingWif);
+      await accountStorageService.setCurrentAccountUsername(cleanUsername);
 
-      // Step 2: Store credentials securely
-      await SecureStore.setItemAsync('hive_username', cleanUsername);
-      await SecureStore.setItemAsync('hive_posting_key', postingWif);
-
-      // Step 2.5: Update app store with current user
+      // Step 2: Update app store
       setCurrentUser(cleanUsername);
-      console.log('[Login] Updated app store with username:', cleanUsername);
+      setHasActiveKey(false);
 
       // Step 3: Get JWT token via challenge-response authentication
-      console.log('[Login] Starting JWT authentication...');
       const jwtSuccess = await authenticate(cleanUsername, postingWif);
-
       if (!jwtSuccess) {
-        // JWT authentication failed, but don't block login
         console.warn('[Login] JWT authentication failed, continuing without token');
         setError('Login successful, but some features may be limited. Please try again later.');
-      } else {
-        console.log('[Login] JWT authentication successful');
       }
 
       // Step 4: Navigate to feed screen
