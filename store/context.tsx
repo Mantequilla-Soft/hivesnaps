@@ -20,6 +20,7 @@ interface AppContextType {
 
   // User actions
   setCurrentUser: (username: string | null) => void;
+  setHasActiveKey: (hasActiveKey: boolean) => void;
   setUserProfile: (username: string, profile: UserProfile) => void;
   setFollowingList: (username: string, following: string[]) => void;
   setFollowerList: (username: string, followers: string[]) => void;
@@ -53,6 +54,7 @@ interface AppContextType {
   selectors: {
     // User selectors
     getCurrentUser: () => string | null;
+    getHasActiveKey: () => boolean;
     getUserProfile: (username: string) => UserProfile | null;
     getFollowingList: (username: string) => string[] | null;
     getMutedList: (username: string) => string[] | null;
@@ -153,6 +155,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dispatch({ type: 'USER_SET_CURRENT', payload: username });
   }, []);
 
+  const setHasActiveKey = useCallback((hasActiveKey: boolean) => {
+    dispatch({ type: 'USER_SET_HAS_ACTIVE_KEY', payload: hasActiveKey });
+  }, []);
+
   const setUserProfile = useCallback((username: string, profile: UserProfile) => {
     dispatch({ type: 'USER_SET_PROFILE', payload: { username, profile } });
   }, []);
@@ -249,6 +255,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const selectors = React.useMemo(() => ({
     // User selectors
     getCurrentUser: () => userSelectors.getCurrentUser(state.user),
+    getHasActiveKey: () => userSelectors.getHasActiveKey(state.user),
     getUserProfile: (username: string) => userSelectors.getUserProfile(state.user, username),
     getFollowingList: (username: string) => userSelectors.getFollowingList(state.user, username),
     getMutedList: (username: string) => userSelectors.getMutedList(state.user, username),
@@ -292,6 +299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     state,
     dispatch,
     setCurrentUser,
+    setHasActiveKey,
     setUserProfile,
     setFollowingList,
     setFollowerList,
