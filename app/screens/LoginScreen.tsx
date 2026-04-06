@@ -51,6 +51,8 @@ export default function LoginScreen() {
   useEffect(() => {
     const checkStoredCredentials = async () => {
       try {
+        // getAccounts() triggers legacy migration so hive_current_account is populated
+        await accountStorageService.getAccounts();
         const storedUsername = await accountStorageService.getCurrentAccountUsername();
         if (storedUsername) {
           const keys = await accountStorageService.getAccountKeys(storedUsername);

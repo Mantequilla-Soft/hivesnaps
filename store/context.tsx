@@ -114,6 +114,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const initializeUser = async () => {
       try {
+        // getAccounts() triggers legacy migration before we read the current account
+        await accountStorageService.getAccounts();
         const storedUsername = await accountStorageService.getCurrentAccountUsername();
         if (storedUsername) {
           console.log('🔐 [AppProvider] Loaded username from AccountStorageService:', storedUsername);
