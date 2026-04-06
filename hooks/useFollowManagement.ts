@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../services/AccountStorageService';
 import { useFollowCacheManagement } from '../store/context';
 
 const client = getClient();
@@ -113,7 +113,7 @@ export const useFollowManagement = (
     setFollowLoading(true);
     try {
       // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
       if (!postingKeyStr) {
         throw new Error('No posting key found. Please log in again.');
       }
@@ -163,7 +163,7 @@ export const useFollowManagement = (
     setFollowLoading(true);
     try {
       // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
       if (!postingKeyStr) {
         throw new Error('No posting key found. Please log in again.');
       }
@@ -213,7 +213,7 @@ export const useFollowManagement = (
     setMuteLoading(true);
     try {
       // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
       if (!postingKeyStr) {
         throw new Error('No posting key found. Please log in again.');
       }
@@ -263,7 +263,7 @@ export const useFollowManagement = (
     setMuteLoading(true);
     try {
       // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
       if (!postingKeyStr) {
         throw new Error('No posting key found. Please log in again.');
       }

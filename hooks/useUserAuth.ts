@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { useAppStore } from '../store/context';
+import { accountStorageService } from '../services/AccountStorageService';
 
 /**
  * @deprecated This hook is deprecated and will be removed in a future version.
@@ -26,7 +26,7 @@ export const useUserAuth = () => {
   useEffect(() => {
     const loadCredentials = async () => {
       try {
-        const storedUsername = await SecureStore.getItemAsync('hive_username');
+        const storedUsername = await accountStorageService.getCurrentAccountUsername();
         setCurrentUsername(storedUsername);
         setCurrentUser(storedUsername); // Sync with context
       } catch (e) {
@@ -43,8 +43,7 @@ export const useUserAuth = () => {
 
   const handleLogout = async () => {
     try {
-      await SecureStore.deleteItemAsync('hive_username');
-      await SecureStore.deleteItemAsync('hive_posting_key');
+      await accountStorageService.clearCurrentAccountUsername();
       setCurrentUsername(null);
       setCurrentUser(null); // Sync with context
     } catch (err) {

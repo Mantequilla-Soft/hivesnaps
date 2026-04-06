@@ -680,6 +680,19 @@ class AccountStorageServiceImpl {
     }
 
     /**
+     * Get the posting key for the current active account.
+     * Convenience method — replaces legacy SecureStore.getItemAsync('hive_posting_key').
+     *
+     * @returns posting key string, or null if no account is logged in
+     */
+    async getCurrentPostingKey(): Promise<string | null> {
+        const username = await this.getCurrentAccountUsername();
+        if (!username) return null;
+        const keys = await this.getAccountKeys(username);
+        return keys?.postingKey ?? null;
+    }
+
+    /**
      * Clear the current account (logout)
      */
     async clearCurrentAccountUsername(): Promise<void> {

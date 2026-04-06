@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../services/AccountStorageService';
 
 const client = getClient();
 
@@ -28,7 +28,7 @@ export const useRewardsManagement = (
 
     try {
       // Get posting key from secure storage
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
       if (!postingKeyStr) {
         throw new Error('No posting key found. Please log in again.');
       }

@@ -3,7 +3,7 @@
  * Handles JWT token inclusion and automatic refresh on 401 errors
  */
 
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from './AccountStorageService';
 import { makeRequest, NetworkTarget } from './networking';
 import { authService } from './AuthService';
 
