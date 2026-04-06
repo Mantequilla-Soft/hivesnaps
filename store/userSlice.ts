@@ -49,6 +49,7 @@ export function userReducer(state: UserState, action: UserAction): UserState {
       return {
         ...state,
         currentUser: action.payload,
+        hasActiveKey: false,
       };
 
     case 'USER_SET_HAS_ACTIVE_KEY':
