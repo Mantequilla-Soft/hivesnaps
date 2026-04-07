@@ -14,6 +14,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '../components/useColorScheme';
 import { HivePostPreviewProvider } from '../context/HivePostPreviewContext';
 import { ShareProvider } from '../context/ShareContext';
+import { ChatProvider } from '../context/ChatContext';
 import { AppProvider } from '../store/context';
 import TOSWrapper from '../components/TOSWrapper';
 
@@ -74,27 +75,29 @@ function RootLayoutNav() {
 
   return (
     <AppProvider>
-      <ShareProvider>
-        <HivePostPreviewProvider>
-          <ThemeProvider
-            value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
-          >
-            <TOSWrapper>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name='screens/LoginScreen' />
-                <Stack.Screen name='screens/FeedScreen' />
-                <Stack.Screen name='screens/NotificationsScreen' />
-                <Stack.Screen name='screens/ConversationScreen' />
-                <Stack.Screen name='screens/HivePostScreen' />
-                <Stack.Screen name='screens/ProfileScreen' />
-                <Stack.Screen name='screens/ComposeScreen' />
-                <Stack.Screen name='screens/DiscoveryScreen' />
-                <Stack.Screen name='modal' options={{ presentation: 'modal' }} />
-              </Stack>
-            </TOSWrapper>
-          </ThemeProvider>
-        </HivePostPreviewProvider>
-      </ShareProvider>
+      <ChatProvider>
+        <ShareProvider>
+          <HivePostPreviewProvider>
+            <ThemeProvider
+              value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
+            >
+              <TOSWrapper>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name='screens/LoginScreen' />
+                  <Stack.Screen name='screens/FeedScreen' />
+                  <Stack.Screen name='screens/NotificationsScreen' />
+                  <Stack.Screen name='screens/ConversationScreen' />
+                  <Stack.Screen name='screens/HivePostScreen' />
+                  <Stack.Screen name='screens/ProfileScreen' />
+                  <Stack.Screen name='screens/ComposeScreen' />
+                  <Stack.Screen name='screens/DiscoveryScreen' />
+                  <Stack.Screen name='modal' options={{ presentation: 'modal' }} />
+                </Stack>
+              </TOSWrapper>
+            </ThemeProvider>
+          </HivePostPreviewProvider>
+        </ShareProvider>
+      </ChatProvider>
     </AppProvider>
   );
 }
