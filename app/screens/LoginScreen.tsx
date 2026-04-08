@@ -88,12 +88,14 @@ export default function LoginScreen() {
       const postingWif = cleanUsername !== 'appstoret' ? postingKey.trim() : testPostingKey;
 
       // Step 1: Store account (validates posting key against blockchain internally)
-      await accountStorageService.addAccount(cleanUsername, postingWif);
+      // Fetch existing keys first to preserve any stored active key
+      const existingKeys = await accountStorageService.getAccountKeys(cleanUsername);
+      await accountStorageService.addAccount(cleanUsername, postingWif, existingKeys?.activeKey);
       await accountStorageService.setCurrentAccountUsername(cleanUsername);
 
       // Step 2: Update app store
       setCurrentUser(cleanUsername);
-      setHasActiveKey(false);
+      setHasActiveKey(!!existingKeys?.activeKey);
 
       // Step 3: Get JWT token via challenge-response authentication
       const jwtSuccess = await authenticate(cleanUsername, postingWif);

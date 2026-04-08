@@ -65,15 +65,16 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(async () => {
-    authService.logout();
-    clearAuth();
-    setCurrentUser(null);
-    setHasActiveKey(false);
     try {
       await accountStorageService.clearCurrentAccountUsername();
     } catch (error) {
       console.error('[useAuth] Failed to clear current account:', error);
+      throw error;
     }
+    authService.logout();
+    clearAuth();
+    setCurrentUser(null);
+    setHasActiveKey(false);
   }, [clearAuth, setCurrentUser, setHasActiveKey]);
 
   /**

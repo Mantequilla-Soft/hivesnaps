@@ -130,7 +130,7 @@ const FeedScreenRefactored = () => {
   // Custom hooks for business logic
   // Always use the context username for all logic
   const username = useCurrentUser();
-  const { handleLogout: logout } = useAuth();
+  const { logout } = useAuth();
 
   // User profile and voting power data
   const {

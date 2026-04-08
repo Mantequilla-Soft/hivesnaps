@@ -118,7 +118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await accountStorageService.getAccounts();
         const storedUsername = await accountStorageService.getCurrentAccountUsername();
         if (storedUsername) {
-          console.log('🔐 [AppProvider] Loaded username from AccountStorageService:', storedUsername);
+          if (__DEV__) console.log('🔐 [AppProvider] Loaded username from AccountStorageService:', storedUsername);
           dispatch({ type: 'USER_SET_CURRENT', payload: storedUsername });
           const hasActive = await accountStorageService.hasActiveKey(storedUsername);
           dispatch({ type: 'USER_SET_HAS_ACTIVE_KEY', payload: hasActive });
@@ -351,31 +351,7 @@ export function useCurrentUser() {
   return selectors.getCurrentUser();
 }
 
-/**
- * Hook for authentication operations (login/logout)
- * Consolidates auth logic previously in useUserAuth
- */
-export function useAuth() {
-  const { setCurrentUser } = useAppStore();
-  const currentUsername = useCurrentUser();
-
-  const handleLogout = React.useCallback(async () => {
-    try {
-      await accountStorageService.clearCurrentAccountUsername();
-      setCurrentUser(null);
-    } catch (err) {
-      throw new Error(
-        'Logout failed: ' +
-        (err instanceof Error ? err.message : JSON.stringify(err))
-      );
-    }
-  }, [setCurrentUser]);
-
-  return {
-    currentUsername,
-    handleLogout,
-  };
-}
+export { useAuth } from '../hooks/useAuth';
 
 export function useUserProfile(username: string) {
   const { selectors } = useAppStore();
