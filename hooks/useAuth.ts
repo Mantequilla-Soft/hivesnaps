@@ -3,17 +3,19 @@
  */
 
 import { useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { useAppStore } from '../store/context';
 import { authService } from '../services/AuthService';
+import { accountStorageService } from '../services/AccountStorageService';
 
 export const useAuth = () => {
-  const { 
+  const {
     setAuthTokens,
-    setAuthLoading, 
-    setAuthError, 
+    setAuthLoading,
+    setAuthError,
     clearAuth,
-    selectors 
+    setCurrentUser,
+    setHasActiveKey,
+    selectors
   } = useAppStore();
 
   const {
@@ -23,6 +25,8 @@ export const useAuth = () => {
     isAuthLoading,
     getAuthError,
     isAuthenticationFresh,
+    getCurrentUser,
+    getHasActiveKey,
   } = selectors;
 
   /**
@@ -61,20 +65,17 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(async () => {
-    // Clear tokens from auth service
-    authService.logout();
-    
-    // Clear tokens from context
-    clearAuth();
-    
-    // Clear stored credentials from SecureStore
     try {
-      await SecureStore.deleteItemAsync('hive_username');
-      await SecureStore.deleteItemAsync('hive_posting_key');
+      await accountStorageService.clearCurrentAccountUsername();
     } catch (error) {
-      console.error('[useAuth] Failed to clear stored credentials:', error);
+      console.error('[useAuth] Failed to clear current account:', error);
+      throw error;
     }
-  }, [clearAuth]);
+    authService.logout();
+    clearAuth();
+    setCurrentUser(null);
+    setHasActiveKey(false);
+  }, [clearAuth, setCurrentUser, setHasActiveKey]);
 
   /**
    * Get current JWT token for API calls
@@ -98,6 +99,8 @@ export const useAuth = () => {
     token: getCurrentToken(),
     needsAuthentication: needsAuthentication(),
     isAuthenticationFresh: isAuthenticationFresh(),
+    currentUsername: getCurrentUser(),
+    hasActiveKey: getHasActiveKey(),
 
     // Actions
     authenticate,

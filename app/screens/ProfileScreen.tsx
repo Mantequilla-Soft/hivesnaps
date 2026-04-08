@@ -51,7 +51,7 @@ const ProfileScreen = () => {
   const username = params.username as string | undefined;
 
   // Use custom hooks
-  const { currentUsername, handleLogout } = useAuth();
+  const { currentUsername, logout: handleLogout } = useAuth();
 
   // Define isOwnProfile early to avoid undefined issues
   const isOwnProfile = currentUsername === username;
