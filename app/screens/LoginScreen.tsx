@@ -107,9 +107,13 @@ export default function LoginScreen() {
       // Step 4: Navigate to feed screen
       setLoading(false);
       router.push('/screens/FeedScreen');
-    } catch (e) {
+    } catch (e: unknown) {
       setLoading(false);
-      setError('Invalid username or posting key. Please try again.');
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Login failed. Please try again.',
+      );
     }
   };
 

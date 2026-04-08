@@ -118,7 +118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await accountStorageService.getAccounts();
         const storedUsername = await accountStorageService.getCurrentAccountUsername();
         if (storedUsername) {
-          if (__DEV__) console.log('🔐 [AppProvider] Loaded username from AccountStorageService:', storedUsername);
+          if (__DEV__) console.log('🔐 [AppProvider] Loaded current account from AccountStorageService');
           dispatch({ type: 'USER_SET_CURRENT', payload: storedUsername });
           const hasActive = await accountStorageService.hasActiveKey(storedUsername);
           dispatch({ type: 'USER_SET_HAS_ACTIVE_KEY', payload: hasActive });
