@@ -472,7 +472,8 @@ class AccountStorageServiceImpl {
      */
     async removeAccount(username: string): Promise<void> {
         return this.withModificationLock(async () => {
-            const normalizedUsername = this.normalizeUsername(username); this.validateUsername(normalizedUsername);
+            const normalizedUsername = this.normalizeUsername(username);
+            this.validateUsername(normalizedUsername);
             // Remove keys from SecureStore
             await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
             await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));

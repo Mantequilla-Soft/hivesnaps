@@ -56,9 +56,10 @@ export default function AccountSelectionScreen() {
       router.back();
     } catch (e) {
       Alert.alert('Error', 'Could not switch account. Please try again.');
+    } finally {
       setSwitchingTo(null);
     }
-  }, [currentUsername, switchingTo, switchAccount, router]);
+  }, [currentUsername, switchAccount, router]);
 
   const handleDelete = useCallback((account: StoredAccount) => {
     Alert.alert(
@@ -70,12 +71,16 @@ export default function AccountSelectionScreen() {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            await accountStorageService.removeAccount(account.username);
-            if (account.username === currentUsername) {
-              // Removed the active account — go back to login
-              router.replace('/');
-            } else {
-              loadAccounts();
+            try {
+              await accountStorageService.removeAccount(account.username);
+              if (account.username === currentUsername) {
+                // Removed the active account — go back to login
+                router.replace('/');
+              } else {
+                loadAccounts();
+              }
+            } catch {
+              Alert.alert('Error', 'Failed to remove account. Please try again.');
             }
           },
         },
@@ -92,7 +97,7 @@ export default function AccountSelectionScreen() {
         style={[styles.accountRow, isActive && styles.accountRowActive]}
         onPress={() => handleSwitch(item.username)}
         onLongPress={() => handleDelete(item)}
-        disabled={isActive || !!switchingTo}
+        disabled={isActive || isSwitching}
         activeOpacity={0.7}
       >
         <Image source={{ uri: item.avatar }} style={styles.avatar} />

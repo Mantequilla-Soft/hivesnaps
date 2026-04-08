@@ -93,8 +93,9 @@ export const useAuth = () => {
       await authenticate(username, keys.postingKey);
     } catch {
       console.warn('[useAuth] JWT re-auth failed after account switch');
+      setAuthError('Switched account but could not refresh authentication. Some features may be unavailable.');
     }
-  }, [accountStorageService, setCurrentUser, setHasActiveKey, authenticate]);
+  }, [setCurrentUser, setHasActiveKey, authenticate, setAuthError]);
 
   /**
    * Get current JWT token for API calls
