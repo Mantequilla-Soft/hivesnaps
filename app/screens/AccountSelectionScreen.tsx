@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { getTheme } from '../../constants/Colors';
 
 function formatLastUsed(timestamp: number): string {
   const diff = Date.now() - timestamp;
+  if (diff < 0) return 'Just now';
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
@@ -31,13 +32,14 @@ function formatLastUsed(timestamp: number): string {
 export default function AccountSelectionScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const styles = createAccountSelectionScreenStyles(isDark);
-  const theme = getTheme(isDark ? 'dark' : 'light');
+  const styles = useMemo(() => createAccountSelectionScreenStyles(isDark), [isDark]);
+  const theme = useMemo(() => getTheme(isDark ? 'dark' : 'light'), [isDark]);
   const router = useRouter();
 
-  const { currentUsername, switchAccount } = useAuth();
+  const { currentUsername, switchAccount, logout } = useAuth();
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
+  const isSwitchingRef = useRef(false);
 
   const loadAccounts = useCallback(async () => {
     const stored = await accountStorageService.getAccounts();
@@ -49,7 +51,8 @@ export default function AccountSelectionScreen() {
   }, [loadAccounts]);
 
   const handleSwitch = useCallback(async (username: string) => {
-    if (username === currentUsername || switchingTo) return;
+    if (username === currentUsername || isSwitchingRef.current) return;
+    isSwitchingRef.current = true;
     setSwitchingTo(username);
     try {
       await switchAccount(username);
@@ -57,6 +60,7 @@ export default function AccountSelectionScreen() {
     } catch (e) {
       Alert.alert('Error', 'Could not switch account. Please try again.');
     } finally {
+      isSwitchingRef.current = false;
       setSwitchingTo(null);
     }
   }, [currentUsername, switchAccount, router]);
@@ -74,7 +78,8 @@ export default function AccountSelectionScreen() {
             try {
               await accountStorageService.removeAccount(account.username);
               if (account.username === currentUsername) {
-                // Removed the active account — go back to login
+                // Removed the active account — clear auth state then go to login
+                await logout();
                 router.replace('/');
               } else {
                 loadAccounts();
@@ -86,7 +91,7 @@ export default function AccountSelectionScreen() {
         },
       ]
     );
-  }, [currentUsername, loadAccounts, router]);
+  }, [currentUsername, loadAccounts, logout, router]);
 
   const renderAccount = useCallback(({ item }: { item: StoredAccount }) => {
     const isActive = item.username === currentUsername;

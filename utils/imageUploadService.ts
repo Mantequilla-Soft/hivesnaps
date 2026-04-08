@@ -78,7 +78,7 @@ export async function getHiveCredentials(username: string): Promise<{
   privateKey: string;
 } | null> {
   try {
-    const privateKey = await SecureStore.getItemAsync('hive_posting_key');
+    const privateKey = await accountStorageService.getCurrentPostingKey();
 
     if (!privateKey) {
       return null;
