@@ -47,7 +47,7 @@ export default function AccountSelectionScreen(): React.JSX.Element {
       const stored = await accountStorageService.getAccounts();
       if (isMountedRef.current) setAccounts(stored);
     } catch (error: unknown) {
-      if (__DEV__) console.error('[AccountSelectionScreen] Failed to load accounts:', error);
+      if (__DEV__) console.error('[AccountSelectionScreen] Failed to load accounts:', error instanceof Error ? error.name : 'UnknownError');
     }
   }, []);
 
@@ -109,14 +109,14 @@ export default function AccountSelectionScreen(): React.JSX.Element {
     return (
       <TouchableOpacity
         style={[styles.accountRow, isActive && styles.accountRowActive]}
-        onPress={() => handleSwitch(item.username)}
+        onPress={isActive ? undefined : () => handleSwitch(item.username)}
         onLongPress={() => handleDelete(item)}
-        disabled={isActive || isSwitching}
+        disabled={isSwitching}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`${item.username}${isActive ? ', current account' : ''}`}
-        accessibilityHint="Tap to switch to this account. Long press to remove it."
-        accessibilityState={{ disabled: isActive || isSwitching }}
+        accessibilityHint={isActive ? 'Long press to remove this account.' : 'Tap to switch to this account. Long press to remove it.'}
+        accessibilityState={{ selected: isActive, disabled: isSwitching }}
       >
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
         <View style={styles.accountInfo}>
@@ -142,7 +142,12 @@ export default function AccountSelectionScreen(): React.JSX.Element {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <FontAwesome name="arrow-left" size={18} color={theme.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Accounts</Text>
