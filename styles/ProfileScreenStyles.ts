@@ -300,6 +300,31 @@ export const createProfileScreenStyles = (isDark: boolean) => {
       fontWeight: 'bold',
       fontSize: 16,
     },
+    keyBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+      marginBottom: 12,
+    },
+    keyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    keyBadgeText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: extendedColors.buttonText,
+    },
+    addKeyText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: extendedColors.button,
+    },
     logoutSection: {
       width: '100%',
       marginTop: 20,

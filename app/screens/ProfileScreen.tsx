@@ -7,7 +7,7 @@ import {
   useColorScheme,
   ScrollView,
 } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
 import { getTheme } from '../../constants/Colors';
@@ -51,7 +51,7 @@ const ProfileScreen = () => {
   const username = params.username as string | undefined;
 
   // Use custom hooks
-  const { currentUsername, logout: handleLogout } = useAuth();
+  const { currentUsername, logout: handleLogout, hasActiveKey, requireActiveKey } = useAuth();
 
   // Define isOwnProfile early to avoid undefined issues
   const isOwnProfile = currentUsername === username;
@@ -395,6 +395,25 @@ const ProfileScreen = () => {
             {/* Account actions - Only show for own profile */}
             {isOwnProfile && (
               <View style={styles.logoutSection}>
+                {/* Active key status badge + action */}
+                <View style={styles.keyBadgeRow}>
+                  <View style={[styles.keyBadge, { backgroundColor: hasActiveKey ? colors.followButton : colors.buttonInactive }]}>
+                    <Ionicons name={hasActiveKey ? 'checkmark-circle' : 'lock-closed'} size={14} color={colors.buttonText} />
+                    <Text style={styles.keyBadgeText}>
+                      {hasActiveKey ? 'Full Access' : 'Posting Only'}
+                    </Text>
+                  </View>
+                  {!hasActiveKey && (
+                    <TouchableOpacity
+                      onPress={() => requireActiveKey()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add active key"
+                    >
+                      <Text style={styles.addKeyText}>+ Add Active Key</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
                 <TouchableOpacity
                   style={[styles.logoutButton, { marginBottom: 12 }]}
                   onPress={() => router.push('/screens/AccountSelectionScreen')}

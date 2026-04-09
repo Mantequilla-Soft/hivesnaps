@@ -61,7 +61,7 @@ jest.mock('@hiveio/dhive', () => {
 });
 
 // Import service AFTER mocks are set up
-import { accountStorageService as AccountStorageService } from '../AccountStorageService';
+import { accountStorageService as AccountStorageService, InvalidKeyError } from '../AccountStorageService';
 
 describe('AccountStorageService', () => {
     beforeEach(() => {
@@ -459,6 +459,29 @@ describe('AccountStorageService', () => {
             await expect(
                 AccountStorageService.addActiveKey('testuser', '')
             ).rejects.toThrow('Active key is required');
+        });
+
+        it('throws InvalidKeyError (not KeyValidationError) when PrivateKey.fromString rejects the key format', async () => {
+            // Simulate PrivateKey.fromString throwing for a malformed WIF string.
+            // Before the fix, this would be caught and re-wrapped as KeyValidationError
+            // ("check your connection") — misleading the user. Now it must surface as
+            // InvalidKeyError so the screen shows "key does not match" instead.
+            const mockAccounts = [
+                { username: 'testuser', hasActiveKey: false, avatar: '', lastUsed: 1000 },
+            ];
+            (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(
+                JSON.stringify(mockAccounts)
+            );
+            mockPrivateKeyFromString.mockImplementation(() => {
+                throw new Error('Non-base58 character');
+            });
+
+            await expect(
+                AccountStorageService.addActiveKey('testuser', 'not-a-valid-wif')
+            ).rejects.toBeInstanceOf(InvalidKeyError);
+
+            // Fail-fast: malformed key must be rejected before touching the network
+            expect(mockGetAccounts).not.toHaveBeenCalled();
         });
     });
 

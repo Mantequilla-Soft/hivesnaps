@@ -883,7 +883,18 @@ class AccountStorageServiceImpl {
         account?: any
     ): Promise<void> {
         try {
-            // Use provided account or fetch from blockchain
+            // Parse the key format first — fail fast before any network call so a
+            // malformed WIF always surfaces as InvalidKeyError, not KeyValidationError.
+            let activePublicKey: string;
+            try {
+                activePublicKey = PrivateKey.fromString(activeKey)
+                    .createPublic()
+                    .toString();
+            } catch {
+                throw new InvalidKeyError('active', username);
+            }
+
+            // Fetch account from blockchain if not already provided
             if (!account) {
                 const accounts = await this.client.database.getAccounts([username]);
 
@@ -894,9 +905,6 @@ class AccountStorageServiceImpl {
                 account = accounts[0];
             }
 
-            const activePublicKey = PrivateKey.fromString(activeKey)
-                .createPublic()
-                .toString();
             const hasActiveAuth = account.active.key_auths.some(
                 ([key]: KeyAuthority) => {
                     const keyStr = typeof key === 'string' ? key : String(key);
@@ -916,7 +924,7 @@ class AccountStorageServiceImpl {
                 throw error;
             }
 
-            // Wrap unexpected errors
+            // Wrap unexpected errors (network failures, etc.)
             if (error instanceof Error) {
                 throw new KeyValidationError(
                     `Failed to validate active key: ${error.message}`,
