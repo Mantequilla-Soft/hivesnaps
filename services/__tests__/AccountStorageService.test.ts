@@ -560,6 +560,51 @@ describe('AccountStorageService', () => {
         });
     });
 
+    describe('_runMigration (colon-key sweep)', () => {
+        it('migrates colon-format keys for ALL accounts in hive_accounts_v3, not just the legacy one', async () => {
+            // Migration runs once per singleton instance — isolate the module so we
+            // get a fresh service with no cached migrationPromise.
+            let freshService: typeof AccountStorageService;
+            jest.isolateModules(() => {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                freshService = require('../AccountStorageService').accountStorageService;
+            });
+
+            const storedAccounts = [
+                { username: 'user1', hasActiveKey: false, avatar: '', lastUsed: 1000 },
+                { username: 'user2', hasActiveKey: true,  avatar: '', lastUsed: 2000 },
+            ];
+
+            (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+                if (key === 'hive_accounts_v3') return Promise.resolve(JSON.stringify(storedAccounts));
+                if (key === 'account:user1:postingKey') return Promise.resolve('postingKey1');
+                if (key === 'account:user2:postingKey') return Promise.resolve('postingKey2');
+                if (key === 'account:user2:activeKey')  return Promise.resolve('activeKey2');
+                // No hive_username → legacy branch must not run
+                return Promise.resolve(null);
+            });
+
+            // Trigger migration via getAccounts()
+            await freshService!.getAccounts();
+
+            // Both accounts' colon-format posting keys must be rewritten
+            expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+                'account_user1_postingKey', 'postingKey1', expect.any(Object)
+            );
+            expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+                'account_user2_postingKey', 'postingKey2', expect.any(Object)
+            );
+            // Active key for user2 must be rewritten too
+            expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+                'account_user2_activeKey', 'activeKey2', expect.any(Object)
+            );
+            // Old colon-format keys must be deleted
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user1:postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:activeKey');
+        });
+    });
+
     describe('clearAllAccounts', () => {
         it('should remove all accounts and keys', async () => {
             const mockAccounts = [

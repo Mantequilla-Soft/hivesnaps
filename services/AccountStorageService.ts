@@ -160,7 +160,21 @@ class AccountStorageServiceImpl {
      */
     private async _runMigration(): Promise<void> {
         try {
-            // Check if legacy storage exists
+            // Phase 1: Heal colon-format keys for every account already in storage.
+            // This runs unconditionally so accounts that were stored while the colon
+            // key format was in use (before the underscore fix) are repaired even if
+            // there is no legacy single-account data to migrate.
+            const existingAccountsJson = await SecureStore.getItemAsync(ACCOUNTS_STORAGE_KEY);
+            if (existingAccountsJson) {
+                const existingAccounts: any[] = JSON.parse(existingAccountsJson);
+                for (const acc of existingAccounts) {
+                    if (acc?.username) {
+                        await this.migrateColonKeys(acc.username);
+                    }
+                }
+            }
+
+            // Phase 2: Migrate legacy single-account format (hive_username / hive_posting_key).
             const legacyUsername = await SecureStore.getItemAsync('hive_username');
             const legacyPostingKey = await SecureStore.getItemAsync(
                 'hive_posting_key'
@@ -234,12 +248,6 @@ class AccountStorageServiceImpl {
             // Clean up legacy keys
             await SecureStore.deleteItemAsync('hive_username');
             await SecureStore.deleteItemAsync('hive_posting_key');
-
-            // Migrate any keys stored in the old colon format (account:user:postingKey)
-            // to the new underscore format (account_user_postingKey). SecureStore
-            // rejects colon-containing keys on some platforms, so this heals any data
-            // that was written before the key-format fix.
-            await this.migrateColonKeys(normalizedUsername);
 
             if (__DEV__) {
                 console.log(
