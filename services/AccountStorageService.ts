@@ -883,7 +883,18 @@ class AccountStorageServiceImpl {
         account?: any
     ): Promise<void> {
         try {
-            // Use provided account or fetch from blockchain
+            // Parse the key format first — fail fast before any network call so a
+            // malformed WIF always surfaces as InvalidKeyError, not KeyValidationError.
+            let activePublicKey: string;
+            try {
+                activePublicKey = PrivateKey.fromString(activeKey)
+                    .createPublic()
+                    .toString();
+            } catch {
+                throw new InvalidKeyError('active', username);
+            }
+
+            // Fetch account from blockchain if not already provided
             if (!account) {
                 const accounts = await this.client.database.getAccounts([username]);
 
@@ -892,17 +903,6 @@ class AccountStorageServiceImpl {
                 }
 
                 account = accounts[0];
-            }
-
-            // Parse the private key first — throws immediately if the format is wrong
-            // (before touching the network), so we can surface a clear error.
-            let activePublicKey: string;
-            try {
-                activePublicKey = PrivateKey.fromString(activeKey)
-                    .createPublic()
-                    .toString();
-            } catch {
-                throw new InvalidKeyError('active', username);
             }
 
             const hasActiveAuth = account.active.key_auths.some(

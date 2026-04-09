@@ -38,7 +38,9 @@ export default function AddActiveKeyScreen(): React.JSX.Element {
   const styles = useMemo(() => createAddActiveKeyScreenStyles(theme.isDark), [theme.isDark]);
 
   const { username: rawUsername } = useLocalSearchParams<{ username?: string | string[] }>();
-  const username = Array.isArray(rawUsername) ? rawUsername[0] : rawUsername;
+  // Canonicalize: collapse array → scalar, then normalise to match stored username format
+  const username = (Array.isArray(rawUsername) ? rawUsername[0] : rawUsername)
+    ?.trim().replace(/^@/, '').toLowerCase();
 
   const handleAddKey = async (): Promise<void> => {
     if (!activeKey.trim()) {
