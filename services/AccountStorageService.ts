@@ -275,23 +275,35 @@ class AccountStorageServiceImpl {
         const oldActiveKey = `account:${username}:activeKey`;
 
         try {
-            const postingKey = await SecureStore.getItemAsync(oldPostingKey);
+            const [postingKey, existingPostingKey] = await Promise.all([
+                SecureStore.getItemAsync(oldPostingKey),
+                SecureStore.getItemAsync(postingKeyStorageKey(username)),
+            ]);
             if (postingKey) {
-                await SecureStore.setItemAsync(
-                    postingKeyStorageKey(username),
-                    postingKey,
-                    secureStoreOptions
-                );
+                // Only write if no current underscore-format key exists — avoids
+                // overwriting a newer credential with a stale colon-format copy.
+                if (!existingPostingKey) {
+                    await SecureStore.setItemAsync(
+                        postingKeyStorageKey(username),
+                        postingKey,
+                        secureStoreOptions
+                    );
+                }
                 await SecureStore.deleteItemAsync(oldPostingKey);
             }
 
-            const activeKey = await SecureStore.getItemAsync(oldActiveKey);
+            const [activeKey, existingActiveKey] = await Promise.all([
+                SecureStore.getItemAsync(oldActiveKey),
+                SecureStore.getItemAsync(activeKeyStorageKey(username)),
+            ]);
             if (activeKey) {
-                await SecureStore.setItemAsync(
-                    activeKeyStorageKey(username),
-                    activeKey,
-                    secureStoreOptions
-                );
+                if (!existingActiveKey) {
+                    await SecureStore.setItemAsync(
+                        activeKeyStorageKey(username),
+                        activeKey,
+                        secureStoreOptions
+                    );
+                }
                 await SecureStore.deleteItemAsync(oldActiveKey);
             }
         } catch (error) {
@@ -681,6 +693,7 @@ class AccountStorageServiceImpl {
      * Returns null if no current account is set
      */
     async getCurrentAccountUsername(): Promise<string | null> {
+        await this.migrateFromLegacyStorage();
         try {
             return await SecureStore.getItemAsync(CURRENT_ACCOUNT_KEY);
         } catch (error) {

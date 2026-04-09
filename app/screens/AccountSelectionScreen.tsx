@@ -74,6 +74,7 @@ export default function AccountSelectionScreen(): React.JSX.Element {
   }, [currentUsername, switchAccount, router]);
 
   const handleDelete = useCallback((account: StoredAccount): void => {
+    if (isSwitchingRef.current) return;
     Alert.alert(
       'Remove Account',
       `Remove @${account.username} from this device? Your keys will be deleted locally.`,
@@ -110,7 +111,7 @@ export default function AccountSelectionScreen(): React.JSX.Element {
       <TouchableOpacity
         style={[styles.accountRow, isActive && styles.accountRowActive]}
         onPress={isActive ? undefined : () => handleSwitch(item.username)}
-        onLongPress={() => handleDelete(item)}
+        onLongPress={switchingTo ? undefined : () => handleDelete(item)}
         disabled={isSwitching}
         activeOpacity={0.7}
         accessibilityRole="button"
@@ -144,7 +145,8 @@ export default function AccountSelectionScreen(): React.JSX.Element {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={switchingTo ? undefined : () => router.back()}
+          disabled={!!switchingTo}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
@@ -164,7 +166,8 @@ export default function AccountSelectionScreen(): React.JSX.Element {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.addAccountButton}
-          onPress={() => router.push('/screens/LoginScreen')}
+          onPress={switchingTo ? undefined : () => router.push('/screens/LoginScreen')}
+          disabled={!!switchingTo}
         >
           <FontAwesome name="plus" size={16} color={theme.buttonText} />
           <Text style={styles.addAccountButtonText}>Add Account</Text>
