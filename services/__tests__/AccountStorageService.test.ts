@@ -603,6 +603,38 @@ describe('AccountStorageService', () => {
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:postingKey');
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:activeKey');
         });
+
+        it('silently skips colon-key migration when SecureStore rejects colon keys (Android)', async () => {
+            // On Android, expo-secure-store throws for keys containing colons.
+            // safeGetItemAsync must swallow those errors so migration is a silent no-op.
+            let freshService: typeof AccountStorageService;
+            jest.isolateModules(() => {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                freshService = require('../AccountStorageService').accountStorageService;
+            });
+
+            const storedAccounts = [
+                { username: 'user1', hasActiveKey: false, avatar: '', lastUsed: 1000 },
+            ];
+
+            (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+                if (key === 'hive_accounts_v3') return Promise.resolve(JSON.stringify(storedAccounts));
+                // Simulate Android rejecting any colon-containing key
+                if (key.includes(':')) return Promise.reject(new Error('Invalid key provided to SecureStore. Keys must not be empty and contain only alphanumeric characters, ".", "-", and "_".'));
+                return Promise.resolve(null);
+            });
+
+            // Must not throw
+            await expect(freshService!.getAccounts()).resolves.not.toThrow();
+
+            // No colon keys must be written or deleted (nothing was readable)
+            expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(
+                expect.stringContaining('_postingKey'), expect.anything(), expect.anything()
+            );
+            expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(
+                expect.stringContaining(':')
+            );
+        });
     });
 
     describe('clearAllAccounts', () => {

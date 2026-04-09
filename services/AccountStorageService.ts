@@ -265,9 +265,25 @@ class AccountStorageServiceImpl {
     }
 
     /**
+     * Read a SecureStore key that may contain characters rejected by the current
+     * expo-secure-store version (e.g. colons on Android). Returns null instead of
+     * throwing so callers can treat an invalid-format key as "not found".
+     * @private
+     */
+    private async safeGetItemAsync(key: string): Promise<string | null> {
+        try {
+            return await SecureStore.getItemAsync(key);
+        } catch {
+            return null;
+        }
+    }
+
+    /**
      * Migrate keys stored under the old colon format (account:user:postingKey)
      * to the current underscore format (account_user_postingKey).
      * Safe to call multiple times — no-ops if old keys are absent.
+     * On platforms where expo-secure-store rejects colon keys outright the old
+     * keys were never stored, so safeGetItemAsync returns null and we skip.
      * @private
      */
     private async migrateColonKeys(username: string): Promise<void> {
@@ -276,7 +292,7 @@ class AccountStorageServiceImpl {
 
         try {
             const [postingKey, existingPostingKey] = await Promise.all([
-                SecureStore.getItemAsync(oldPostingKey),
+                this.safeGetItemAsync(oldPostingKey),
                 SecureStore.getItemAsync(postingKeyStorageKey(username)),
             ]);
             if (postingKey) {
@@ -293,7 +309,7 @@ class AccountStorageServiceImpl {
             }
 
             const [activeKey, existingActiveKey] = await Promise.all([
-                SecureStore.getItemAsync(oldActiveKey),
+                this.safeGetItemAsync(oldActiveKey),
                 SecureStore.getItemAsync(activeKeyStorageKey(username)),
             ]);
             if (activeKey) {
