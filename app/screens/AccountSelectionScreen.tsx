@@ -176,7 +176,7 @@ export default function AccountSelectionScreen(): React.JSX.Element {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.addAccountButton}
-          onPress={switchingTo ? undefined : () => router.push('/screens/LoginScreen')}
+          onPress={switchingTo ? undefined : () => router.push({ pathname: '/screens/LoginScreen', params: { addAccount: '1' } })}
           disabled={!!switchingTo}
           accessibilityRole="button"
           accessibilityLabel="Add Account"

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { Text, View } from '../../components/Themed';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppStore } from '../../store/context';
@@ -44,11 +44,16 @@ export default function LoginScreen() {
     footer: isDark ? theme.border : palette.lightTabIcon,
   };
   const router = useRouter();
+  const { addAccount } = useLocalSearchParams<{ addAccount?: string }>();
   const { authenticate } = useAuth();
   const { setCurrentUser, setHasActiveKey } = useAppStore();
 
-  // Auto-login functionality
+  // Auto-login functionality — skip when navigated here to add a new account
   useEffect(() => {
+    if (addAccount) {
+      setAutoLoading(false);
+      return;
+    }
     const checkStoredCredentials = async () => {
       try {
         // getAccounts() triggers legacy migration so hive_current_account is populated
@@ -76,7 +81,7 @@ export default function LoginScreen() {
     };
 
     checkStoredCredentials();
-  }, [router]);
+  }, [router, addAccount]);
 
   const handleLogin = async () => {
     setError('');
@@ -104,9 +109,14 @@ export default function LoginScreen() {
         setError('Login successful, but some features may be limited. Please try again later.');
       }
 
-      // Step 4: Navigate to feed screen
+      // Step 4: Navigate — go back to account selection if adding an account,
+      //          otherwise go to the feed on first login.
       setLoading(false);
-      router.push('/screens/FeedScreen');
+      if (addAccount) {
+        router.back();
+      } else {
+        router.push('/screens/FeedScreen');
+      }
     } catch (e: unknown) {
       setLoading(false);
       setError(
