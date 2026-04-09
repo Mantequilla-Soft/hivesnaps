@@ -59,6 +59,12 @@ export const palette = {
   gold: '#FFD700',
   unfollowButton: '#8B9DC3',
   transparent: 'transparent',
+
+  // Semantic surface tints
+  infoBoxBackgroundLight: 'rgba(0,0,0,0.05)',
+  warningBoxBackgroundLight: 'rgba(255,193,7,0.15)',
+  infoBoxBackgroundDark: 'rgba(255,255,255,0.07)',
+  warningBoxBackgroundDark: 'rgba(255,193,7,0.12)',
 } as const;
 
 // ============================================================================
@@ -173,8 +179,8 @@ export const lightTheme: Theme = {
   overlayDark: palette.overlayDark,
 
   // Semantic surface tints
-  infoBoxBackground: 'rgba(0,0,0,0.05)',
-  warningBoxBackground: 'rgba(255,193,7,0.15)',
+  infoBoxBackground: palette.infoBoxBackgroundLight,
+  warningBoxBackground: palette.warningBoxBackgroundLight,
 };
 
 // ============================================================================
@@ -231,8 +237,8 @@ export const darkTheme: Theme = {
   overlayDark: palette.overlayDark,
 
   // Semantic surface tints
-  infoBoxBackground: 'rgba(255,255,255,0.07)',
-  warningBoxBackground: 'rgba(255,193,7,0.12)',
+  infoBoxBackground: palette.infoBoxBackgroundDark,
+  warningBoxBackground: palette.warningBoxBackgroundDark,
 };
 
 // ============================================================================

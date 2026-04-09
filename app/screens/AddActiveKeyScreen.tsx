@@ -26,7 +26,7 @@ import { localAuthService, AuthCancelledError, AuthFailedError } from '../../ser
 import { useAppStore } from '../../store/context';
 import { createAddActiveKeyScreenStyles } from '../../styles/AddActiveKeyScreenStyles';
 
-export default function AddActiveKeyScreen() {
+export default function AddActiveKeyScreen(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,9 +37,10 @@ export default function AddActiveKeyScreen() {
 
   const styles = useMemo(() => createAddActiveKeyScreenStyles(theme.isDark), [theme.isDark]);
 
-  const { username } = useLocalSearchParams<{ username?: string }>();
+  const { username: rawUsername } = useLocalSearchParams<{ username?: string | string[] }>();
+  const username = Array.isArray(rawUsername) ? rawUsername[0] : rawUsername;
 
-  const handleAddKey = async () => {
+  const handleAddKey = async (): Promise<void> => {
     if (!activeKey.trim()) {
       setError('Please enter your active key');
       return;
