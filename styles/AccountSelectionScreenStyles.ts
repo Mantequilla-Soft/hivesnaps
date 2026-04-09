@@ -80,6 +80,11 @@ export const createAccountSelectionScreenStyles = (isDark: boolean): ReturnType<
       color: theme.textSecondary,
       marginTop: 2,
     },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     switchingOverlay: {
       position: 'absolute',
       right: 16,

@@ -38,16 +38,20 @@ export default function AccountSelectionScreen(): React.JSX.Element {
 
   const { currentUsername, switchAccount, logout } = useAuth();
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const isSwitchingRef = useRef(false);
   const isMountedRef = useRef(true);
 
   const loadAccounts = useCallback(async (): Promise<void> => {
+    if (isMountedRef.current) setIsLoading(true);
     try {
       const stored = await accountStorageService.getAccounts();
       if (isMountedRef.current) setAccounts(stored);
     } catch (error: unknown) {
       if (__DEV__) console.error('[AccountSelectionScreen] Failed to load accounts:', error instanceof Error ? error.name : 'UnknownError');
+    } finally {
+      if (isMountedRef.current) setIsLoading(false);
     }
   }, []);
 
@@ -155,19 +159,28 @@ export default function AccountSelectionScreen(): React.JSX.Element {
         <Text style={styles.headerTitle}>Accounts</Text>
       </View>
 
-      <FlatList
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        data={accounts}
-        keyExtractor={(item) => item.username}
-        renderItem={renderAccount}
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.button} />
+        </View>
+      ) : (
+        <FlatList
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          data={accounts}
+          keyExtractor={(item) => item.username}
+          renderItem={renderAccount}
+        />
+      )}
 
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.addAccountButton}
           onPress={switchingTo ? undefined : () => router.push('/screens/LoginScreen')}
           disabled={!!switchingTo}
+          accessibilityRole="button"
+          accessibilityLabel="Add Account"
+          accessibilityState={{ disabled: !!switchingTo }}
         >
           <FontAwesome name="plus" size={16} color={theme.buttonText} />
           <Text style={styles.addAccountButtonText}>Add Account</Text>

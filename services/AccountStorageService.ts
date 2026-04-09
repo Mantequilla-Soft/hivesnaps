@@ -166,7 +166,7 @@ class AccountStorageServiceImpl {
             // there is no legacy single-account data to migrate.
             const existingAccountsJson = await SecureStore.getItemAsync(ACCOUNTS_STORAGE_KEY);
             if (existingAccountsJson) {
-                const existingAccounts: any[] = JSON.parse(existingAccountsJson);
+                const existingAccounts: { username?: unknown }[] = JSON.parse(existingAccountsJson);
                 for (const acc of existingAccounts) {
                     if (acc?.username) {
                         await this.migrateColonKeys(acc.username);
