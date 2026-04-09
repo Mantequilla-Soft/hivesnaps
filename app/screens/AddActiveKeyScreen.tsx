@@ -54,8 +54,13 @@ export default function AddActiveKeyScreen(): React.JSX.Element {
     setError('');
 
     try {
-      // Confirm intent with biometric / device PIN before touching key storage
-      await localAuthService.authenticate('Confirm your identity to add an active key');
+      // Confirm intent with biometric / device PIN if the device has one enrolled.
+      // If no security is set up (e.g. emulator) we skip the prompt — the key is
+      // still encrypted by SecureStore's device-level encryption.
+      const biometricAvailable = await localAuthService.isAvailable();
+      if (biometricAvailable) {
+        await localAuthService.authenticate('Confirm your identity to add an active key');
+      }
 
       // Validates against blockchain and stores — throws on invalid key
       await accountStorageService.addActiveKey(username, activeKey.trim());

@@ -894,9 +894,17 @@ class AccountStorageServiceImpl {
                 account = accounts[0];
             }
 
-            const activePublicKey = PrivateKey.fromString(activeKey)
-                .createPublic()
-                .toString();
+            // Parse the private key first — throws immediately if the format is wrong
+            // (before touching the network), so we can surface a clear error.
+            let activePublicKey: string;
+            try {
+                activePublicKey = PrivateKey.fromString(activeKey)
+                    .createPublic()
+                    .toString();
+            } catch {
+                throw new InvalidKeyError('active', username);
+            }
+
             const hasActiveAuth = account.active.key_auths.some(
                 ([key]: KeyAuthority) => {
                     const keyStr = typeof key === 'string' ? key : String(key);
@@ -916,7 +924,7 @@ class AccountStorageServiceImpl {
                 throw error;
             }
 
-            // Wrap unexpected errors
+            // Wrap unexpected errors (network failures, etc.)
             if (error instanceof Error) {
                 throw new KeyValidationError(
                     `Failed to validate active key: ${error.message}`,
