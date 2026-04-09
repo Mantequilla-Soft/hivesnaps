@@ -27,6 +27,11 @@ jest.mock('../../store/context', () => ({
     useAppStore: jest.fn(),
 }));
 
+const mockRouterPush = jest.fn();
+jest.mock('expo-router', () => ({
+    useRouter: () => ({ push: mockRouterPush }),
+}));
+
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { useAuth } from '../useAuth';
@@ -222,6 +227,61 @@ describe('useAuth', () => {
 
             expect(callOrder.indexOf('setCurrentAccountUsername'))
                 .toBeLessThan(callOrder.indexOf('authenticate'));
+        });
+    });
+
+    // ─── requireActiveKey ────────────────────────────────────────────────────
+
+    describe('requireActiveKey', () => {
+        beforeEach(() => { mockRouterPush.mockClear(); });
+
+        it('returns false and does NOT navigate when no user is logged in', () => {
+            makeStore(); // getCurrentUser returns null by default
+            const { result } = renderUseAuth();
+
+            const canProceed = result.requireActiveKey();
+
+            expect(canProceed).toBe(false);
+            expect(mockRouterPush).not.toHaveBeenCalled();
+        });
+
+        it('returns true and does NOT navigate when user already has an active key', () => {
+            makeStore();
+            mockUseAppStore.mockReturnValue({
+                ...mockUseAppStore(),
+                selectors: {
+                    ...mockUseAppStore().selectors,
+                    getCurrentUser: jest.fn().mockReturnValue('coolmole'),
+                    getHasActiveKey: jest.fn().mockReturnValue(true),
+                },
+            });
+            const { result } = renderUseAuth();
+
+            const canProceed = result.requireActiveKey();
+
+            expect(canProceed).toBe(true);
+            expect(mockRouterPush).not.toHaveBeenCalled();
+        });
+
+        it('navigates to AddActiveKeyScreen and returns false when user has no active key', () => {
+            makeStore();
+            mockUseAppStore.mockReturnValue({
+                ...mockUseAppStore(),
+                selectors: {
+                    ...mockUseAppStore().selectors,
+                    getCurrentUser: jest.fn().mockReturnValue('coolmole'),
+                    getHasActiveKey: jest.fn().mockReturnValue(false),
+                },
+            });
+            const { result } = renderUseAuth();
+
+            const canProceed = result.requireActiveKey();
+
+            expect(canProceed).toBe(false);
+            expect(mockRouterPush).toHaveBeenCalledWith({
+                pathname: '/screens/AddActiveKeyScreen',
+                params: { username: 'coolmole' },
+            });
         });
     });
 });
