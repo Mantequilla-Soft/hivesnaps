@@ -128,6 +128,8 @@ export default function AddActiveKeyScreen(): React.JSX.Element {
                   style={styles.input}
                   value={activeKey}
                   onChangeText={setActiveKey}
+                  accessibilityLabel="Active key"
+                  accessibilityHint="Enter the Hive active private key for this account"
                   placeholder="5J..."
                   placeholderTextColor={theme.textSecondary}
                   secureTextEntry

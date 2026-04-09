@@ -479,6 +479,9 @@ describe('AccountStorageService', () => {
             await expect(
                 AccountStorageService.addActiveKey('testuser', 'not-a-valid-wif')
             ).rejects.toBeInstanceOf(InvalidKeyError);
+
+            // Fail-fast: malformed key must be rejected before touching the network
+            expect(mockGetAccounts).not.toHaveBeenCalled();
         });
     });
 
