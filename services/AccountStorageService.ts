@@ -54,10 +54,11 @@ const secureStoreOptions = {
 };
 
 // Helper functions to generate storage keys
+// Note: SecureStore only allows alphanumeric, ".", "-", "_" — no colons
 const postingKeyStorageKey = (username: string) =>
-    `account:${username}:postingKey`;
+    `account_${username}_postingKey`;
 const activeKeyStorageKey = (username: string) =>
-    `account:${username}:activeKey`;
+    `account_${username}_activeKey`;
 
 // Node list removed — uses centralized HiveClient
 
@@ -471,7 +472,8 @@ class AccountStorageServiceImpl {
      */
     async removeAccount(username: string): Promise<void> {
         return this.withModificationLock(async () => {
-            const normalizedUsername = this.normalizeUsername(username); this.validateUsername(normalizedUsername);
+            const normalizedUsername = this.normalizeUsername(username);
+            this.validateUsername(normalizedUsername);
             // Remove keys from SecureStore
             await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
             await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
@@ -676,6 +678,19 @@ class AccountStorageServiceImpl {
                 secureStoreOptions
             );
         });
+    }
+
+    /**
+     * Get the posting key for the current active account.
+     * Convenience method — replaces legacy SecureStore.getItemAsync('hive_posting_key').
+     *
+     * @returns posting key string, or null if no account is logged in
+     */
+    async getCurrentPostingKey(): Promise<string | null> {
+        const username = await this.getCurrentAccountUsername();
+        if (!username) return null;
+        const keys = await this.getAccountKeys(username);
+        return keys?.postingKey ?? null;
     }
 
     /**

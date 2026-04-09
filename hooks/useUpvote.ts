@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../services/AccountStorageService';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
@@ -167,7 +167,7 @@ export const useUpvote = (
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       // Retrieve posting key from secure store
-      const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
       if (!postingKeyStr)
         throw new Error('No posting key found. Please log in again.');
       const postingKey = PrivateKey.fromString(postingKeyStr);
