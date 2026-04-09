@@ -396,10 +396,10 @@ const ProfileScreen = () => {
             {isOwnProfile && (
               <View style={styles.logoutSection}>
                 {/* Active key status badge + action */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: hasActiveKey ? colors.followButton : colors.buttonInactive }}>
+                <View style={styles.keyBadgeRow}>
+                  <View style={[styles.keyBadge, { backgroundColor: hasActiveKey ? colors.followButton : colors.buttonInactive }]}>
                     <Ionicons name={hasActiveKey ? 'checkmark-circle' : 'lock-closed'} size={14} color={colors.buttonText} />
-                    <Text style={{ color: colors.buttonText, fontSize: 13, fontWeight: '600' }}>
+                    <Text style={styles.keyBadgeText}>
                       {hasActiveKey ? 'Full Access' : 'Posting Only'}
                     </Text>
                   </View>
@@ -409,7 +409,7 @@ const ProfileScreen = () => {
                       accessibilityRole="button"
                       accessibilityLabel="Add active key"
                     >
-                      <Text style={{ color: colors.button, fontSize: 13, fontWeight: '600' }}>+ Add Active Key</Text>
+                      <Text style={styles.addKeyText}>+ Add Active Key</Text>
                     </TouchableOpacity>
                   )}
                 </View>

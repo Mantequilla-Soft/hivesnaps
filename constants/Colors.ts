@@ -113,6 +113,10 @@ export interface Theme {
   // Overlays
   overlay: string;
   overlayDark: string;
+
+  // Semantic surface tints
+  infoBoxBackground: string;
+  warningBoxBackground: string;
 }
 
 // ============================================================================
@@ -167,6 +171,10 @@ export const lightTheme: Theme = {
   // Overlays
   overlay: palette.overlayLight,
   overlayDark: palette.overlayDark,
+
+  // Semantic surface tints
+  infoBoxBackground: 'rgba(0,0,0,0.05)',
+  warningBoxBackground: 'rgba(255,193,7,0.15)',
 };
 
 // ============================================================================
@@ -221,6 +229,10 @@ export const darkTheme: Theme = {
   // Overlays
   overlay: palette.overlayLight,
   overlayDark: palette.overlayDark,
+
+  // Semantic surface tints
+  infoBoxBackground: 'rgba(255,255,255,0.07)',
+  warningBoxBackground: 'rgba(255,193,7,0.12)',
 };
 
 // ============================================================================

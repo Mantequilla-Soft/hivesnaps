@@ -41,7 +41,7 @@ export const createAddActiveKeyScreenStyles = (isDark: boolean): ReturnType<type
             padding: 16,
             borderRadius: 12,
             marginBottom: 24,
-            backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+            backgroundColor: theme.infoBoxBackground,
         },
         infoContent: {
             flex: 1,
@@ -109,7 +109,7 @@ export const createAddActiveKeyScreenStyles = (isDark: boolean): ReturnType<type
             padding: 16,
             borderRadius: 12,
             alignItems: 'flex-start',
-            backgroundColor: isDark ? 'rgba(255,193,7,0.12)' : 'rgba(255,193,7,0.15)',
+            backgroundColor: theme.warningBoxBackground,
             marginBottom: 16,
         },
         warningText: {

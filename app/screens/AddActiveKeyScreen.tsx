@@ -3,7 +3,6 @@ import {
   Platform,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   TouchableWithoutFeedback,
   Keyboard,
   ActivityIndicator,
@@ -14,10 +13,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useMemo } from 'react';
 import { Text, View } from '../../components/Themed';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getTheme, palette } from '../../constants/Colors';
+import { palette } from '../../constants/Colors';
+import { useTheme } from '../../hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import { accountStorageService } from '../../services/AccountStorageService';
-import { localAuthService, AuthCancelledError } from '../../services/LocalAuthService';
+import {
+  accountStorageService,
+  InvalidKeyError,
+  AccountNotFoundError,
+  KeyValidationError,
+} from '../../services/AccountStorageService';
+import { localAuthService, AuthCancelledError, AuthFailedError } from '../../services/LocalAuthService';
 import { useAppStore } from '../../store/context';
 import { createAddActiveKeyScreenStyles } from '../../styles/AddActiveKeyScreenStyles';
 
@@ -26,13 +31,11 @@ export default function AddActiveKeyScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const colorScheme = useColorScheme() || 'light';
-  const isDark = colorScheme === 'dark';
-  const theme = getTheme(isDark ? 'dark' : 'light');
+  const theme = useTheme();
   const router = useRouter();
   const { setHasActiveKey, selectors } = useAppStore();
 
-  const styles = useMemo(() => createAddActiveKeyScreenStyles(isDark), [isDark]);
+  const styles = useMemo(() => createAddActiveKeyScreenStyles(theme.isDark), [theme.isDark]);
 
   const { username } = useLocalSearchParams<{ username?: string }>();
 
@@ -68,8 +71,16 @@ export default function AddActiveKeyScreen() {
     } catch (err: unknown) {
       if (err instanceof AuthCancelledError) {
         setError('Authentication was cancelled');
+      } else if (err instanceof AuthFailedError) {
+        setError('Device authentication failed. Please try again.');
+      } else if (err instanceof InvalidKeyError) {
+        setError('The key you entered does not match the active key for this account.');
+      } else if (err instanceof AccountNotFoundError) {
+        setError('Account not found on the blockchain.');
+      } else if (err instanceof KeyValidationError) {
+        setError('Unable to validate the key. Please check your connection and try again.');
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to add active key');
+        setError('Failed to add active key. Please try again.');
       }
     } finally {
       setLoading(false);
