@@ -399,7 +399,7 @@ const ProfileScreen = () => {
                   style={[styles.logoutButton, { marginBottom: 12 }]}
                   onPress={() => router.push('/screens/AccountSelectionScreen')}
                 >
-                  <FontAwesome name='exchange' size={18} color='#fff' />
+                  <FontAwesome name='exchange' size={18} color={colors.buttonText} />
                   <Text style={styles.logoutButtonText}>Switch Account</Text>
                 </TouchableOpacity>
                 <TouchableOpacity

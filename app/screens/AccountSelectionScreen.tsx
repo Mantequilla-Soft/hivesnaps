@@ -29,7 +29,7 @@ function formatLastUsed(timestamp: number): string {
   return `${days}d ago`;
 }
 
-export default function AccountSelectionScreen() {
+export default function AccountSelectionScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const styles = useMemo(() => createAccountSelectionScreenStyles(isDark), [isDark]);
@@ -40,32 +40,40 @@ export default function AccountSelectionScreen() {
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const isSwitchingRef = useRef(false);
+  const isMountedRef = useRef(true);
 
-  const loadAccounts = useCallback(async () => {
-    const stored = await accountStorageService.getAccounts();
-    setAccounts(stored);
+  const loadAccounts = useCallback(async (): Promise<void> => {
+    try {
+      const stored = await accountStorageService.getAccounts();
+      if (isMountedRef.current) setAccounts(stored);
+    } catch (error: unknown) {
+      if (__DEV__) console.error('[AccountSelectionScreen] Failed to load accounts:', error);
+    }
   }, []);
 
   useEffect(() => {
-    loadAccounts();
+    isMountedRef.current = true;
+    void loadAccounts();
+    return () => { isMountedRef.current = false; };
   }, [loadAccounts]);
 
-  const handleSwitch = useCallback(async (username: string) => {
+  const handleSwitch = useCallback(async (username: string): Promise<void> => {
     if (username === currentUsername || isSwitchingRef.current) return;
     isSwitchingRef.current = true;
     setSwitchingTo(username);
     try {
       await switchAccount(username);
       router.back();
-    } catch (e) {
-      Alert.alert('Error', 'Could not switch account. Please try again.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not switch account. Please try again.';
+      Alert.alert('Error', message);
     } finally {
       isSwitchingRef.current = false;
       setSwitchingTo(null);
     }
   }, [currentUsername, switchAccount, router]);
 
-  const handleDelete = useCallback((account: StoredAccount) => {
+  const handleDelete = useCallback((account: StoredAccount): void => {
     Alert.alert(
       'Remove Account',
       `Remove @${account.username} from this device? Your keys will be deleted locally.`,
@@ -82,10 +90,11 @@ export default function AccountSelectionScreen() {
                 await logout();
                 router.replace('/');
               } else {
-                loadAccounts();
+                await loadAccounts();
               }
-            } catch {
-              Alert.alert('Error', 'Failed to remove account. Please try again.');
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : 'Failed to remove account. Please try again.';
+              Alert.alert('Error', message);
             }
           },
         },
@@ -93,7 +102,7 @@ export default function AccountSelectionScreen() {
     );
   }, [currentUsername, loadAccounts, logout, router]);
 
-  const renderAccount = useCallback(({ item }: { item: StoredAccount }) => {
+  const renderAccount = useCallback(({ item }: { item: StoredAccount }): React.JSX.Element => {
     const isActive = item.username === currentUsername;
     const isSwitching = item.username === switchingTo;
 

@@ -6,8 +6,8 @@
  *
  * Storage Structure:
  * - Account list: 'hive_accounts_v3' (JSON array of account metadata)
- * - Posting key: 'account:{username}:postingKey' (encrypted string)
- * - Active key: 'account:{username}:activeKey' (encrypted string, optional)
+ * - Posting key: 'account_{username}_postingKey' (encrypted string)
+ * - Active key: 'account_{username}_activeKey' (encrypted string, optional)
  * - Current account: 'hive_current_account' (username string)
  */
 
