@@ -113,6 +113,10 @@ export default function AccountSelectionScreen(): React.JSX.Element {
         onLongPress={() => handleDelete(item)}
         disabled={isActive || isSwitching}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.username}${isActive ? ', current account' : ''}`}
+        accessibilityHint="Tap to switch to this account. Long press to remove it."
+        accessibilityState={{ disabled: isActive || isSwitching }}
       >
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
         <View style={styles.accountInfo}>
