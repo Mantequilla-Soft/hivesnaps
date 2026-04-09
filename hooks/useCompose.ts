@@ -212,7 +212,7 @@ export function useCompose({
     useEffect(() => {
         const loadCredentials = async () => {
             try {
-                const storedUsername = await SecureStore.getItemAsync('hive_username');
+                const storedUsername = await accountStorageService.getCurrentAccountUsername();
 
                 let avatarUrl: string | null = null;
                 if (storedUsername) {

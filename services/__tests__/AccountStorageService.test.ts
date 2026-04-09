@@ -100,7 +100,7 @@ describe('AccountStorageService', () => {
 
             // Verify posting key was stored
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                `account:${mockUsername}:postingKey`,
+                `account_${mockUsername}_postingKey`,
                 mockPostingKey,
                 expect.any(Object)
             );
@@ -118,12 +118,12 @@ describe('AccountStorageService', () => {
 
             // Verify both keys were stored
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                `account:${mockUsername}:postingKey`,
+                `account_${mockUsername}_postingKey`,
                 mockPostingKey,
                 expect.any(Object)
             );
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                `account:${mockUsername}:activeKey`,
+                `account_${mockUsername}_activeKey`,
                 mockActiveKey,
                 expect.any(Object)
             );
@@ -133,7 +133,7 @@ describe('AccountStorageService', () => {
             await AccountStorageService.addAccount('@TestUser', mockPostingKey);
 
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                'account:testuser:postingKey',
+                'account_testuser_postingKey',
                 mockPostingKey,
                 expect.any(Object)
             );
@@ -314,10 +314,10 @@ describe('AccountStorageService', () => {
 
             // Verify keys were deleted
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-                'account:user1:postingKey'
+                'account_user1_postingKey'
             );
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-                'account:user1:activeKey'
+                'account_user1_activeKey'
             );
 
             // Verify account list was updated (should only contain user2)
@@ -362,7 +362,7 @@ describe('AccountStorageService', () => {
     describe('getAccountKeys', () => {
         it('should return posting key only if no active key', async () => {
             (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
-                if (key === 'account:testuser:postingKey') return mockPostingKey;
+                if (key === 'account_testuser_postingKey') return mockPostingKey;
                 return null;
             });
 
@@ -375,8 +375,8 @@ describe('AccountStorageService', () => {
 
         it('should return both keys if both stored', async () => {
             (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
-                if (key === 'account:testuser:postingKey') return mockPostingKey;
-                if (key === 'account:testuser:activeKey') return mockActiveKey;
+                if (key === 'account_testuser_postingKey') return mockPostingKey;
+                if (key === 'account_testuser_activeKey') return mockActiveKey;
                 return null;
             });
 
@@ -427,7 +427,7 @@ describe('AccountStorageService', () => {
 
             // Verify active key was stored
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                'account:testuser:activeKey',
+                'account_testuser_activeKey',
                 mockActiveKey,
                 expect.any(Object)
             );
@@ -475,7 +475,7 @@ describe('AccountStorageService', () => {
 
             // Verify active key was deleted
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-                'account:testuser:activeKey'
+                'account_testuser_activeKey'
             );
 
             // Verify metadata was updated
@@ -573,10 +573,10 @@ describe('AccountStorageService', () => {
             await AccountStorageService.clearAllAccounts();
 
             // Verify all keys were deleted
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user1:postingKey');
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user1:activeKey');
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:postingKey');
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:activeKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user1_postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user1_activeKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user2_postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user2_activeKey');
 
             // Verify storage was cleared
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('hive_accounts_v3');
