@@ -78,6 +78,27 @@ export const useAuth = () => {
   }, [clearAuth, setCurrentUser, setHasActiveKey]);
 
   /**
+   * Switch to a different stored account
+   * Loads keys, re-authenticates JWT, updates store
+   */
+  const switchAccount = useCallback(async (username: string): Promise<void> => {
+    const keys = await accountStorageService.getAccountKeys(username);
+    if (!keys) {
+      throw new Error(`No keys found for account @${username}`);
+    }
+    await accountStorageService.setCurrentAccountUsername(username);
+    setCurrentUser(username);
+    setHasActiveKey(!!keys.activeKey);
+    // Best-effort JWT — don't block the switch if it fails
+    try {
+      await authenticate(username, keys.postingKey);
+    } catch {
+      console.warn('[useAuth] JWT re-auth failed after account switch');
+      setAuthError('Switched account but could not refresh authentication. Some features may be unavailable.');
+    }
+  }, [setCurrentUser, setHasActiveKey, authenticate, setAuthError]);
+
+  /**
    * Get current JWT token for API calls
    */
   const getCurrentToken = useCallback((): string | null => {
@@ -105,6 +126,7 @@ export const useAuth = () => {
     // Actions
     authenticate,
     logout,
+    switchAccount,
     clearError: () => setAuthError(null),
 
     // Utilities

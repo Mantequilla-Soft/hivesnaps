@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../../services/AccountStorageService';
 import { useColorScheme, StyleSheet } from 'react-native';
 import {
   View,
@@ -183,7 +183,7 @@ const DiscoveryScreen = () => {
   // Load username from SecureStore before fetching snaps
   useEffect(() => {
     const loadUsernameAndFetch = async () => {
-      const storedUsername = await SecureStore.getItemAsync('hive_username');
+      const storedUsername = await accountStorageService.getCurrentAccountUsername();
       if (storedUsername) setCurrentUsername(storedUsername);
       // Only pass string or undefined, never null
       if (hashtag) fetchHashtagSnaps(storedUsername ?? undefined);
@@ -193,7 +193,7 @@ const DiscoveryScreen = () => {
 
   // Create refresh handler that uses current username
   const handleRefresh = async () => {
-    const currentUsername = await SecureStore.getItemAsync('hive_username');
+    const currentUsername = await accountStorageService.getCurrentAccountUsername();
     fetchHashtagSnaps(currentUsername ?? undefined);
   };
 

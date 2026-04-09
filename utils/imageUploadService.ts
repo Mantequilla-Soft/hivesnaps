@@ -2,7 +2,7 @@
 // Zero-cost image uploads using images.hive.blog with images.3speak.tv fallback
 
 import { uploadImageToHive, HiveImageUploadFile } from './hiveImageUpload';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../services/AccountStorageService';
 
 export interface UploadResult {
   url: string;
@@ -78,7 +78,7 @@ export async function getHiveCredentials(username: string): Promise<{
   privateKey: string;
 } | null> {
   try {
-    const privateKey = await SecureStore.getItemAsync('hive_posting_key');
+    const privateKey = await accountStorageService.getCurrentPostingKey();
 
     if (!privateKey) {
       return null;

@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, Platform, ActionSheetIOS } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../services/AccountStorageService';
 import * as ImagePicker from 'expo-image-picker';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
@@ -212,7 +212,7 @@ export function useCompose({
     useEffect(() => {
         const loadCredentials = async () => {
             try {
-                const storedUsername = await SecureStore.getItemAsync('hive_username');
+                const storedUsername = await accountStorageService.getCurrentAccountUsername();
 
                 let avatarUrl: string | null = null;
                 if (storedUsername) {
@@ -660,7 +660,7 @@ export function useCompose({
         dispatch({ type: 'SET_POSTING', payload: true });
 
         try {
-            const postingKeyStr = await SecureStore.getItemAsync('hive_posting_key');
+            const postingKeyStr = await accountStorageService.getCurrentPostingKey();
             if (!postingKeyStr) {
                 throw new Error('No posting key found. Please log in again.');
             }

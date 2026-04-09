@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from '../../services/AccountStorageService';
 import Modal from 'react-native-modal';
 import { getTheme, palette } from '../../constants/Colors';
 
@@ -173,7 +173,7 @@ const NotificationsScreen = () => {
   useEffect(() => {
     const loadUsername = async () => {
       try {
-        const username = await SecureStore.getItemAsync('hive_username');
+        const username = await accountStorageService.getCurrentAccountUsername();
         setCurrentUsername(username);
       } catch (error) {
         console.error('Error loading username:', error);

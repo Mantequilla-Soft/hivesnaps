@@ -3,7 +3,7 @@
  * Handles JWT token inclusion and automatic refresh on 401 errors
  */
 
-import * as SecureStore from 'expo-secure-store';
+import { accountStorageService } from './AccountStorageService';
 import { makeRequest, NetworkTarget } from './networking';
 import { authService } from './AuthService';
 
@@ -104,10 +104,9 @@ export async function makeAuthenticatedRequest(
           console.log('[AuthenticatedRequest] Logging out user due to refresh failure');
           authService.logout();
           
-          // Clear stored credentials from SecureStore
+          // Clear stored current account
           try {
-            await SecureStore.deleteItemAsync('hive_username');
-            await SecureStore.deleteItemAsync('hive_posting_key');
+            await accountStorageService.clearCurrentAccountUsername();
             console.log('[AuthenticatedRequest] Cleared stored credentials');
           } catch (clearError) {
             console.error('[AuthenticatedRequest] Failed to clear credentials:', clearError);

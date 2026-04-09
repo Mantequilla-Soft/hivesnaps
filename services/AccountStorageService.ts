@@ -6,8 +6,8 @@
  *
  * Storage Structure:
  * - Account list: 'hive_accounts_v3' (JSON array of account metadata)
- * - Posting key: 'account:{username}:postingKey' (encrypted string)
- * - Active key: 'account:{username}:activeKey' (encrypted string, optional)
+ * - Posting key: 'account_{username}_postingKey' (encrypted string)
+ * - Active key: 'account_{username}_activeKey' (encrypted string, optional)
  * - Current account: 'hive_current_account' (username string)
  */
 
@@ -54,10 +54,11 @@ const secureStoreOptions = {
 };
 
 // Helper functions to generate storage keys
+// Note: SecureStore only allows alphanumeric, ".", "-", "_" — no colons
 const postingKeyStorageKey = (username: string) =>
-    `account:${username}:postingKey`;
+    `account_${username}_postingKey`;
 const activeKeyStorageKey = (username: string) =>
-    `account:${username}:activeKey`;
+    `account_${username}_activeKey`;
 
 // Node list removed — uses centralized HiveClient
 
@@ -159,7 +160,21 @@ class AccountStorageServiceImpl {
      */
     private async _runMigration(): Promise<void> {
         try {
-            // Check if legacy storage exists
+            // Phase 1: Heal colon-format keys for every account already in storage.
+            // This runs unconditionally so accounts that were stored while the colon
+            // key format was in use (before the underscore fix) are repaired even if
+            // there is no legacy single-account data to migrate.
+            const existingAccountsJson = await SecureStore.getItemAsync(ACCOUNTS_STORAGE_KEY);
+            if (existingAccountsJson) {
+                const existingAccounts: { username?: unknown }[] = JSON.parse(existingAccountsJson);
+                for (const acc of existingAccounts) {
+                    if (acc?.username) {
+                        await this.migrateColonKeys(acc.username);
+                    }
+                }
+            }
+
+            // Phase 2: Migrate legacy single-account format (hive_username / hive_posting_key).
             const legacyUsername = await SecureStore.getItemAsync('hive_username');
             const legacyPostingKey = await SecureStore.getItemAsync(
                 'hive_posting_key'
@@ -246,6 +261,70 @@ class AccountStorageServiceImpl {
                 error
             );
             // Don't throw - allow app to continue even if migration fails
+        }
+    }
+
+    /**
+     * Read a SecureStore key that may contain characters rejected by the current
+     * expo-secure-store version (e.g. colons on Android). Returns null instead of
+     * throwing so callers can treat an invalid-format key as "not found".
+     * @private
+     */
+    private async safeGetItemAsync(key: string): Promise<string | null> {
+        try {
+            return await SecureStore.getItemAsync(key);
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Migrate keys stored under the old colon format (account:user:postingKey)
+     * to the current underscore format (account_user_postingKey).
+     * Safe to call multiple times — no-ops if old keys are absent.
+     * On platforms where expo-secure-store rejects colon keys outright the old
+     * keys were never stored, so safeGetItemAsync returns null and we skip.
+     * @private
+     */
+    private async migrateColonKeys(username: string): Promise<void> {
+        const oldPostingKey = `account:${username}:postingKey`;
+        const oldActiveKey = `account:${username}:activeKey`;
+
+        try {
+            const [postingKey, existingPostingKey] = await Promise.all([
+                this.safeGetItemAsync(oldPostingKey),
+                SecureStore.getItemAsync(postingKeyStorageKey(username)),
+            ]);
+            if (postingKey) {
+                // Only write if no current underscore-format key exists — avoids
+                // overwriting a newer credential with a stale colon-format copy.
+                if (!existingPostingKey) {
+                    await SecureStore.setItemAsync(
+                        postingKeyStorageKey(username),
+                        postingKey,
+                        secureStoreOptions
+                    );
+                }
+                await SecureStore.deleteItemAsync(oldPostingKey);
+            }
+
+            const [activeKey, existingActiveKey] = await Promise.all([
+                this.safeGetItemAsync(oldActiveKey),
+                SecureStore.getItemAsync(activeKeyStorageKey(username)),
+            ]);
+            if (activeKey) {
+                if (!existingActiveKey) {
+                    await SecureStore.setItemAsync(
+                        activeKeyStorageKey(username),
+                        activeKey,
+                        secureStoreOptions
+                    );
+                }
+                await SecureStore.deleteItemAsync(oldActiveKey);
+            }
+        } catch (error) {
+            console.error('[AccountStorageService] Colon-key migration failed:', error);
+            // Don't throw — partial migration is better than a crash
         }
     }
 
@@ -471,7 +550,8 @@ class AccountStorageServiceImpl {
      */
     async removeAccount(username: string): Promise<void> {
         return this.withModificationLock(async () => {
-            const normalizedUsername = this.normalizeUsername(username); this.validateUsername(normalizedUsername);
+            const normalizedUsername = this.normalizeUsername(username);
+            this.validateUsername(normalizedUsername);
             // Remove keys from SecureStore
             await SecureStore.deleteItemAsync(postingKeyStorageKey(normalizedUsername));
             await SecureStore.deleteItemAsync(activeKeyStorageKey(normalizedUsername));
@@ -629,6 +709,7 @@ class AccountStorageServiceImpl {
      * Returns null if no current account is set
      */
     async getCurrentAccountUsername(): Promise<string | null> {
+        await this.migrateFromLegacyStorage();
         try {
             return await SecureStore.getItemAsync(CURRENT_ACCOUNT_KEY);
         } catch (error) {
@@ -676,6 +757,19 @@ class AccountStorageServiceImpl {
                 secureStoreOptions
             );
         });
+    }
+
+    /**
+     * Get the posting key for the current active account.
+     * Convenience method — replaces legacy SecureStore.getItemAsync('hive_posting_key').
+     *
+     * @returns posting key string, or null if no account is logged in
+     */
+    async getCurrentPostingKey(): Promise<string | null> {
+        const username = await this.getCurrentAccountUsername();
+        if (!username) return null;
+        const keys = await this.getAccountKeys(username);
+        return keys?.postingKey ?? null;
     }
 
     /**

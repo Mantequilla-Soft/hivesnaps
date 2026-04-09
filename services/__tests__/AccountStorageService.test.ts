@@ -100,7 +100,7 @@ describe('AccountStorageService', () => {
 
             // Verify posting key was stored
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                `account:${mockUsername}:postingKey`,
+                `account_${mockUsername}_postingKey`,
                 mockPostingKey,
                 expect.any(Object)
             );
@@ -118,12 +118,12 @@ describe('AccountStorageService', () => {
 
             // Verify both keys were stored
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                `account:${mockUsername}:postingKey`,
+                `account_${mockUsername}_postingKey`,
                 mockPostingKey,
                 expect.any(Object)
             );
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                `account:${mockUsername}:activeKey`,
+                `account_${mockUsername}_activeKey`,
                 mockActiveKey,
                 expect.any(Object)
             );
@@ -133,7 +133,7 @@ describe('AccountStorageService', () => {
             await AccountStorageService.addAccount('@TestUser', mockPostingKey);
 
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                'account:testuser:postingKey',
+                'account_testuser_postingKey',
                 mockPostingKey,
                 expect.any(Object)
             );
@@ -314,10 +314,10 @@ describe('AccountStorageService', () => {
 
             // Verify keys were deleted
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-                'account:user1:postingKey'
+                'account_user1_postingKey'
             );
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-                'account:user1:activeKey'
+                'account_user1_activeKey'
             );
 
             // Verify account list was updated (should only contain user2)
@@ -362,7 +362,7 @@ describe('AccountStorageService', () => {
     describe('getAccountKeys', () => {
         it('should return posting key only if no active key', async () => {
             (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
-                if (key === 'account:testuser:postingKey') return mockPostingKey;
+                if (key === 'account_testuser_postingKey') return mockPostingKey;
                 return null;
             });
 
@@ -375,8 +375,8 @@ describe('AccountStorageService', () => {
 
         it('should return both keys if both stored', async () => {
             (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
-                if (key === 'account:testuser:postingKey') return mockPostingKey;
-                if (key === 'account:testuser:activeKey') return mockActiveKey;
+                if (key === 'account_testuser_postingKey') return mockPostingKey;
+                if (key === 'account_testuser_activeKey') return mockActiveKey;
                 return null;
             });
 
@@ -427,7 +427,7 @@ describe('AccountStorageService', () => {
 
             // Verify active key was stored
             expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-                'account:testuser:activeKey',
+                'account_testuser_activeKey',
                 mockActiveKey,
                 expect.any(Object)
             );
@@ -475,7 +475,7 @@ describe('AccountStorageService', () => {
 
             // Verify active key was deleted
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(
-                'account:testuser:activeKey'
+                'account_testuser_activeKey'
             );
 
             // Verify metadata was updated
@@ -560,6 +560,83 @@ describe('AccountStorageService', () => {
         });
     });
 
+    describe('_runMigration (colon-key sweep)', () => {
+        it('migrates colon-format keys for ALL accounts in hive_accounts_v3, not just the legacy one', async () => {
+            // Migration runs once per singleton instance — isolate the module so we
+            // get a fresh service with no cached migrationPromise.
+            let freshService: typeof AccountStorageService;
+            jest.isolateModules(() => {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                freshService = require('../AccountStorageService').accountStorageService;
+            });
+
+            const storedAccounts = [
+                { username: 'user1', hasActiveKey: false, avatar: '', lastUsed: 1000 },
+                { username: 'user2', hasActiveKey: true,  avatar: '', lastUsed: 2000 },
+            ];
+
+            (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+                if (key === 'hive_accounts_v3') return Promise.resolve(JSON.stringify(storedAccounts));
+                if (key === 'account:user1:postingKey') return Promise.resolve('postingKey1');
+                if (key === 'account:user2:postingKey') return Promise.resolve('postingKey2');
+                if (key === 'account:user2:activeKey')  return Promise.resolve('activeKey2');
+                // No hive_username → legacy branch must not run
+                return Promise.resolve(null);
+            });
+
+            // Trigger migration via getAccounts()
+            await freshService!.getAccounts();
+
+            // Both accounts' colon-format posting keys must be rewritten
+            expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+                'account_user1_postingKey', 'postingKey1', expect.any(Object)
+            );
+            expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+                'account_user2_postingKey', 'postingKey2', expect.any(Object)
+            );
+            // Active key for user2 must be rewritten too
+            expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+                'account_user2_activeKey', 'activeKey2', expect.any(Object)
+            );
+            // Old colon-format keys must be deleted
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user1:postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:activeKey');
+        });
+
+        it('silently skips colon-key migration when SecureStore rejects colon keys (Android)', async () => {
+            // On Android, expo-secure-store throws for keys containing colons.
+            // safeGetItemAsync must swallow those errors so migration is a silent no-op.
+            let freshService: typeof AccountStorageService;
+            jest.isolateModules(() => {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                freshService = require('../AccountStorageService').accountStorageService;
+            });
+
+            const storedAccounts = [
+                { username: 'user1', hasActiveKey: false, avatar: '', lastUsed: 1000 },
+            ];
+
+            (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+                if (key === 'hive_accounts_v3') return Promise.resolve(JSON.stringify(storedAccounts));
+                // Simulate Android rejecting any colon-containing key
+                if (key.includes(':')) return Promise.reject(new Error('Invalid key provided to SecureStore. Keys must not be empty and contain only alphanumeric characters, ".", "-", and "_".'));
+                return Promise.resolve(null);
+            });
+
+            // Must not throw
+            await expect(freshService!.getAccounts()).resolves.not.toThrow();
+
+            // No colon keys must be written or deleted (nothing was readable)
+            expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(
+                expect.stringContaining('_postingKey'), expect.anything(), expect.anything()
+            );
+            expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(
+                expect.stringContaining(':')
+            );
+        });
+    });
+
     describe('clearAllAccounts', () => {
         it('should remove all accounts and keys', async () => {
             const mockAccounts = [
@@ -573,10 +650,10 @@ describe('AccountStorageService', () => {
             await AccountStorageService.clearAllAccounts();
 
             // Verify all keys were deleted
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user1:postingKey');
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user1:activeKey');
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:postingKey');
-            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account:user2:activeKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user1_postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user1_activeKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user2_postingKey');
+            expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('account_user2_activeKey');
 
             // Verify storage was cleared
             expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('hive_accounts_v3');
