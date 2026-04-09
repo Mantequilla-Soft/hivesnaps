@@ -235,6 +235,12 @@ class AccountStorageServiceImpl {
             await SecureStore.deleteItemAsync('hive_username');
             await SecureStore.deleteItemAsync('hive_posting_key');
 
+            // Migrate any keys stored in the old colon format (account:user:postingKey)
+            // to the new underscore format (account_user_postingKey). SecureStore
+            // rejects colon-containing keys on some platforms, so this heals any data
+            // that was written before the key-format fix.
+            await this.migrateColonKeys(normalizedUsername);
+
             if (__DEV__) {
                 console.log(
                     '[AccountStorageService] Successfully migrated legacy account'
@@ -247,6 +253,42 @@ class AccountStorageServiceImpl {
                 error
             );
             // Don't throw - allow app to continue even if migration fails
+        }
+    }
+
+    /**
+     * Migrate keys stored under the old colon format (account:user:postingKey)
+     * to the current underscore format (account_user_postingKey).
+     * Safe to call multiple times — no-ops if old keys are absent.
+     * @private
+     */
+    private async migrateColonKeys(username: string): Promise<void> {
+        const oldPostingKey = `account:${username}:postingKey`;
+        const oldActiveKey = `account:${username}:activeKey`;
+
+        try {
+            const postingKey = await SecureStore.getItemAsync(oldPostingKey);
+            if (postingKey) {
+                await SecureStore.setItemAsync(
+                    postingKeyStorageKey(username),
+                    postingKey,
+                    secureStoreOptions
+                );
+                await SecureStore.deleteItemAsync(oldPostingKey);
+            }
+
+            const activeKey = await SecureStore.getItemAsync(oldActiveKey);
+            if (activeKey) {
+                await SecureStore.setItemAsync(
+                    activeKeyStorageKey(username),
+                    activeKey,
+                    secureStoreOptions
+                );
+                await SecureStore.deleteItemAsync(oldActiveKey);
+            }
+        } catch (error) {
+            console.error('[AccountStorageService] Colon-key migration failed:', error);
+            // Don't throw — partial migration is better than a crash
         }
     }
 
