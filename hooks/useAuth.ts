@@ -3,11 +3,13 @@
  */
 
 import { useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import { useAppStore } from '../store/context';
 import { authService } from '../services/AuthService';
 import { accountStorageService } from '../services/AccountStorageService';
 
 export const useAuth = () => {
+  const router = useRouter();
   const {
     setAuthTokens,
     setAuthLoading,
@@ -99,6 +101,23 @@ export const useAuth = () => {
   }, [setCurrentUser, setHasActiveKey, authenticate, setAuthError]);
 
   /**
+   * Navigate to AddActiveKeyScreen for the current user if they don't have
+   * an active key. Returns true if the key is already present (caller may
+   * proceed), false if navigation was triggered (caller should abort).
+   */
+  const requireActiveKey = useCallback((): boolean => {
+    const username = getCurrentUser();
+    if (!username || getHasActiveKey()) {
+      return true;
+    }
+    router.push({
+      pathname: '/screens/AddActiveKeyScreen' as never,
+      params: { username },
+    });
+    return false;
+  }, [router, getCurrentUser, getHasActiveKey]);
+
+  /**
    * Get current JWT token for API calls
    */
   const getCurrentToken = useCallback((): string | null => {
@@ -127,6 +146,7 @@ export const useAuth = () => {
     authenticate,
     logout,
     switchAccount,
+    requireActiveKey,
     clearError: () => setAuthError(null),
 
     // Utilities
