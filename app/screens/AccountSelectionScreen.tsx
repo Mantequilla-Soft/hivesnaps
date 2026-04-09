@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -57,9 +58,12 @@ export default function AccountSelectionScreen(): React.JSX.Element {
 
   useEffect(() => {
     isMountedRef.current = true;
-    void loadAccounts();
     return () => { isMountedRef.current = false; };
-  }, [loadAccounts]);
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    void loadAccounts();
+  }, [loadAccounts]));
 
   const handleSwitch = useCallback(async (username: string): Promise<void> => {
     if (username === currentUsername || isSwitchingRef.current) return;
