@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { ComponentProps } from 'react';
 
@@ -10,6 +10,7 @@ interface InfoRowProps {
     text: string;
     iconColor: string;
     textColor: string;
+    onPress?: () => void;
 }
 
 /**
@@ -21,11 +22,18 @@ export const InfoRow: React.FC<InfoRowProps> = ({
     text,
     iconColor,
     textColor,
+    onPress,
 }) => {
     return (
         <View style={styles.infoRow}>
             <FontAwesome name={icon} size={16} color={iconColor} />
-            <Text style={[styles.infoText, { color: textColor }]}>{text}</Text>
+            {onPress ? (
+                <TouchableOpacity onPress={onPress} accessibilityRole="link" accessibilityLabel={text}>
+                    <Text style={[styles.infoText, styles.linkText, { color: textColor }]}>{text}</Text>
+                </TouchableOpacity>
+            ) : (
+                <Text style={[styles.infoText, { color: textColor }]}>{text}</Text>
+            )}
         </View>
     );
 };
@@ -39,5 +47,8 @@ const styles = StyleSheet.create({
     infoText: {
         marginLeft: 8,
         fontSize: 14,
+    },
+    linkText: {
+        textDecorationLine: 'underline',
     },
 });

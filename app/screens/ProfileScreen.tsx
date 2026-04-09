@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   useColorScheme,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -366,6 +367,12 @@ const ProfileScreen = () => {
                     text={profile.website}
                     iconColor={colors.icon}
                     textColor={colors.icon}
+                    onPress={() => {
+                      const url = profile.website!.startsWith('http')
+                        ? profile.website!
+                        : `https://${profile.website}`;
+                      Linking.openURL(url);
+                    }}
                   />
                 )}
               </View>
