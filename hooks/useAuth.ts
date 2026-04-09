@@ -107,9 +107,15 @@ export const useAuth = () => {
    */
   const requireActiveKey = useCallback((): boolean => {
     const username = getCurrentUser();
-    if (!username || getHasActiveKey()) {
-      return true;
+    if (!username) {
+      return false; // No user logged in — caller should not proceed
     }
+    if (getHasActiveKey()) {
+      return true; // Already has active key — caller may proceed
+    }
+    // Navigate to the add-active-key screen.
+    // expo-router's typed push doesn't know this path yet — cast to never
+    // until route types are regenerated.
     router.push({
       pathname: '/screens/AddActiveKeyScreen' as never,
       params: { username },
@@ -147,6 +153,7 @@ export const useAuth = () => {
     logout,
     switchAccount,
     requireActiveKey,
+    setHasActiveKey,
     clearError: () => setAuthError(null),
 
     // Utilities

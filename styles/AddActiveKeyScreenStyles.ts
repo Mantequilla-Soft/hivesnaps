@@ -1,8 +1,5 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { getTheme, palette } from '../constants/Colors';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const FIELD_WIDTH = SCREEN_WIDTH * 0.8;
 
 export const createAddActiveKeyScreenStyles = (isDark: boolean): ReturnType<typeof StyleSheet.create> => {
     const theme = getTheme(isDark ? 'dark' : 'light');
@@ -70,7 +67,8 @@ export const createAddActiveKeyScreenStyles = (isDark: boolean): ReturnType<type
             color: theme.text,
         },
         input: {
-            width: FIELD_WIDTH,
+            width: '100%',
+            maxWidth: 400,
             height: 50,
             borderRadius: 8,
             paddingHorizontal: 16,
@@ -91,7 +89,8 @@ export const createAddActiveKeyScreenStyles = (isDark: boolean): ReturnType<type
             color: palette.error,
         },
         button: {
-            width: FIELD_WIDTH,
+            width: '100%',
+            maxWidth: 400,
             height: 50,
             borderRadius: 8,
             justifyContent: 'center',

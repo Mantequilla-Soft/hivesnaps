@@ -23,7 +23,7 @@ import {
   KeyValidationError,
 } from '../../services/AccountStorageService';
 import { localAuthService, AuthCancelledError, AuthFailedError } from '../../services/LocalAuthService';
-import { useAppStore } from '../../store/context';
+import { useAuth } from '../../hooks/useAuth';
 import { createAddActiveKeyScreenStyles } from '../../styles/AddActiveKeyScreenStyles';
 
 export default function AddActiveKeyScreen(): React.JSX.Element {
@@ -33,7 +33,7 @@ export default function AddActiveKeyScreen(): React.JSX.Element {
 
   const theme = useTheme();
   const router = useRouter();
-  const { setHasActiveKey, selectors } = useAppStore();
+  const { currentUsername, setHasActiveKey } = useAuth();
 
   const styles = useMemo(() => createAddActiveKeyScreenStyles(theme.isDark), [theme.isDark]);
 
@@ -65,7 +65,7 @@ export default function AddActiveKeyScreen(): React.JSX.Element {
       // Validates against blockchain and stores — throws on invalid key
       await accountStorageService.addActiveKey(username, activeKey.trim());
 
-      if (selectors.getCurrentUser() === username) {
+      if (currentUsername === username) {
         setHasActiveKey(true);
       }
 
@@ -164,7 +164,7 @@ export default function AddActiveKeyScreen(): React.JSX.Element {
             </View>
 
             <TouchableOpacity
-              style={styles.cancelButton}
+              style={[styles.cancelButton, { opacity: loading ? 0.4 : 1 }]}
               onPress={() => router.back()}
               disabled={loading}
               accessibilityRole="button"

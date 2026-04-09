@@ -61,7 +61,7 @@ export const palette = {
   transparent: 'transparent',
 
   // Semantic surface tints
-  infoBoxBackgroundLight: 'rgba(0,0,0,0.05)',
+  infoBoxBackgroundLight: 'rgba(0,0,0,0.08)',
   warningBoxBackgroundLight: 'rgba(255,193,7,0.15)',
   infoBoxBackgroundDark: 'rgba(255,255,255,0.07)',
   warningBoxBackgroundDark: 'rgba(255,193,7,0.12)',
