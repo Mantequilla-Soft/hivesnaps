@@ -5,8 +5,6 @@ import {
     Text,
     TextInput,
     Pressable,
-    KeyboardAvoidingView,
-    Platform,
     ScrollView,
     StyleSheet,
     ActivityIndicator,
@@ -102,11 +100,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <KeyboardAvoidingView
-                style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <View style={styles.overlay}>
+            <View style={styles.overlay}>
                     <View style={[styles.content, { backgroundColor: colors.background }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Power Down</Text>
 
@@ -125,7 +119,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                                 </Text>
                             </View>
                         ) : (
-                            <ScrollView showsVerticalScrollIndicator={false}>
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                 {/* Warning box */}
                                 <View style={[styles.warningBox, { backgroundColor: colors.warningBoxBackground }]}>
                                     <FontAwesome name="warning" size={14} color={colors.icon} />
@@ -242,13 +236,11 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                         )}
                     </View>
                 </View>
-            </KeyboardAvoidingView>
         </Modal>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',

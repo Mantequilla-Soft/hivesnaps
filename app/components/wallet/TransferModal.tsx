@@ -5,8 +5,6 @@ import {
     Text,
     TextInput,
     Pressable,
-    KeyboardAvoidingView,
-    Platform,
     ScrollView,
     StyleSheet,
     ActivityIndicator,
@@ -84,12 +82,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <KeyboardAvoidingView
-                style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <View style={styles.overlay}>
-                    <View style={[styles.content, { backgroundColor: colors.background }]}>
+            <View style={styles.overlay}>
+                <View style={[styles.content, { backgroundColor: colors.background }]}>
                         <Text style={[styles.title, { color: colors.text }]}>
                             Transfer {currency}
                         </Text>
@@ -109,7 +103,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                                 </Text>
                             </View>
                         ) : (
-                            <ScrollView showsVerticalScrollIndicator={false}>
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                                 {/* Available balance */}
                                 <View style={[styles.balanceRow, { backgroundColor: colors.bubble }]}>
                                     <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
@@ -225,13 +219,11 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                         )}
                     </View>
                 </View>
-            </KeyboardAvoidingView>
         </Modal>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
