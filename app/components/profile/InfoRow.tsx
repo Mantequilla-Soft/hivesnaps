@@ -28,7 +28,13 @@ export const InfoRow: React.FC<InfoRowProps> = ({
         <View style={styles.infoRow}>
             <FontAwesome name={icon} size={16} color={iconColor} />
             {onPress ? (
-                <TouchableOpacity onPress={onPress} accessibilityRole="link" accessibilityLabel={text}>
+                <TouchableOpacity
+                    onPress={onPress}
+                    accessibilityRole="link"
+                    accessibilityLabel={text}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.linkTouchable}
+                >
                     <Text style={[styles.infoText, styles.linkText, { color: textColor }]}>{text}</Text>
                 </TouchableOpacity>
             ) : (
@@ -50,5 +56,9 @@ const styles = StyleSheet.create({
     },
     linkText: {
         textDecorationLine: 'underline',
+    },
+    linkTouchable: {
+        minHeight: 44,
+        justifyContent: 'center',
     },
 });

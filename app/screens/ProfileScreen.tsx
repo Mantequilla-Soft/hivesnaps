@@ -7,6 +7,7 @@ import {
   useColorScheme,
   ScrollView,
   Linking,
+  Alert,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -367,11 +368,22 @@ const ProfileScreen = () => {
                     text={profile.website}
                     iconColor={colors.icon}
                     textColor={colors.icon}
-                    onPress={() => {
-                      const url = profile.website!.startsWith('http')
-                        ? profile.website!
-                        : `https://${profile.website}`;
-                      Linking.openURL(url);
+                    onPress={async (): Promise<void> => {
+                      const website = profile.website?.trim();
+                      if (!website) return;
+                      const url = /^https?:\/\//i.test(website)
+                        ? website
+                        : `https://${website}`;
+                      try {
+                        const supported = await Linking.canOpenURL(url);
+                        if (!supported) {
+                          Alert.alert('Invalid link', 'This website cannot be opened.');
+                          return;
+                        }
+                        await Linking.openURL(url);
+                      } catch (err: unknown) {
+                        Alert.alert('Link error', err instanceof Error ? err.message : 'Unable to open website');
+                      }
                     }}
                   />
                 )}
