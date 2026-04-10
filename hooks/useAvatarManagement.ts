@@ -229,13 +229,14 @@ export const useAvatarManagement = (currentUsername: string | null) => {
     }
     try {
       const keys = await accountStorageService.getAccountKeys(currentUsername);
-      if (keys?.activeKey) {
+      const storedActiveKey = keys?.activeKey?.trim();
+      if (storedActiveKey) {
         // Stored key available — gate behind biometrics then update directly
         if (await localAuthService.isAvailable()) {
           await localAuthService.authenticate('Confirm avatar update');
         }
         try {
-          await handleUpdateAvatar(keys.activeKey);
+          await handleUpdateAvatar(storedActiveKey);
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Failed to update avatar';
           Alert.alert('Update Failed', msg);
