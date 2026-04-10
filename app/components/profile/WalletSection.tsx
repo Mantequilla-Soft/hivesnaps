@@ -34,41 +34,27 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
 
     if (!isOwnProfile || !hasActiveKey) return null;
 
+    const rows: { label: string; value: string }[] = [
+        { label: 'HIVE', value: hive !== undefined ? hive.toFixed(3) : '–' },
+        { label: 'HBD',  value: hbd  !== undefined ? hbd.toFixed(3)  : '–' },
+        { label: 'HP',   value: hivePower !== undefined ? hivePower.toFixed(0) : '–' },
+    ];
+
     return (
         <View style={[localStyles.container, { backgroundColor: colors.bubble, borderColor: colors.border }]}>
-            {/* Header row */}
+            {/* Header */}
             <View style={localStyles.headerRow}>
                 <FontAwesome name="credit-card" size={13} color={colors.textSecondary} />
                 <Text style={[localStyles.sectionTitle, { color: colors.textSecondary }]}>WALLET</Text>
             </View>
 
-            {/* Balance row — three stacked items */}
-            <View style={localStyles.balanceRow}>
-                <View style={localStyles.balanceItem}>
-                    <Text style={[localStyles.balanceLabel, { color: colors.textSecondary }]}>HIVE</Text>
-                    <Text style={[localStyles.balanceValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
-                        {hive !== undefined ? hive.toFixed(3) : '–'}
-                    </Text>
+            {/* Balance rows */}
+            {rows.map(({ label, value }) => (
+                <View key={label} style={localStyles.balanceRow}>
+                    <Text style={[localStyles.balanceLabel, { color: colors.textSecondary }]}>{label}</Text>
+                    <Text style={[localStyles.balanceValue, { color: colors.text }]}>{value}</Text>
                 </View>
-
-                <View style={[localStyles.divider, { backgroundColor: colors.border }]} />
-
-                <View style={localStyles.balanceItem}>
-                    <Text style={[localStyles.balanceLabel, { color: colors.textSecondary }]}>HBD</Text>
-                    <Text style={[localStyles.balanceValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
-                        {hbd !== undefined ? hbd.toFixed(3) : '–'}
-                    </Text>
-                </View>
-
-                <View style={[localStyles.divider, { backgroundColor: colors.border }]} />
-
-                <View style={localStyles.balanceItem}>
-                    <Text style={[localStyles.balanceLabel, { color: colors.textSecondary }]}>HP</Text>
-                    <Text style={[localStyles.balanceValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
-                        {hivePower !== undefined ? hivePower.toFixed(0) : '–'}
-                    </Text>
-                </View>
-            </View>
+            ))}
 
             {/* Open Wallet button */}
             <TouchableOpacity
@@ -77,9 +63,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel="Open wallet"
             >
-                <Text style={[localStyles.walletButtonText, { color: colors.buttonText }]}>
-                    Open Wallet
-                </Text>
+                <Text style={[localStyles.walletButtonText, { color: colors.buttonText }]}>Open Wallet</Text>
                 <FontAwesome name="chevron-right" size={11} color={colors.buttonText} />
             </TouchableOpacity>
         </View>
@@ -90,7 +74,7 @@ const localStyles = StyleSheet.create({
     container: {
         borderRadius: 12,
         borderWidth: 1,
-        padding: 14,
+        padding: 16,
         marginHorizontal: 16,
         marginBottom: 12,
     },
@@ -107,39 +91,29 @@ const localStyles = StyleSheet.create({
     },
     balanceRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 14,
-    },
-    balanceItem: {
-        flex: 1,
-        alignItems: 'center',
-        gap: 3,
+        paddingVertical: 6,
     },
     balanceLabel: {
-        fontSize: 10,
+        fontSize: 15,
         fontWeight: '500',
-        letterSpacing: 0.5,
     },
     balanceValue: {
         fontSize: 15,
         fontWeight: '700',
-        minWidth: 0,
-    },
-    divider: {
-        width: 1,
-        height: 32,
-        marginHorizontal: 4,
     },
     walletButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        paddingVertical: 9,
+        paddingVertical: 10,
         borderRadius: 8,
+        marginTop: 12,
     },
     walletButtonText: {
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '600',
     },
 });
