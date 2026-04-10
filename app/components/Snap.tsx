@@ -235,13 +235,17 @@ const Snap: React.FC<SnapProps> = ({
     // Support hyphens within hashtags: #react-native, #covid-19, etc.
     // Pattern: #word(s) optionally followed by -word(s) (prevents starting/ending with -)
     return text.replace(/(^|[^\/\w])#([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)/g, (match, prefix, hashtag, offset, string) => {
-      // Skip if already inside a markdown link [#tag](...) — same guard as linkifyMentions
       const beforeMatch = string.substring(0, offset + prefix.length);
+      const afterMatch = string.substring(offset + match.length);
+      // Skip if already inside a markdown link [#tag](...)
       const openBrackets = (beforeMatch.match(/\[/g) || []).length;
       const closeBrackets = (beforeMatch.match(/\]/g) || []).length;
-      if (openBrackets > closeBrackets) {
-        return match;
-      }
+      if (openBrackets > closeBrackets) return match;
+      // Skip if inside a raw HTML anchor <a ...>#tag</a>
+      const insideHtmlAnchor =
+        beforeMatch.lastIndexOf('<a') > beforeMatch.lastIndexOf('</a>') &&
+        afterMatch.includes('</a>');
+      if (insideHtmlAnchor) return match;
       return `${prefix}[#${hashtag}](hashtag://${hashtag})`;
     });
   }
@@ -589,8 +593,12 @@ const Snap: React.FC<SnapProps> = ({
 
   const markdownDisplayStyles = getMarkdownStyles(colors, isDark);
 
-  // Preprocess HTML tags out of the body so simple HTML (<br/>, <sub>, etc.)
-  // doesn't force the RenderHtml path with raw markdown text inside it.
+  // Determine HTML vs Markdown BEFORE preprocessing so sub/sup (e.g. CO<sub>2</sub>)
+  // still routes to RenderHtml. preprocessForMarkdown strips those tags, so checking
+  // containsHtml after preprocessing would miss them.
+  const bodyIsHtml = containsHtml(cleanTextBody);
+  // Preprocess simple HTML (<br/>, <sub>, <sup>, etc.) to markdown for the Markdown path.
+  // RenderHtml path still receives the original cleanTextBody via source={{ html: cleanTextBody }}.
   const finalRenderedBody = preprocessForMarkdown(cleanTextBody);
 
   return (
@@ -788,7 +796,6 @@ const Snap: React.FC<SnapProps> = ({
         {/* Body */}
         {cleanTextBody.length > 0 &&
           (() => {
-            const isHtml = containsHtml(finalRenderedBody);
             if (onContentPress) {
               return (
                 <Pressable
@@ -797,7 +804,7 @@ const Snap: React.FC<SnapProps> = ({
                   accessibilityRole='button'
                   accessibilityLabel='View conversation'
                 >
-                  {isHtml ? (
+                  {bodyIsHtml ? (
                     <RenderHtml
                       contentWidth={contentWidth}
                       source={{ html: cleanTextBody }}
@@ -811,6 +818,8 @@ const Snap: React.FC<SnapProps> = ({
                       tagsStyles={{
                         a: { color: colors.icon },
                         u: { textDecorationLine: 'underline' },
+                        sub: { fontSize: 12 },
+                        sup: { fontSize: 12 },
                         ...(isReply && { p: { marginBottom: 12, lineHeight: 20 } }),
                       }}
                       renderers={{
@@ -837,7 +846,7 @@ const Snap: React.FC<SnapProps> = ({
                 </Pressable>
               );
             } else {
-              return isHtml ? (
+              return bodyIsHtml ? (
                 <RenderHtml
                   contentWidth={contentWidth}
                   source={{ html: cleanTextBody }}
@@ -851,6 +860,8 @@ const Snap: React.FC<SnapProps> = ({
                   tagsStyles={{
                     a: { color: colors.icon },
                     u: { textDecorationLine: 'underline' },
+                    sub: { fontSize: 12 },
+                    sup: { fontSize: 12 },
                     ...(isReply && { p: { marginBottom: 12, lineHeight: 20 } }),
                   }}
                   renderers={{
