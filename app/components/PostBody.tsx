@@ -241,6 +241,8 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             br: { height: 16, marginBottom: 8 },
             div: { marginBottom: 8 },
             center: { textAlign: 'center', marginBottom: 16 },
+            sub: { fontSize: 12 },
+            sup: { fontSize: 12 },
             h1: {
               color: colors.text,
               fontSize: 24,
@@ -276,6 +278,21 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             b: { fontWeight: 'bold' },
             em: { fontStyle: 'italic' },
             i: { fontStyle: 'italic' },
+          }}
+          renderersProps={{
+            a: {
+              onPress: (_event: any, href: string) => {
+                if (href?.startsWith('hashtag://')) {
+                  const tag = href.replace('hashtag://', '');
+                  router.push(`/screens/DiscoveryScreen?hashtag=${tag}` as any);
+                } else if (href?.startsWith('profile://')) {
+                  const username = href.replace('profile://', '');
+                  router.push(`/screens/ProfileScreen?username=${username}` as any);
+                } else if (href) {
+                  Linking.openURL(href).catch(() => {});
+                }
+              },
+            },
           }}
         />
       ) : (
@@ -396,11 +413,29 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
                 );
               }
 
+              // Handle hashtag:// deep links from Ecency and similar apps
+              if (href && href.startsWith('hashtag://')) {
+                const tag = href.replace('hashtag://', '');
+                return (
+                  <Text
+                    key={node.key}
+                    onPress={() =>
+                      router.push(`/screens/DiscoveryScreen?hashtag=${tag}` as any)
+                    }
+                    style={{ color: colors.button, fontWeight: 'bold' }}
+                    accessibilityRole='link'
+                    accessibilityLabel={`Browse #${tag}`}
+                  >
+                    {children}
+                  </Text>
+                );
+              }
+
               // Handle regular links
               return (
                 <Text
                   key={node.key}
-                  onPress={() => Linking.openURL(href)}
+                  onPress={() => Linking.openURL(href).catch(() => {})}
                   style={{
                     color: colors.button,
                     textDecorationLine: 'underline',
