@@ -938,6 +938,18 @@ class AccountStorageServiceImpl {
     }
 
     /**
+     * Check whether a legacy (v1) account is present in SecureStore
+     * WITHOUT triggering automatic migration.
+     *
+     * Used by the startup flow to decide whether to show the migration screen.
+     */
+    async hasLegacyAccount(): Promise<boolean> {
+        const username = await SecureStore.getItemAsync('hive_username');
+        const postingKey = await SecureStore.getItemAsync('hive_posting_key');
+        return !!(username && postingKey);
+    }
+
+    /**
      * Clear all stored accounts and keys
      * USE WITH CAUTION - This removes all data
      * Thread-safe: uses modification lock
