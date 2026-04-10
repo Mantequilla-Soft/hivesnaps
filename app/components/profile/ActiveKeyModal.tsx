@@ -67,8 +67,9 @@ export const ActiveKeyModal: React.FC<ActiveKeyModalProps> = ({
                                 </Text>
                             </View>
                             <Text style={[styles.securityText, { color: colors.text }]}>
-                                To change your avatar, your active key is needed. This will be used to sign the
-                                transaction only. It will not be stored on this phone for security reasons.
+                                Your active key is needed to sign this transaction. It will not be saved from
+                                this screen. To avoid re-entering it, you can store it securely via
+                                Profile → Add Active Key.
                             </Text>
                         </View>
 

@@ -10,6 +10,8 @@ import { avatarService } from '../services/AvatarService';
 import { saveAvatarImage } from '../utils/avatarUtils';
 import { useAppStore } from '../store/context';
 import { convertImageSmart } from '../utils/imageConverter';
+import { accountStorageService } from '../services/AccountStorageService';
+import { localAuthService, AuthCancelledError } from '../services/LocalAuthService';
 
 const client = getClient();
 
@@ -214,14 +216,41 @@ export const useAvatarManagement = (currentUsername: string | null) => {
     }
   };
 
-  const handleNextStep = () => {
-    // Move to active key input modal
-    setEditAvatarModalVisible(false);
-    setActiveKeyModalVisible(true);
+  const handleNextStep = async (): Promise<void> => {
+    if (!currentUsername) {
+      setEditAvatarModalVisible(false);
+      setActiveKeyModalVisible(true);
+      return;
+    }
+    try {
+      const keys = await accountStorageService.getAccountKeys(currentUsername);
+      if (keys?.activeKey) {
+        // Stored key available — gate behind biometrics then update directly
+        if (await localAuthService.isAvailable()) {
+          await localAuthService.authenticate('Confirm avatar update');
+        }
+        try {
+          await handleUpdateAvatar(keys.activeKey);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Failed to update avatar';
+          Alert.alert('Update Failed', msg);
+        }
+      } else {
+        // No stored key — fall through to manual entry
+        setEditAvatarModalVisible(false);
+        setActiveKeyModalVisible(true);
+      }
+    } catch (err) {
+      if (err instanceof AuthCancelledError) return;
+      // On any other error (e.g. storage read failure), fall through to manual entry
+      setEditAvatarModalVisible(false);
+      setActiveKeyModalVisible(true);
+    }
   };
 
-  const handleUpdateAvatar = async () => {
-    if (!newAvatarImage || !currentUsername || !activeKeyInput.trim()) return;
+  const handleUpdateAvatar = async (activeKeyOverride?: string): Promise<void> => {
+    const keyStr = (activeKeyOverride ?? activeKeyInput).trim();
+    if (!newAvatarImage || !currentUsername || !keyStr) return;
 
     setAvatarUpdateLoading(true);
     setAvatarUpdateSuccess(false);
@@ -230,7 +259,6 @@ export const useAvatarManagement = (currentUsername: string | null) => {
       // Validate and create active key
       let activeKey;
       try {
-        const keyStr = activeKeyInput.trim();
         // Basic validation: should start with 5 and be roughly the right length
         if (!keyStr.startsWith('5') || keyStr.length < 50) {
           throw new Error('Invalid key format');
