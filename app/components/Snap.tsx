@@ -52,6 +52,7 @@ import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
 import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
+import { renderHiveToHtml } from '../../utils/renderHive';
 
 interface SnapProps {
   snap: SnapData;
@@ -601,6 +602,18 @@ const Snap: React.FC<SnapProps> = ({
   // Route based on the original body (before linkification) so HTML tags like
   // <sub>/<sup> are still detectable, and the HTML renderer gets clean HTML (not markdown).
   const bodyIsHtml = containsHtml(htmlBody);
+  // When body has HTML, run it through Ecency's renderPostBody so that mixed
+  // HTML+Markdown (e.g. <sub>[link text](url)</sub>) gets converted to proper HTML
+  // before passing to RenderHtml. Falls back to raw htmlBody if processing fails.
+  const processedHtmlBody = useMemo(() => {
+    if (!bodyIsHtml) return htmlBody;
+    try {
+      const result = renderHiveToHtml(htmlBody, { breaks: true, proxifyImages: false });
+      return result && result.trim().length > 0 ? result : htmlBody;
+    } catch {
+      return htmlBody;
+    }
+  }, [bodyIsHtml, htmlBody]);
   // Markdown path: preprocess simple HTML tags out of the linkified body.
   const finalRenderedBody = preprocessForMarkdown(markdownBody);
 
@@ -810,7 +823,7 @@ const Snap: React.FC<SnapProps> = ({
                   {bodyIsHtml ? (
                     <RenderHtml
                       contentWidth={contentWidth}
-                      source={{ html: htmlBody }}
+                      source={{ html: processedHtmlBody }}
                       baseStyle={{
                         color: colors.text,
                         fontSize: isReply ? 14 : 15,
@@ -824,6 +837,30 @@ const Snap: React.FC<SnapProps> = ({
                         sub: { fontSize: 12 },
                         sup: { fontSize: 12 },
                         ...(isReply && { p: { marginBottom: 12, lineHeight: 20 } }),
+                      }}
+                      renderersProps={{
+                        a: {
+                          onPress: (_event: unknown, href?: string): void => {
+                            if (!href) return;
+                            if (href.startsWith('hashtag://')) {
+                              const tag = href.replace('hashtag://', '');
+                              if (isReply) {
+                                router.push({ pathname: '/screens/DiscoveryScreen', params: { hashtag: tag } } as any);
+                              } else {
+                                onHashtagPress && onHashtagPress(tag);
+                              }
+                            } else if (href.startsWith('profile://')) {
+                              const username = href.replace('profile://', '');
+                              if (isReply) {
+                                router.push(`/screens/ProfileScreen?username=${username}` as any);
+                              } else {
+                                onUserPress && onUserPress(username);
+                              }
+                            } else {
+                              Linking.openURL(href).catch(() => {});
+                            }
+                          },
+                        },
                       }}
                       renderers={{
                         video: (props: any) => {
