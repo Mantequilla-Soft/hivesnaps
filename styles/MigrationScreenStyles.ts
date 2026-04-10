@@ -1,6 +1,17 @@
 import { StyleSheet } from 'react-native';
 import { getTheme } from '../constants/Colors';
 
+/**
+ * Appends a two-digit hex alpha suffix to a hex color string.
+ * Only use with known hex colors from the theme (e.g. '#1DA1F2').
+ */
+function withAlpha(hex: string, alpha: string): string {
+    return hex + alpha;
+}
+
+// Return type is intentionally inferred — StyleSheet.create's generic overload
+// produces a narrowed named-style record; an explicit ReturnType<typeof StyleSheet.create>
+// would widen it to ViewStyle | TextStyle | ImageStyle, breaking style prop assignments.
 export const createMigrationScreenStyles = (isDark: boolean) => {
     const theme = getTheme(isDark ? 'dark' : 'light');
 
@@ -22,7 +33,7 @@ export const createMigrationScreenStyles = (isDark: boolean) => {
             justifyContent: 'center',
             alignItems: 'center',
             marginBottom: 24,
-            backgroundColor: (theme.button as string) + '20',
+            backgroundColor: withAlpha(theme.button, '20'),
         },
         title: {
             fontSize: 28,
@@ -61,7 +72,7 @@ export const createMigrationScreenStyles = (isDark: boolean) => {
             borderRadius: 20,
             justifyContent: 'center',
             alignItems: 'center',
-            backgroundColor: (theme.button as string) + '15',
+            backgroundColor: withAlpha(theme.button, '15'),
         },
         featureContent: {
             flex: 1,

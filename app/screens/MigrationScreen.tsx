@@ -1,12 +1,11 @@
+import React, { useState, useMemo } from 'react';
 import {
     TouchableOpacity,
-    useColorScheme,
     ScrollView,
     ActivityIndicator,
     Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useMemo } from 'react';
 import { Text, View } from '../../components/Themed';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +15,7 @@ import { useAppStore } from '../../store/context';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 
-export default function MigrationScreen() {
+export default function MigrationScreen(): React.JSX.Element {
     const [loading, setLoading] = useState(false);
 
     const theme = useTheme();
@@ -29,7 +28,7 @@ export default function MigrationScreen() {
         [theme.isDark]
     );
 
-    const handleMigrate = async () => {
+    const handleMigrate = async (): Promise<void> => {
         setLoading(true);
         try {
             // getAccounts() triggers legacy migration internally —
@@ -104,16 +103,22 @@ export default function MigrationScreen() {
                         icon="lock-closed"
                         title="Device-Level Protection"
                         description="Your keys are protected by your device's OS security"
+                        styles={styles}
+                        buttonColor={theme.button}
                     />
                     <FeatureItem
                         icon="people"
                         title="Multiple Accounts"
                         description="Add and switch between multiple Hive accounts"
+                        styles={styles}
+                        buttonColor={theme.button}
                     />
                     <FeatureItem
                         icon="key"
                         title="Active Key Support"
                         description="Optionally store your active key for wallet operations"
+                        styles={styles}
+                        buttonColor={theme.button}
                     />
                 </View>
 
@@ -149,19 +154,15 @@ interface FeatureItemProps {
     icon: keyof typeof Ionicons.glyphMap;
     title: string;
     description: string;
+    styles: ReturnType<typeof createMigrationScreenStyles>;
+    buttonColor: string;
 }
 
-function FeatureItem({ icon, title, description }: FeatureItemProps) {
-    const theme = useTheme();
-    const styles = useMemo(
-        () => createMigrationScreenStyles(theme.isDark),
-        [theme.isDark]
-    );
-
+function FeatureItem({ icon, title, description, styles, buttonColor }: FeatureItemProps): React.JSX.Element {
     return (
         <View style={styles.featureItem}>
             <View style={styles.featureIcon}>
-                <Ionicons name={icon} size={22} color={theme.button} />
+                <Ionicons name={icon} size={22} color={buttonColor} />
             </View>
             <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>{title}</Text>
