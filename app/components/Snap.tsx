@@ -51,6 +51,7 @@ import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
+import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
 
 interface SnapProps {
   snap: SnapData;
@@ -233,7 +234,14 @@ const Snap: React.FC<SnapProps> = ({
     // Only match hashtags that are NOT part of URLs (not preceded by /)
     // Support hyphens within hashtags: #react-native, #covid-19, etc.
     // Pattern: #word(s) optionally followed by -word(s) (prevents starting/ending with -)
-    return text.replace(/(^|[^\/\w])#([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)/g, (match, prefix, hashtag) => {
+    return text.replace(/(^|[^\/\w])#([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)/g, (match, prefix, hashtag, offset, string) => {
+      // Skip if already inside a markdown link [#tag](...) — same guard as linkifyMentions
+      const beforeMatch = string.substring(0, offset + prefix.length);
+      const openBrackets = (beforeMatch.match(/\[/g) || []).length;
+      const closeBrackets = (beforeMatch.match(/\]/g) || []).length;
+      if (openBrackets > closeBrackets) {
+        return match;
+      }
       return `${prefix}[#${hashtag}](hashtag://${hashtag})`;
     });
   }
@@ -581,8 +589,9 @@ const Snap: React.FC<SnapProps> = ({
 
   const markdownDisplayStyles = getMarkdownStyles(colors, isDark);
 
-  // Where cleanTextBody is derived before rendering Markdown/HTML
-  const finalRenderedBody = cleanTextBody;
+  // Preprocess HTML tags out of the body so simple HTML (<br/>, <sub>, etc.)
+  // doesn't force the RenderHtml path with raw markdown text inside it.
+  const finalRenderedBody = preprocessForMarkdown(cleanTextBody);
 
   return (
     <View
@@ -779,7 +788,7 @@ const Snap: React.FC<SnapProps> = ({
         {/* Body */}
         {cleanTextBody.length > 0 &&
           (() => {
-            const isHtml = containsHtml(cleanTextBody);
+            const isHtml = containsHtml(finalRenderedBody);
             if (onContentPress) {
               return (
                 <Pressable
