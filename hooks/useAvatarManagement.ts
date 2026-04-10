@@ -216,10 +216,15 @@ export const useAvatarManagement = (currentUsername: string | null) => {
     }
   };
 
+  const openManualKeyEntry = (): void => {
+    setEditAvatarModalVisible(false);
+    setActiveKeyModalVisible(true);
+  };
+
   const handleNextStep = async (): Promise<void> => {
     if (!currentUsername) {
       setEditAvatarModalVisible(false);
-      setActiveKeyModalVisible(true);
+      Alert.alert('Session Required', 'Please sign in again to update your avatar.');
       return;
     }
     try {
@@ -237,14 +242,12 @@ export const useAvatarManagement = (currentUsername: string | null) => {
         }
       } else {
         // No stored key — fall through to manual entry
-        setEditAvatarModalVisible(false);
-        setActiveKeyModalVisible(true);
+        openManualKeyEntry();
       }
     } catch (err) {
       if (err instanceof AuthCancelledError) return;
       // On any other error (e.g. storage read failure), fall through to manual entry
-      setEditAvatarModalVisible(false);
-      setActiveKeyModalVisible(true);
+      openManualKeyEntry();
     }
   };
 
