@@ -474,12 +474,17 @@ const Snap: React.FC<SnapProps> = ({
   const spoilerData = convertSpoilerSyntax(textBody);
   textBody = spoilerData.processedText;
 
+  // Preserve the pre-linkified body for the HTML renderer path.
+  // RenderHtml only understands HTML — passing markdown syntax (profile://, hashtag://)
+  // would show as raw text. The linkified version is only for the Markdown path.
+  const htmlBody = textBody;
+
   // Add: linkify URLs first, then mentions, then hashtags (order matters!)
-  textBody = linkifyUrls(textBody);
-  textBody = linkifyMentions(textBody);
-  textBody = processHashtags(textBody);
-  // Remove extraction of external links
-  const cleanTextBody = textBody; // Just use the processed textBody
+  let markdownBody = textBody;
+  markdownBody = linkifyUrls(markdownBody);
+  markdownBody = linkifyMentions(markdownBody);
+  markdownBody = processHashtags(markdownBody);
+  const cleanTextBody = markdownBody;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
 
@@ -593,13 +598,11 @@ const Snap: React.FC<SnapProps> = ({
 
   const markdownDisplayStyles = getMarkdownStyles(colors, isDark);
 
-  // Determine HTML vs Markdown BEFORE preprocessing so sub/sup (e.g. CO<sub>2</sub>)
-  // still routes to RenderHtml. preprocessForMarkdown strips those tags, so checking
-  // containsHtml after preprocessing would miss them.
-  const bodyIsHtml = containsHtml(cleanTextBody);
-  // Preprocess simple HTML (<br/>, <sub>, <sup>, etc.) to markdown for the Markdown path.
-  // RenderHtml path still receives the original cleanTextBody via source={{ html: cleanTextBody }}.
-  const finalRenderedBody = preprocessForMarkdown(cleanTextBody);
+  // Route based on the original body (before linkification) so HTML tags like
+  // <sub>/<sup> are still detectable, and the HTML renderer gets clean HTML (not markdown).
+  const bodyIsHtml = containsHtml(htmlBody);
+  // Markdown path: preprocess simple HTML tags out of the linkified body.
+  const finalRenderedBody = preprocessForMarkdown(markdownBody);
 
   return (
     <View
@@ -807,7 +810,7 @@ const Snap: React.FC<SnapProps> = ({
                   {bodyIsHtml ? (
                     <RenderHtml
                       contentWidth={contentWidth}
-                      source={{ html: cleanTextBody }}
+                      source={{ html: htmlBody }}
                       baseStyle={{
                         color: colors.text,
                         fontSize: isReply ? 14 : 15,
@@ -849,7 +852,7 @@ const Snap: React.FC<SnapProps> = ({
               return bodyIsHtml ? (
                 <RenderHtml
                   contentWidth={contentWidth}
-                  source={{ html: cleanTextBody }}
+                  source={{ html: htmlBody }}
                   baseStyle={{
                     color: colors.text,
                     fontSize: isReply ? 14 : 15,
