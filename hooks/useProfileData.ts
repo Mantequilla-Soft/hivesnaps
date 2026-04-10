@@ -10,6 +10,7 @@ export interface ProfileData {
   avatarUrl?: string;
   reputation: number;
   hivePower: number;
+  hive: number;
   hbd: number;
   displayName?: string;
   about?: string;
@@ -258,7 +259,8 @@ export const useProfileData = (username: string | undefined) => {
           : cachedAvatar,
         reputation: reputation, // Direct from API - no need for rounding!
         hivePower: Math.round(hivePower * 100) / 100,
-        hbd: Math.round(hbdBalance * 100) / 100,
+        hive: Math.round(hiveBalance * 1000) / 1000,
+        hbd: Math.round(hbdBalance * 1000) / 1000,
         displayName: profileMeta.name,
         about: profileMeta.about,
         location: profileMeta.location,
