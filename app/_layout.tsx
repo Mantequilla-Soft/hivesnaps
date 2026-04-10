@@ -91,6 +91,7 @@ function RootLayoutNav() {
                 <Stack.Screen name='screens/DiscoveryScreen' />
                 <Stack.Screen name='screens/AccountSelectionScreen' />
                 <Stack.Screen name='screens/AddActiveKeyScreen' />
+                <Stack.Screen name='screens/MigrationScreen' />
                 <Stack.Screen name='modal' options={{ presentation: 'modal' }} />
               </Stack>
             </TOSWrapper>
