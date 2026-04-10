@@ -30,5 +30,25 @@ export function renderHiveToHtml(
     html = renderPostBody(raw || '', false, false);
   }
 
-  return typeof html === 'string' ? html : String(html ?? '');
+  const result = typeof html === 'string' ? html : String(html ?? '');
+  return sanitizeEcencyHtml(result);
+}
+
+/**
+ * Ecency's renderPostBody (forApp=true) stores URLs in data-href instead of href,
+ * and mangles non-http schemes by prepending "https://" (e.g. hashtag://hive →
+ * https://hashtag://hive). Fix both so react-native-render-html can handle links.
+ */
+function sanitizeEcencyHtml(html: string): string {
+  return (
+    html
+      // data-href="https://hashtag://tag" → href="hashtag://tag"
+      .replace(/data-href="https?:\/\/(hashtag:\/\/[^"]+)"/gi, 'href="$1"')
+      // data-href="https://profile://user" → href="profile://user"
+      .replace(/data-href="https?:\/\/(profile:\/\/[^"]+)"/gi, 'href="$1"')
+      // data-href="https://..." → href="https://..."
+      .replace(/data-href="(https?:\/\/[^"]+)"/gi, 'href="$1"')
+      // Any remaining data-href → href (catch-all)
+      .replace(/data-href="([^"]*)"/gi, 'href="$1"')
+  );
 }

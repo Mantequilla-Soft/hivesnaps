@@ -281,14 +281,21 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
           }}
           renderersProps={{
             a: {
-              onPress: (_event: any, href: string) => {
-                if (href?.startsWith('hashtag://')) {
+              onPress: (_event: unknown, href?: string): void => {
+                if (!href) return;
+                if (href.startsWith('hashtag://')) {
                   const tag = href.replace('hashtag://', '');
-                  router.push(`/screens/DiscoveryScreen?hashtag=${tag}` as any);
-                } else if (href?.startsWith('profile://')) {
+                  router.push({
+                    pathname: '/screens/DiscoveryScreen',
+                    params: { hashtag: tag },
+                  });
+                } else if (href.startsWith('profile://')) {
                   const username = href.replace('profile://', '');
-                  router.push(`/screens/ProfileScreen?username=${username}` as any);
-                } else if (href) {
+                  router.push({
+                    pathname: '/screens/ProfileScreen',
+                    params: { username },
+                  });
+                } else {
                   Linking.openURL(href).catch(() => {});
                 }
               },
@@ -399,7 +406,10 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
                   <Text
                     key={node.key}
                     onPress={() =>
-                      router.push(`/screens/ProfileScreen?username=${username}` as any)
+                      router.push({
+                        pathname: '/screens/ProfileScreen',
+                        params: { username },
+                      })
                     }
                     style={{
                       color: colors.button,
@@ -420,7 +430,10 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
                   <Text
                     key={node.key}
                     onPress={() =>
-                      router.push(`/screens/DiscoveryScreen?hashtag=${tag}` as any)
+                      router.push({
+                        pathname: '/screens/DiscoveryScreen',
+                        params: { hashtag: tag },
+                      })
                     }
                     style={{ color: colors.button, fontWeight: 'bold' }}
                     accessibilityRole='link'
