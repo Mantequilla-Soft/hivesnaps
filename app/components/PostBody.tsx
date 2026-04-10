@@ -241,6 +241,8 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             br: { height: 16, marginBottom: 8 },
             div: { marginBottom: 8 },
             center: { textAlign: 'center', marginBottom: 16 },
+            sub: { fontSize: 12 },
+            sup: { fontSize: 12 },
             h1: {
               color: colors.text,
               fontSize: 24,
@@ -276,6 +278,28 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             b: { fontWeight: 'bold' },
             em: { fontStyle: 'italic' },
             i: { fontStyle: 'italic' },
+          }}
+          renderersProps={{
+            a: {
+              onPress: (_event: unknown, href?: string): void => {
+                if (!href) return;
+                if (href.startsWith('hashtag://')) {
+                  const tag = href.replace('hashtag://', '');
+                  router.push({
+                    pathname: '/screens/DiscoveryScreen',
+                    params: { hashtag: tag },
+                  });
+                } else if (href.startsWith('profile://')) {
+                  const username = href.replace('profile://', '');
+                  router.push({
+                    pathname: '/screens/ProfileScreen',
+                    params: { username },
+                  });
+                } else {
+                  Linking.openURL(href).catch(() => {});
+                }
+              },
+            },
           }}
         />
       ) : (
@@ -382,7 +406,10 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
                   <Text
                     key={node.key}
                     onPress={() =>
-                      router.push(`/screens/ProfileScreen?username=${username}` as any)
+                      router.push({
+                        pathname: '/screens/ProfileScreen',
+                        params: { username },
+                      })
                     }
                     style={{
                       color: colors.button,
@@ -396,11 +423,35 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
                 );
               }
 
+              // Handle hashtag:// deep links from Ecency and similar apps
+              if (href && href.startsWith('hashtag://')) {
+                const tag = href.replace('hashtag://', '');
+                return (
+                  <Text
+                    key={node.key}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/screens/DiscoveryScreen',
+                        params: { hashtag: tag },
+                      })
+                    }
+                    style={{ color: colors.button, fontWeight: 'bold' }}
+                    accessibilityRole='link'
+                    accessibilityLabel={`Browse #${tag}`}
+                  >
+                    {children}
+                  </Text>
+                );
+              }
+
               // Handle regular links
+              if (!href) {
+                return <Text key={node.key} style={{ color: colors.text }}>{children}</Text>;
+              }
               return (
                 <Text
                   key={node.key}
-                  onPress={() => Linking.openURL(href)}
+                  onPress={() => Linking.openURL(href).catch(() => {})}
                   style={{
                     color: colors.button,
                     textDecorationLine: 'underline',

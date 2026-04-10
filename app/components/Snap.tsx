@@ -51,6 +51,8 @@ import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
+import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
+import { renderHiveToHtml } from '../../utils/renderHive';
 
 interface SnapProps {
   snap: SnapData;
@@ -233,7 +235,18 @@ const Snap: React.FC<SnapProps> = ({
     // Only match hashtags that are NOT part of URLs (not preceded by /)
     // Support hyphens within hashtags: #react-native, #covid-19, etc.
     // Pattern: #word(s) optionally followed by -word(s) (prevents starting/ending with -)
-    return text.replace(/(^|[^\/\w])#([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)/g, (match, prefix, hashtag) => {
+    return text.replace(/(^|[^\/\w])#([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)/g, (match, prefix, hashtag, offset, string) => {
+      const beforeMatch = string.substring(0, offset + prefix.length);
+      const afterMatch = string.substring(offset + match.length);
+      // Skip if already inside a markdown link [#tag](...)
+      const openBrackets = (beforeMatch.match(/\[/g) || []).length;
+      const closeBrackets = (beforeMatch.match(/\]/g) || []).length;
+      if (openBrackets > closeBrackets) return match;
+      // Skip if inside a raw HTML anchor <a ...>#tag</a>
+      const insideHtmlAnchor =
+        beforeMatch.lastIndexOf('<a') > beforeMatch.lastIndexOf('</a>') &&
+        afterMatch.includes('</a>');
+      if (insideHtmlAnchor) return match;
       return `${prefix}[#${hashtag}](hashtag://${hashtag})`;
     });
   }
@@ -462,12 +475,17 @@ const Snap: React.FC<SnapProps> = ({
   const spoilerData = convertSpoilerSyntax(textBody);
   textBody = spoilerData.processedText;
 
+  // Preserve the pre-linkified body for the HTML renderer path.
+  // RenderHtml only understands HTML — passing markdown syntax (profile://, hashtag://)
+  // would show as raw text. The linkified version is only for the Markdown path.
+  const htmlBody = textBody;
+
   // Add: linkify URLs first, then mentions, then hashtags (order matters!)
-  textBody = linkifyUrls(textBody);
-  textBody = linkifyMentions(textBody);
-  textBody = processHashtags(textBody);
-  // Remove extraction of external links
-  const cleanTextBody = textBody; // Just use the processed textBody
+  let markdownBody = textBody;
+  markdownBody = linkifyUrls(markdownBody);
+  markdownBody = linkifyMentions(markdownBody);
+  markdownBody = processHashtags(markdownBody);
+  const cleanTextBody = markdownBody;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
 
@@ -581,8 +599,23 @@ const Snap: React.FC<SnapProps> = ({
 
   const markdownDisplayStyles = getMarkdownStyles(colors, isDark);
 
-  // Where cleanTextBody is derived before rendering Markdown/HTML
-  const finalRenderedBody = cleanTextBody;
+  // Route based on the original body (before linkification) so HTML tags like
+  // <sub>/<sup> are still detectable, and the HTML renderer gets clean HTML (not markdown).
+  const bodyIsHtml = containsHtml(htmlBody);
+  // When body has HTML, run it through Ecency's renderPostBody so that mixed
+  // HTML+Markdown (e.g. <sub>[link text](url)</sub>) gets converted to proper HTML
+  // before passing to RenderHtml. Falls back to raw htmlBody if processing fails.
+  const processedHtmlBody = useMemo(() => {
+    if (!bodyIsHtml) return htmlBody;
+    try {
+      const result = renderHiveToHtml(htmlBody, { breaks: true, proxifyImages: false });
+      return result && result.trim().length > 0 ? result : htmlBody;
+    } catch {
+      return htmlBody;
+    }
+  }, [bodyIsHtml, htmlBody]);
+  // Markdown path: preprocess simple HTML tags out of the linkified body.
+  const finalRenderedBody = preprocessForMarkdown(markdownBody);
 
   return (
     <View
@@ -779,7 +812,6 @@ const Snap: React.FC<SnapProps> = ({
         {/* Body */}
         {cleanTextBody.length > 0 &&
           (() => {
-            const isHtml = containsHtml(cleanTextBody);
             if (onContentPress) {
               return (
                 <Pressable
@@ -788,10 +820,10 @@ const Snap: React.FC<SnapProps> = ({
                   accessibilityRole='button'
                   accessibilityLabel='View conversation'
                 >
-                  {isHtml ? (
+                  {bodyIsHtml ? (
                     <RenderHtml
                       contentWidth={contentWidth}
-                      source={{ html: cleanTextBody }}
+                      source={{ html: processedHtmlBody }}
                       baseStyle={{
                         color: colors.text,
                         fontSize: isReply ? 14 : 15,
@@ -802,7 +834,33 @@ const Snap: React.FC<SnapProps> = ({
                       tagsStyles={{
                         a: { color: colors.icon },
                         u: { textDecorationLine: 'underline' },
+                        sub: { fontSize: 12 },
+                        sup: { fontSize: 12 },
                         ...(isReply && { p: { marginBottom: 12, lineHeight: 20 } }),
+                      }}
+                      renderersProps={{
+                        a: {
+                          onPress: (_event: unknown, href?: string): void => {
+                            if (!href) return;
+                            if (href.startsWith('hashtag://')) {
+                              const tag = href.replace('hashtag://', '');
+                              if (isReply) {
+                                router.push({ pathname: '/screens/DiscoveryScreen', params: { hashtag: tag } } as any);
+                              } else {
+                                onHashtagPress && onHashtagPress(tag);
+                              }
+                            } else if (href.startsWith('profile://')) {
+                              const username = href.replace('profile://', '');
+                              if (isReply) {
+                                router.push(`/screens/ProfileScreen?username=${username}` as any);
+                              } else {
+                                onUserPress && onUserPress(username);
+                              }
+                            } else {
+                              Linking.openURL(href).catch(() => {});
+                            }
+                          },
+                        },
                       }}
                       renderers={{
                         video: (props: any) => {
@@ -828,10 +886,10 @@ const Snap: React.FC<SnapProps> = ({
                 </Pressable>
               );
             } else {
-              return isHtml ? (
+              return bodyIsHtml ? (
                 <RenderHtml
                   contentWidth={contentWidth}
-                  source={{ html: cleanTextBody }}
+                  source={{ html: htmlBody }}
                   baseStyle={{
                     color: colors.text,
                     fontSize: isReply ? 14 : 15,
@@ -842,6 +900,8 @@ const Snap: React.FC<SnapProps> = ({
                   tagsStyles={{
                     a: { color: colors.icon },
                     u: { textDecorationLine: 'underline' },
+                    sub: { fontSize: 12 },
+                    sup: { fontSize: 12 },
                     ...(isReply && { p: { marginBottom: 12, lineHeight: 20 } }),
                   }}
                   renderers={{

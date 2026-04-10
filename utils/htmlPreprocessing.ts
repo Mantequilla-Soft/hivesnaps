@@ -26,6 +26,9 @@ export const preprocessForMarkdown = (content: string): string => {
       .replace(/<center[^>]*>(.*?)<\/center>/gs, '$1\n\n')
       .replace(/<center[^>]*>/g, '') // Remove opening center tags without closing
       .replace(/<\/center>/g, '\n\n') // Replace closing center tags with newlines
+      // Handle sub/sup tags - remove wrapper, keep content
+      .replace(/<sub[^>]*>(.*?)<\/sub>/gis, '$1')
+      .replace(/<sup[^>]*>(.*?)<\/sup>/gis, '$1')
       // Convert HTML tags to markdown equivalents
       .replace(/<u[^>]*>(.*?)<\/u>/gs, '___$1___') // Convert <u> tags to markdown underlines
       .replace(/<strong[^>]*>(.*?)<\/strong>/gs, '**$1**') // Convert <strong> tags to markdown bold
@@ -84,6 +87,8 @@ export const HTML_TAGS_TO_CHECK = [
   '<p',
   '<span',
   '<br',
+  '<sub',
+  '<sup',
   '<h1',
   '<h2',
   '<h3',
