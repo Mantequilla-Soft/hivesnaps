@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     TouchableOpacity,
     ScrollView,
@@ -17,6 +17,7 @@ import { useTheme } from '../../hooks/useTheme';
 
 export default function MigrationScreen(): React.JSX.Element {
     const [loading, setLoading] = useState(false);
+    const migrationInFlightRef = useRef(false);
 
     const theme = useTheme();
     const router = useRouter();
@@ -29,6 +30,8 @@ export default function MigrationScreen(): React.JSX.Element {
     );
 
     const handleMigrate = async (): Promise<void> => {
+        if (migrationInFlightRef.current) return;
+        migrationInFlightRef.current = true;
         setLoading(true);
         try {
             // getAccounts() triggers legacy migration internally —
@@ -70,6 +73,7 @@ export default function MigrationScreen(): React.JSX.Element {
             Alert.alert('Migration Failed', message);
         } finally {
             setLoading(false);
+            migrationInFlightRef.current = false;
         }
     };
 

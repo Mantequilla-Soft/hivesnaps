@@ -67,7 +67,10 @@ export default function Index() {
 
         router.replace('/screens/FeedScreen');
       } catch (error) {
-        console.error('[Init] Error determining initial route:', error);
+        const message = error instanceof Error ? error.message : 'Unknown initialization error';
+        if (__DEV__) {
+          console.error('[Init] Error determining initial route:', message);
+        }
         setInitializing(false);
       }
     };
