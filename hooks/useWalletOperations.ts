@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
@@ -23,7 +23,7 @@ export const useWalletOperations = (
      * Check if a stored active key exists (no biometric prompt).
      * Use this on modal open to decide whether to show the key input.
      */
-    const checkStoredKeyAvailable = async (): Promise<boolean> => {
+    const checkStoredKeyAvailable = useCallback(async (): Promise<boolean> => {
         if (!currentUsername) return false;
         try {
             const keys = await accountStorageService.getAccountKeys(currentUsername);
@@ -31,14 +31,14 @@ export const useWalletOperations = (
         } catch {
             return false;
         }
-    };
+    }, [currentUsername]);
 
     /**
      * Retrieve the stored active key with biometric gate.
      * Throws AuthCancelledError if user cancels biometric prompt.
      * Returns null if no stored key is found.
      */
-    const getStoredActiveKey = async (): Promise<string | null> => {
+    const getStoredActiveKey = useCallback(async (): Promise<string | null> => {
         if (!currentUsername) return null;
         try {
             const keys = await accountStorageService.getAccountKeys(currentUsername);
@@ -52,7 +52,7 @@ export const useWalletOperations = (
             if (err instanceof AuthCancelledError) throw err;
             return null;
         }
-    };
+    }, [currentUsername]);
 
     /**
      * Resolve the active key: use stored key (with biometric) if manualKey is not provided.

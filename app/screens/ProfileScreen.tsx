@@ -356,6 +356,7 @@ const ProfileScreen = () => {
             {/* Wallet Section */}
             <WalletSection
               isOwnProfile={isOwnProfile}
+              hasActiveKey={hasActiveKey}
               hive={profile?.hive}
               hbd={profile?.hbd}
               hivePower={profile?.hivePower}

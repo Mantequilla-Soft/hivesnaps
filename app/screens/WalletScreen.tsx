@@ -71,14 +71,7 @@ const WalletScreen = (): React.JSX.Element => {
     // Stored key availability (checked once on mount)
     const [storedKeyAvailable, setStoredKeyAvailable] = useState(false);
 
-    const {
-        transferLoading, transferSuccess,
-        powerUpLoading, powerUpSuccess,
-        powerDownLoading, powerDownSuccess,
-        transfer, powerUp, powerDown, cancelPowerDown,
-        checkStoredKeyAvailable,
-    } = useWalletOperations(currentUsername, async () => { await fetchWalletData(true); });
-
+    // Define fetchWalletData before passing it to the hook as onRefresh
     const fetchWalletData = useCallback(async (silent = false): Promise<void> => {
         if (!currentUsername) return;
         if (!silent) setLoading(true);
@@ -122,10 +115,21 @@ const WalletScreen = (): React.JSX.Element => {
         }
     }, [currentUsername]);
 
+    const {
+        transferLoading, transferSuccess,
+        powerUpLoading, powerUpSuccess,
+        powerDownLoading, powerDownSuccess,
+        transfer, powerUp, powerDown, cancelPowerDown,
+        checkStoredKeyAvailable,
+    } = useWalletOperations(currentUsername, fetchWalletData);
+
     useEffect(() => {
         fetchWalletData();
+    }, [fetchWalletData]);
+
+    useEffect(() => {
         checkStoredKeyAvailable().then(setStoredKeyAvailable);
-    }, [fetchWalletData, checkStoredKeyAvailable]);
+    }, [checkStoredKeyAvailable]);
 
     // Dismiss success state and close modal after 2.5s
     useEffect(() => {
