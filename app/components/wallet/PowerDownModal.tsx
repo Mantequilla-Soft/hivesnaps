@@ -54,14 +54,14 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
     const [amount, setAmount] = useState('');
     const [activeKeyInput, setActiveKeyInput] = useState('');
     const [error, setError] = useState('');
-    const [cancelling, setCancelling] = useState(false);
+    const [lastAction, setLastAction] = useState<'start' | 'cancel'>('start');
 
     useEffect(() => {
         if (!visible) {
             setAmount('');
             setActiveKeyInput('');
             setError('');
-            setCancelling(false);
+            setLastAction('start');
         }
     }, [visible]);
 
@@ -77,6 +77,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
 
     const handlePowerDown = async (): Promise<void> => {
         setError('');
+        setLastAction('start');
         try {
             await onPowerDown(amount, hasStoredKey ? undefined : activeKeyInput.trim());
         } catch (err) {
@@ -86,13 +87,11 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
 
     const handleCancel = async (): Promise<void> => {
         setError('');
-        setCancelling(true);
+        setLastAction('cancel');
         try {
             await onCancelPowerDown(hasStoredKey ? undefined : activeKeyInput.trim());
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to cancel power down');
-        } finally {
-            setCancelling(false);
         }
     };
 
@@ -115,7 +114,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                             <View style={styles.statusContainer}>
                                 <FontAwesome name="check-circle" size={40} color={colors.button} />
                                 <Text style={[styles.statusText, { color: colors.text }]}>
-                                    {cancelling ? 'Power down cancelled!' : 'Power down started!'}
+                                    {lastAction === 'cancel' ? 'Power down cancelled!' : 'Power down started!'}
                                 </Text>
                             </View>
                         ) : (
