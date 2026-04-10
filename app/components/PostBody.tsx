@@ -445,6 +445,9 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
               }
 
               // Handle regular links
+              if (!href) {
+                return <Text key={node.key} style={{ color: colors.text }}>{children}</Text>;
+              }
               return (
                 <Text
                   key={node.key}
