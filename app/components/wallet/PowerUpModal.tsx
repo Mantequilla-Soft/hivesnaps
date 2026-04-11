@@ -11,12 +11,9 @@ import {
     Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { vestsToHp } from '../../../utils/hiveCalculations';
-
 interface PowerUpModalProps {
     visible: boolean;
     hiveBalance: number;
-    globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string } | null;
     hasStoredKey: boolean;
     loading: boolean;
     success: boolean;
@@ -41,7 +38,6 @@ interface PowerUpModalProps {
 export const PowerUpModal: React.FC<PowerUpModalProps> = ({
     visible,
     hiveBalance,
-    globalProps,
     hasStoredKey,
     loading,
     success,
@@ -70,17 +66,7 @@ export const PowerUpModal: React.FC<PowerUpModalProps> = ({
         hasValidPrecision &&
         (hasStoredKey || activeKeyInput.trim().length > 0);
 
-    // Preview: how much HP would this be
-    const previewHp = globalProps && !isNaN(amountNum) && amountNum > 0
-        ? vestsToHp(
-            amountNum / (parseFloat(globalProps.total_vesting_fund_hive) / parseFloat(globalProps.total_vesting_shares.replace(' VESTS', '').replace(' HIVE', ''))),
-            globalProps.total_vesting_fund_hive,
-            globalProps.total_vesting_shares
-          )
-        : null;
-
-    // Simpler preview: 1 HIVE ≈ 1 HP (practically true, very slight variation)
-    // Use direct amount as HP preview since HIVE:HP ratio is ~1:1
+    // 1 HIVE ≈ 1 HP (practically true, very slight variation)
     const hpPreview = !isNaN(amountNum) && amountNum > 0 ? amountNum : null;
 
     const handleConfirm = async (): Promise<void> => {

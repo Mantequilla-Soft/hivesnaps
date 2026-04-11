@@ -336,7 +336,6 @@ const WalletScreen = (): React.JSX.Element => {
             <PowerUpModal
                 visible={powerUpVisible}
                 hiveBalance={walletData?.hiveBalance ?? 0}
-                globalProps={globalProps}
                 hasStoredKey={storedKeyAvailable}
                 loading={powerUpLoading}
                 success={powerUpSuccess}
