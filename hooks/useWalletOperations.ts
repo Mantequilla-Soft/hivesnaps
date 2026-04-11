@@ -48,11 +48,13 @@ export const useWalletOperations = (
     /**
      * Check if a stored active key exists (no biometric prompt).
      * Use this on modal open to decide whether to show the key input.
+     * Biometric availability is checked at operation time (getStoredActiveKey),
+     * not here — so the key input is hidden whenever a key is stored, regardless
+     * of whether the device has biometrics configured.
      */
     const checkStoredKeyAvailable = useCallback(async (): Promise<boolean> => {
         if (!currentUsername) return false;
         try {
-            if (!(await localAuthService.isAvailable())) return false;
             const keys = await accountStorageService.getAccountKeys(currentUsername);
             return !!(keys?.activeKey?.trim());
         } catch {
