@@ -61,11 +61,6 @@ export const preprocessForMarkdown = (content: string): string => {
         '![$1]($2)'
       )
       .replace(/<img[^>]*src=["']([^"']*)["'][^>]*\/?>/g, '![]($1)')
-      // Convert @usernames to clickable links
-      .replace(
-        /(^|[^\w/@])@([a-z0-9\-\.]{3,16})(?![a-z0-9\-\.])/gi,
-        '$1[**@$2**](profile://$2)'
-      )
       // Clean up excessive whitespace
       .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with just 2
       .trim()
