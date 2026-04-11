@@ -13,7 +13,7 @@ import { classifyUrl } from './urlClassifier';
  */
 export function linkifyUrls(text: string): string {
   return text.replace(
-    /https?:\/\/[\w.-]+(?:\/[\w\-./?%&=+#@]*)?/gi,
+    /https?:\/\/[\w.-]+(?::\d+)?(?:[/?#][\w\-./?%&=+#@:;]*)?/gi,
     (url: string, offset: number, source: string): string => {
       const beforeMatch = source.slice(0, offset);
       const afterMatch = source.slice(offset + url.length);

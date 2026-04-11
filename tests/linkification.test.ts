@@ -165,6 +165,24 @@ describe('linkifyUrls', () => {
     // Should be wrapped and display text should be truncated with ellipsis
     expect(result).toMatch(/\[.*\.\.\.\]\(https:\/\/example\.com/);
   });
+
+  it('linkifies URLs with a port number', () => {
+    const url = 'https://example.com:8080/path';
+    const result = linkifyUrls(url);
+    expect(result).toContain(`[${url}](${url})`);
+  });
+
+  it('linkifies URLs with a query string and no path', () => {
+    const url = 'https://example.com?foo=bar';
+    const result = linkifyUrls(url);
+    expect(result).toContain(`[${url}](${url})`);
+  });
+
+  it('linkifies URLs with a fragment and no path', () => {
+    const url = 'https://example.com#section';
+    const result = linkifyUrls(url);
+    expect(result).toContain(`[${url}](${url})`);
+  });
 });
 
 // ---------------------------------------------------------------------------
