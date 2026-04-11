@@ -5,6 +5,7 @@ import SafeRenderHtml from '../../components/SafeRenderHtml';
 import { useRouter } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import { renderHiveToHtml } from '../../utils/renderHive';
+import { proxyImageUrl } from '../../utils/proxyImageUrl';
 import {
   extractVideoInfo,
   removeVideoUrls,
@@ -40,7 +41,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
   // Use Ecency's renderHiveToHtml to process the content
   const processedHtml = useMemo(() => {
     try {
-      return renderHiveToHtml(body, { breaks: true, proxifyImages: false });
+      return renderHiveToHtml(body, { breaks: true, proxifyImages: true });
     } catch (error) {
       console.warn('[PostBody] Error processing HTML:', error);
       return body; // Fallback to original body
@@ -185,7 +186,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
               return (
                 <ExpoImage
                   key={src}
-                  source={{ uri: src }}
+                  source={{ uri: proxyImageUrl(src) }}
                   style={{
                     width: '100%',
                     height: 220,
@@ -381,7 +382,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
               return (
                 <ExpoImage
                   key={src}
-                  source={{ uri: src }}
+                  source={{ uri: proxyImageUrl(src) }}
                   style={{
                     width: '100%',
                     height: 220,
