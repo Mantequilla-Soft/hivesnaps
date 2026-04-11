@@ -124,7 +124,11 @@ export const useWalletOperations = (
     };
 
     const parsePositiveAmount = (raw: string, assetLabel: string): number => {
-        const value = Number.parseFloat(raw);
+        const normalized = raw.trim();
+        if (!/^\d*\.?\d+$/.test(normalized)) {
+            throw new Error(`Invalid ${assetLabel} amount. Please enter a numeric value.`);
+        }
+        const value = Number.parseFloat(normalized);
         if (!Number.isFinite(value) || value <= 0) {
             throw new Error(`Invalid ${assetLabel} amount. Please enter a value greater than 0.`);
         }
