@@ -24,6 +24,7 @@ import { EditAvatarModal } from '../components/profile/EditAvatarModal';
 import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { RewardsSection } from '../components/profile/RewardsSection';
+import { WalletSection } from '../components/profile/WalletSection';
 import { ProfileSnaps } from '../components/profile/ProfileSnaps';
 // ContentModal removed - now using ComposeScreen for edit
 
@@ -144,6 +145,7 @@ const ProfileScreen = () => {
   const colors = {
     background: theme.background,
     text: theme.text,
+    textSecondary: theme.textSecondary,
     bubble: theme.bubble,
     border: theme.border,
     icon: theme.icon,
@@ -349,6 +351,15 @@ const ProfileScreen = () => {
               colors={colors}
               styles={styles}
               handleClaimRewards={handleClaimRewards}
+            />
+
+            {/* Wallet Section */}
+            <WalletSection
+              isOwnProfile={isOwnProfile}
+              hive={profile?.hive}
+              hbd={profile?.hbd}
+              hivePower={profile?.hivePower}
+              colors={colors}
             />
 
             {/* Additional Info */}
