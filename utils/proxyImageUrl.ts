@@ -18,9 +18,17 @@ export function proxyImageUrl(url: string): string {
     if (!url) return url;
     // Don't proxy data URIs (inline images)
     if (url.startsWith('data:')) return url;
-    // Only proxy HTTP(S) URLs — pass through file://, protocol-relative, etc. unchanged
-    if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
-    // Already proxied — don't double-wrap
-    if (PROXY_PREFIXES.some((p) => url.startsWith(p))) return url;
-    return `${HIVE_IMAGE_PROXY}${url}`;
+    // Parse the URL so scheme normalization is handled by the runtime (case-insensitive).
+    // Malformed URLs (relative paths, protocol-relative, etc.) throw and are returned as-is.
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return url;
+    }
+    // Only proxy HTTP(S) — file://, javascript:, blob:, etc. pass through unchanged
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return url;
+    // Already proxied — don't double-wrap (compare against normalised href)
+    if (PROXY_PREFIXES.some((p) => parsed.href.startsWith(p))) return parsed.href;
+    return `${HIVE_IMAGE_PROXY}${parsed.href}`;
 }
