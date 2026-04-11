@@ -70,12 +70,13 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
     const amountNum = parseFloat(amount);
     const weeklyPayout = !isNaN(amountNum) && amountNum > 0 ? amountNum / 13 : 0;
     const isPowerDownActive = activePowerDownRate > 0;
+    const canAuthenticate = hasStoredKey || activeKeyInput.trim().length > 0;
 
     const isValid =
         !isNaN(amountNum) &&
         amountNum > 0 &&
         amountNum <= ownHivePower &&
-        (hasStoredKey || activeKeyInput.trim().length > 0);
+        canAuthenticate;
 
     const handlePowerDown = async (): Promise<void> => {
         setError('');
@@ -145,7 +146,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                                         <Pressable
                                             style={[styles.cancelPdButton, { borderColor: colors.buttonInactive }]}
                                             onPress={handleCancel}
-                                            disabled={loading}
+                                            disabled={!canAuthenticate || loading}
                                         >
                                             <Text style={[styles.cancelPdText, { color: colors.text }]}>
                                                 Cancel Power Down

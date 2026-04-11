@@ -77,7 +77,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     const handleConfirm = async (): Promise<void> => {
         setError('');
         try {
-            await onTransfer(to.trim(), amount, memo.trim(), hasStoredKey ? undefined : activeKeyInput.trim());
+            const recipient = to.trim().replace(/^@/, '');
+            await onTransfer(recipient, amount, memo.trim(), hasStoredKey ? undefined : activeKeyInput.trim());
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Transfer failed');
         }

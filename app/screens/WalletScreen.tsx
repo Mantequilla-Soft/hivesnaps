@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -72,9 +72,12 @@ const WalletScreen = (): React.JSX.Element => {
     // Stored key availability (checked once on mount)
     const [storedKeyAvailable, setStoredKeyAvailable] = useState(false);
 
+    const fetchSeq = useRef(0);
+
     // Define fetchWalletData before passing it to the hook as onRefresh
     const fetchWalletData = useCallback(async (silent = false): Promise<void> => {
         if (!currentUsername) return;
+        const seq = ++fetchSeq.current;
         if (!silent) setLoading(true);
         else setRefreshing(true);
         try {
@@ -82,6 +85,7 @@ const WalletScreen = (): React.JSX.Element => {
                 client.database.call('get_accounts', [[currentUsername]]),
                 client.database.getDynamicGlobalProperties(),
             ]);
+            if (seq !== fetchSeq.current) return;
             if (!accounts || !accounts[0]) throw new Error('Account not found');
             const account = accounts[0];
 
@@ -107,10 +111,12 @@ const WalletScreen = (): React.JSX.Element => {
 
             setWalletData({ hiveBalance, hbdBalance, hivePower, ownHivePower, activePowerDownRate });
         } catch (err) {
+            if (seq !== fetchSeq.current) return;
             if (!silent) {
                 Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load wallet');
             }
         } finally {
+            if (seq !== fetchSeq.current) return;
             setLoading(false);
             setRefreshing(false);
         }
@@ -121,6 +127,7 @@ const WalletScreen = (): React.JSX.Element => {
         powerUpLoading, powerUpSuccess,
         powerDownLoading, powerDownSuccess,
         transfer, powerUp, powerDown, cancelPowerDown,
+        resetOperationSuccess,
         checkStoredKeyAvailable,
     } = useWalletOperations(currentUsername, fetchWalletData);
 
@@ -129,27 +136,41 @@ const WalletScreen = (): React.JSX.Element => {
     }, [fetchWalletData]);
 
     useEffect(() => {
-        checkStoredKeyAvailable().then(setStoredKeyAvailable);
+        let cancelled = false;
+        checkStoredKeyAvailable().then((available) => {
+            if (!cancelled) setStoredKeyAvailable(available);
+        }).catch(() => { /* ignore */ });
+        return () => { cancelled = true; };
     }, [checkStoredKeyAvailable]);
 
     // Dismiss success state and close modal after 2.5s
     useEffect(() => {
         if (!transferSuccess) return;
-        const id = setTimeout(() => { setTransferHiveVisible(false); setTransferHbdVisible(false); }, 2500);
+        const id = setTimeout(() => {
+            setTransferHiveVisible(false);
+            setTransferHbdVisible(false);
+            resetOperationSuccess();
+        }, 2500);
         return () => clearTimeout(id);
-    }, [transferSuccess]);
+    }, [transferSuccess, resetOperationSuccess]);
 
     useEffect(() => {
         if (!powerUpSuccess) return;
-        const id = setTimeout(() => setPowerUpVisible(false), 2500);
+        const id = setTimeout(() => {
+            setPowerUpVisible(false);
+            resetOperationSuccess();
+        }, 2500);
         return () => clearTimeout(id);
-    }, [powerUpSuccess]);
+    }, [powerUpSuccess, resetOperationSuccess]);
 
     useEffect(() => {
         if (!powerDownSuccess) return;
-        const id = setTimeout(() => setPowerDownVisible(false), 2500);
+        const id = setTimeout(() => {
+            setPowerDownVisible(false);
+            resetOperationSuccess();
+        }, 2500);
         return () => clearTimeout(id);
-    }, [powerDownSuccess]);
+    }, [powerDownSuccess, resetOperationSuccess]);
 
     const handleTransfer = async (currency: 'HIVE' | 'HBD', to: string, amount: string, memo: string, manualKey?: string): Promise<void> => {
         try {

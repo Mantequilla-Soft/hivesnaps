@@ -18,6 +18,7 @@ interface UseWalletOperationsReturn {
     powerUp: (amount: string, manualKey?: string) => Promise<void>;
     powerDown: (amountHp: string, globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string }, manualKey?: string) => Promise<void>;
     cancelPowerDown: (manualKey?: string) => Promise<void>;
+    resetOperationSuccess: () => void;
     checkStoredKeyAvailable: () => Promise<boolean>;
     getStoredActiveKey: () => Promise<string | null>;
 }
@@ -70,9 +71,9 @@ export const useWalletOperations = (
                 await localAuthService.authenticate('Confirm wallet operation');
             }
             return key;
-        } catch (err) {
+        } catch (err: unknown) {
             if (err instanceof AuthCancelledError) throw err;
-            return null;
+            throw err instanceof Error ? err : new Error('Failed to access stored active key.');
         }
     }, [currentUsername]);
 
@@ -139,7 +140,6 @@ export const useWalletOperations = (
             );
             setTransferSuccess(true);
             scheduleRefresh();
-            safeTimeout(() => setTransferSuccess(false), 2500);
         } finally {
             setTransferLoading(false);
         }
@@ -163,7 +163,6 @@ export const useWalletOperations = (
             );
             setPowerUpSuccess(true);
             scheduleRefresh();
-            safeTimeout(() => setPowerUpSuccess(false), 2500);
         } finally {
             setPowerUpLoading(false);
         }
@@ -197,7 +196,6 @@ export const useWalletOperations = (
             );
             setPowerDownSuccess(true);
             scheduleRefresh();
-            safeTimeout(() => setPowerDownSuccess(false), 2500);
         } finally {
             setPowerDownLoading(false);
         }
@@ -219,11 +217,16 @@ export const useWalletOperations = (
             );
             setPowerDownSuccess(true);
             scheduleRefresh();
-            safeTimeout(() => setPowerDownSuccess(false), 2500);
         } finally {
             setPowerDownLoading(false);
         }
     };
+
+    const resetOperationSuccess = useCallback((): void => {
+        setTransferSuccess(false);
+        setPowerUpSuccess(false);
+        setPowerDownSuccess(false);
+    }, []);
 
     return {
         transferLoading,
@@ -236,6 +239,7 @@ export const useWalletOperations = (
         powerUp,
         powerDown,
         cancelPowerDown,
+        resetOperationSuccess,
         checkStoredKeyAvailable,
         getStoredActiveKey,
     };

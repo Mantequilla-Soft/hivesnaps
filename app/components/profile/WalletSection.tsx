@@ -6,7 +6,6 @@ import type { Href } from 'expo-router';
 
 interface WalletSectionProps {
     isOwnProfile: boolean;
-    hasActiveKey: boolean;
     hive?: number;
     hbd?: number;
     hivePower?: number;
@@ -23,7 +22,6 @@ interface WalletSectionProps {
 
 export const WalletSection: React.FC<WalletSectionProps> = ({
     isOwnProfile,
-    hasActiveKey,
     hive,
     hbd,
     hivePower,
@@ -31,7 +29,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
 }) => {
     const router = useRouter();
 
-    if (!isOwnProfile || !hasActiveKey) return null;
+    if (!isOwnProfile) return null;
 
     const rows: { label: string; value: string }[] = [
         { label: 'HIVE', value: hive !== undefined ? hive.toFixed(3) : '–' },
