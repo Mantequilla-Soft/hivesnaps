@@ -43,7 +43,6 @@ import { canBeResnapped } from '../../utils/postTypeDetector';
 import { getMarkdownStyles } from '../../styles/markdownStyles';
 import { linkStyles, useLinkTextStyle } from '../../styles/linkStyles';
 import { extractRawImageUrls as extractRawImageUrlsUtil, removeRawImageUrls as removeRawImageUrlsUtil } from '../../utils/rawImageUrls';
-import { proxyImageUrl } from '../../utils/proxyImageUrl';
 import ModerationRequestModal, { ModerationReason, ModerationRequestPayload } from './moderation/ModerationRequestModal';
 import { formatRelativeShort } from '../../utils/time';
 import ActionSheet from './common/ActionSheet';
@@ -299,7 +298,7 @@ const Snap: React.FC<SnapProps> = ({
           }}
         >
           <ExpoImage
-            source={{ uri: proxyImageUrl(src) }}
+            source={{ uri: src }}
             style={styles.markdownImage}
             contentFit='cover'
             accessibilityLabel={alt || 'image'}
@@ -609,7 +608,7 @@ const Snap: React.FC<SnapProps> = ({
   const processedHtmlBody = useMemo(() => {
     if (!bodyIsHtml) return htmlBody;
     try {
-      const result = renderHiveToHtml(htmlBody, { breaks: true, proxifyImages: true });
+      const result = renderHiveToHtml(htmlBody, { breaks: true, proxifyImages: false });
       return result && result.trim().length > 0 ? result : htmlBody;
     } catch {
       return htmlBody;
@@ -762,15 +761,15 @@ const Snap: React.FC<SnapProps> = ({
                 key={url + idx}
                 onPress={() => {
                   if (onImagePress) {
-                    onImagePress(proxyImageUrl(url));
+                    onImagePress(url);
                   } else {
-                    setModalImageUrl(proxyImageUrl(url));
+                    setModalImageUrl(url);
                     setModalVisible(true);
                   }
                 }}
               >
                 <ExpoImage
-                  source={{ uri: proxyImageUrl(url) }}
+                  source={{ uri: url }}
                   style={styles.feedImage}
                   contentFit='cover'
                 />
@@ -786,15 +785,15 @@ const Snap: React.FC<SnapProps> = ({
                 key={url + idx}
                 onPress={() => {
                   if (onImagePress) {
-                    onImagePress(proxyImageUrl(url));
+                    onImagePress(url);
                   } else {
-                    setModalImageUrl(proxyImageUrl(url));
+                    setModalImageUrl(url);
                     setModalVisible(true);
                   }
                 }}
               >
                 <ExpoImage
-                  source={{ uri: proxyImageUrl(url) }}
+                  source={{ uri: url }}
                   style={styles.feedImage}
                   contentFit='cover'
                 />
