@@ -76,7 +76,15 @@ const WalletScreen = (): React.JSX.Element => {
 
     // Define fetchWalletData before passing it to the hook as onRefresh
     const fetchWalletData = useCallback(async (silent = false): Promise<void> => {
-        if (!currentUsername) return;
+        if (!currentUsername) {
+            fetchSeq.current++;
+            setWalletData(null);
+            setGlobalProps(null);
+            setStoredKeyAvailable(false);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
         const seq = ++fetchSeq.current;
         if (!silent) setLoading(true);
         else setRefreshing(true);

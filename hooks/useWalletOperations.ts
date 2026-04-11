@@ -113,6 +113,11 @@ export const useWalletOperations = (
         }, 3000);
     };
 
+    const requireUsername = (): string => {
+        if (!currentUsername) throw new Error('Wallet session expired. Please sign in again.');
+        return currentUsername;
+    };
+
     /**
      * Transfer HIVE or HBD to another account.
      * @param to - recipient username
@@ -128,14 +133,14 @@ export const useWalletOperations = (
         memo: string,
         manualKey?: string
     ): Promise<void> => {
-        if (!currentUsername) return;
+        const username = requireUsername();
         setTransferLoading(true);
         setTransferSuccess(false);
         try {
             const activeKey = await resolveKey(manualKey);
             const formattedAmount = `${parseFloat(amount).toFixed(3)} ${currency}`;
             await client.broadcast.sendOperations(
-                [['transfer', { from: currentUsername, to, amount: formattedAmount, memo }]],
+                [['transfer', { from: username, to, amount: formattedAmount, memo }]],
                 activeKey
             );
             setTransferSuccess(true);
@@ -151,14 +156,14 @@ export const useWalletOperations = (
      * @param manualKey - active key string if entered manually
      */
     const powerUp = async (amount: string, manualKey?: string): Promise<void> => {
-        if (!currentUsername) return;
+        const username = requireUsername();
         setPowerUpLoading(true);
         setPowerUpSuccess(false);
         try {
             const activeKey = await resolveKey(manualKey);
             const formattedAmount = `${parseFloat(amount).toFixed(3)} HIVE`;
             await client.broadcast.sendOperations(
-                [['transfer_to_vesting', { from: currentUsername, to: currentUsername, amount: formattedAmount }]],
+                [['transfer_to_vesting', { from: username, to: username, amount: formattedAmount }]],
                 activeKey
             );
             setPowerUpSuccess(true);
@@ -179,7 +184,7 @@ export const useWalletOperations = (
         globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string },
         manualKey?: string
     ): Promise<void> => {
-        if (!currentUsername) return;
+        const username = requireUsername();
         setPowerDownLoading(true);
         setPowerDownSuccess(false);
         try {
@@ -191,7 +196,7 @@ export const useWalletOperations = (
             );
             const formattedVests = `${vests.toFixed(6)} VESTS`;
             await client.broadcast.sendOperations(
-                [['withdraw_vesting', { account: currentUsername, vesting_shares: formattedVests }]],
+                [['withdraw_vesting', { account: username, vesting_shares: formattedVests }]],
                 activeKey
             );
             setPowerDownSuccess(true);
@@ -206,13 +211,13 @@ export const useWalletOperations = (
      * @param manualKey - active key string if entered manually
      */
     const cancelPowerDown = async (manualKey?: string): Promise<void> => {
-        if (!currentUsername) return;
+        const username = requireUsername();
         setPowerDownLoading(true);
         setPowerDownSuccess(false);
         try {
             const activeKey = await resolveKey(manualKey);
             await client.broadcast.sendOperations(
-                [['withdraw_vesting', { account: currentUsername, vesting_shares: '0.000000 VESTS' }]],
+                [['withdraw_vesting', { account: username, vesting_shares: '0.000000 VESTS' }]],
                 activeKey
             );
             setPowerDownSuccess(true);
