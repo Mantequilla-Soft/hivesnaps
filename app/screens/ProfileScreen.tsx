@@ -353,9 +353,10 @@ const ProfileScreen = () => {
               handleClaimRewards={handleClaimRewards}
             />
 
-            {/* Wallet Section */}
+            {/* Wallet Section — only shown when an active key is stored */}
             <WalletSection
               isOwnProfile={isOwnProfile}
+              hasStoredKey={hasActiveKey}
               hive={profile?.hive}
               hbd={profile?.hbd}
               hivePower={profile?.hivePower}
