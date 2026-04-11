@@ -71,6 +71,25 @@ describe('linkifyMentions', () => {
       '@averylongusernamethatexceeds'
     );
   });
+
+  it('does NOT match handles with a leading hyphen (@-alice)', () => {
+    expect(linkifyMentions('hey @-alice there')).toBe('hey @-alice there');
+  });
+
+  it('does NOT match handles with a trailing hyphen (@alice-)', () => {
+    expect(linkifyMentions('hey @alice- there')).toBe('hey @alice- there');
+  });
+
+  it('normalises uppercase mentions to lowercase', () => {
+    expect(linkifyMentions('Hello @Alice!')).toBe(
+      'Hello [@alice](profile://alice)!'
+    );
+  });
+
+  it('does NOT wrap a URL inside an HTML href with uppercase HREF', () => {
+    const input = '<a HREF="https://example.com">click</a>';
+    expect(linkifyUrls(input)).toBe(input);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -91,6 +110,17 @@ describe('linkifyUrls', () => {
 
   it('does NOT double-wrap a URL already inside a markdown link mid-sentence', () => {
     const input = 'Check out [this site](https://example.com) for details.';
+    expect(linkifyUrls(input)).toBe(input);
+  });
+
+  it('does NOT double-wrap a markdown link that includes a title attribute', () => {
+    const input = '[Example](https://example.com "site title")';
+    expect(linkifyUrls(input)).toBe(input);
+  });
+
+  it('does NOT wrap a URL that is itself the link text of a markdown link', () => {
+    // e.g. auto-linked URL displayed as itself: [https://example.com](https://example.com)
+    const input = '[https://example.com](https://example.com)';
     expect(linkifyUrls(input)).toBe(input);
   });
 

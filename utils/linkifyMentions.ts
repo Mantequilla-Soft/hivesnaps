@@ -9,7 +9,9 @@
  */
 export function linkifyMentions(text: string): string {
   return text.replace(
-    /(^|[^\w/@])@([a-z0-9\-\.]{3,16})(?![a-z0-9\-\.])/gi,
+    // Hive usernames: start with a letter, end with alphanumeric, 3–16 chars total.
+    // Middle chars may include letters, digits, hyphens, and dots.
+    /(^|[^\w/@])@([a-z][a-z0-9\-.]{1,14}[a-z0-9])(?![a-z0-9\-.])/gi,
     (match, pre, username, offset, string) => {
       const beforeMatch = string.substring(0, offset);
       const afterMatch = string.substring(offset + match.length);
@@ -29,7 +31,9 @@ export function linkifyMentions(text: string): string {
         return match;
       }
 
-      return `${pre}[@${username}](profile://${username})`;
+      // Hive usernames are always lowercase on-chain
+      const normalized = username.toLowerCase();
+      return `${pre}[@${normalized}](profile://${normalized})`;
     }
   );
 }

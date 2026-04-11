@@ -15,15 +15,28 @@ export function linkifyUrls(text: string): string {
   return text.replace(
     /(https?:\/\/[\w.-]+(?:\/[\w\-./?%&=+#@]*)?)/gi,
     (url, _p1, offset: number, string: string) => {
-      // A URL is already inside a markdown link [text](url) when the character
-      // immediately before it is '(' and immediately after it is ')'.
       const charBefore = string[offset - 1];
-      const charAfter = string[offset + url.length];
-      if (charBefore === '(' && charAfter === ')') return url;
+      const beforeMatch = string.slice(0, offset);
+      const afterMatch = string.slice(offset + url.length);
 
-      // Also skip HTML href attributes
-      const nearby = string.substring(Math.max(0, offset - 8), offset);
-      if (/href=["']?$/.test(nearby)) return url;
+      // Skip if the URL appears as the text part of a markdown link:
+      // [ https://... ](...) — more open brackets than close before this point.
+      const openBrackets = (beforeMatch.match(/\[/g) || []).length;
+      const closeBrackets = (beforeMatch.match(/\]/g) || []).length;
+      if (openBrackets > closeBrackets && afterMatch.includes('](')) return url;
+
+      // Skip if the URL is the href of a markdown link, including optional
+      // title: [text](https://... "optional title") or [text](https://...)
+      if (
+        charBefore === '(' &&
+        /^\s*(?:"[^"]*"|'[^']*'|\([^)]*\))?\)/.test(afterMatch)
+      ) {
+        return url;
+      }
+
+      // Skip HTML href attributes — case-insensitive, allows whitespace around =
+      const nearby = string.substring(Math.max(0, offset - 24), offset);
+      if (/\bhref\s*=\s*["']?$/i.test(nearby)) return url;
 
       const urlInfo = classifyUrl(url);
 
