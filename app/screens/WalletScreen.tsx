@@ -137,7 +137,7 @@ const WalletScreen = (): React.JSX.Element => {
         transfer, powerUp, powerDown, cancelPowerDown,
         resetOperationSuccess,
         checkStoredKeyAvailable,
-    } = useWalletOperations(currentUsername, fetchWalletData);
+    } = useWalletOperations(currentUsername, () => fetchWalletData(true));
 
     useEffect(() => {
         fetchWalletData();
@@ -199,7 +199,7 @@ const WalletScreen = (): React.JSX.Element => {
     };
 
     const handlePowerDown = async (amountHp: string, manualKey?: string): Promise<void> => {
-        if (!globalProps) return;
+        if (!globalProps) throw new Error('Wallet data not loaded. Please wait and try again.');
         try {
             await powerDown(amountHp, globalProps, manualKey);
         } catch (err) {

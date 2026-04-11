@@ -49,6 +49,7 @@ export const useWalletOperations = (
     const checkStoredKeyAvailable = useCallback(async (): Promise<boolean> => {
         if (!currentUsername) return false;
         try {
+            if (!(await localAuthService.isAvailable())) return false;
             const keys = await accountStorageService.getAccountKeys(currentUsername);
             return !!(keys?.activeKey?.trim());
         } catch {
@@ -67,9 +68,10 @@ export const useWalletOperations = (
             const keys = await accountStorageService.getAccountKeys(currentUsername);
             const key = keys?.activeKey?.trim();
             if (!key) return null;
-            if (await localAuthService.isAvailable()) {
-                await localAuthService.authenticate('Confirm wallet operation');
+            if (!(await localAuthService.isAvailable())) {
+                throw new Error('Device authentication unavailable. Please enter your active key manually.');
             }
+            await localAuthService.authenticate('Confirm wallet operation');
             return key;
         } catch (err: unknown) {
             if (err instanceof AuthCancelledError) throw err;
