@@ -59,10 +59,12 @@ export const PowerUpModal: React.FC<PowerUpModalProps> = ({
     }, [visible]);
 
     const amountNum = parseFloat(amount);
+    const hasValidPrecision = !amount.includes('.') || (amount.split('.')[1] ?? '').length <= 3;
     const isValid =
         !isNaN(amountNum) &&
         amountNum > 0 &&
         amountNum <= hiveBalance &&
+        hasValidPrecision &&
         (hasStoredKey || activeKeyInput.trim().length > 0);
 
     // Preview: how much HP would this be
@@ -152,6 +154,9 @@ export const PowerUpModal: React.FC<PowerUpModalProps> = ({
                                     {amountNum > hiveBalance && (
                                         <Text style={styles.errorText}>Amount exceeds available balance</Text>
                                     )}
+                                    {!hasValidPrecision && (
+                                        <Text style={styles.errorText}>Maximum 3 decimal places</Text>
+                                    )}
                                 </View>
 
                                 {/* Active key section */}
@@ -175,8 +180,6 @@ export const PowerUpModal: React.FC<PowerUpModalProps> = ({
                                             autoCapitalize="none"
                                             autoCorrect={false}
                                             editable={!loading}
-                                            multiline
-                                            textAlignVertical="top"
                                         />
                                     </View>
                                 )}

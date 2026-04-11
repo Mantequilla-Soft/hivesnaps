@@ -1,5 +1,4 @@
-import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
 import { accountStorageService } from '../services/AccountStorageService';
@@ -8,16 +7,39 @@ import { hpToVests } from '../utils/hiveCalculations';
 
 const client = getClient();
 
+interface UseWalletOperationsReturn {
+    transferLoading: boolean;
+    transferSuccess: boolean;
+    powerUpLoading: boolean;
+    powerUpSuccess: boolean;
+    powerDownLoading: boolean;
+    powerDownSuccess: boolean;
+    transfer: (to: string, amount: string, currency: 'HIVE' | 'HBD', memo: string, manualKey?: string) => Promise<void>;
+    powerUp: (amount: string, manualKey?: string) => Promise<void>;
+    powerDown: (amountHp: string, globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string }, manualKey?: string) => Promise<void>;
+    cancelPowerDown: (manualKey?: string) => Promise<void>;
+    checkStoredKeyAvailable: () => Promise<boolean>;
+    getStoredActiveKey: () => Promise<string | null>;
+}
+
 export const useWalletOperations = (
     currentUsername: string | null,
     onRefresh?: () => Promise<void>
-) => {
+): UseWalletOperationsReturn => {
     const [transferLoading, setTransferLoading] = useState(false);
     const [transferSuccess, setTransferSuccess] = useState(false);
     const [powerUpLoading, setPowerUpLoading] = useState(false);
     const [powerUpSuccess, setPowerUpSuccess] = useState(false);
     const [powerDownLoading, setPowerDownLoading] = useState(false);
     const [powerDownSuccess, setPowerDownSuccess] = useState(false);
+
+    const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+    useEffect(() => () => { pendingTimers.current.forEach(clearTimeout); }, []);
+
+    const safeTimeout = (fn: () => void, delay: number): void => {
+        const id = setTimeout(fn, delay);
+        pendingTimers.current.push(id);
+    };
 
     /**
      * Check if a stored active key exists (no biometric prompt).
@@ -59,7 +81,7 @@ export const useWalletOperations = (
      * Throws AuthCancelledError if user cancels biometric.
      * Throws Error if neither path yields a valid key.
      */
-    const resolveKey = async (manualKey?: string): Promise<PrivateKey> => {
+    const resolveKey = useCallback(async (manualKey?: string): Promise<PrivateKey> => {
         const keyStr = manualKey?.trim() || await getStoredActiveKey();
         if (!keyStr) throw new Error('Active key required. Please enter your active key or store one in settings.');
         if (!keyStr.startsWith('5') || keyStr.length < 50) {
@@ -70,11 +92,11 @@ export const useWalletOperations = (
         } catch {
             throw new Error('Invalid active key format. Please check your key and try again.');
         }
-    };
+    }, [getStoredActiveKey]);
 
     /** Trigger a balance refresh after blockchain confirmation (~3s block time). */
     const scheduleRefresh = (): void => {
-        setTimeout(async () => {
+        safeTimeout(async () => {
             let retries = 0;
             const poll = async (): Promise<void> => {
                 try {
@@ -84,7 +106,7 @@ export const useWalletOperations = (
                     // ignore poll errors
                 }
                 retries++;
-                if (retries < 4) setTimeout(poll, 1000);
+                if (retries < 4) safeTimeout(poll, 1000);
             };
             poll();
         }, 3000);
@@ -117,7 +139,7 @@ export const useWalletOperations = (
             );
             setTransferSuccess(true);
             scheduleRefresh();
-            setTimeout(() => setTransferSuccess(false), 2500);
+            safeTimeout(() => setTransferSuccess(false), 2500);
         } finally {
             setTransferLoading(false);
         }
@@ -141,7 +163,7 @@ export const useWalletOperations = (
             );
             setPowerUpSuccess(true);
             scheduleRefresh();
-            setTimeout(() => setPowerUpSuccess(false), 2500);
+            safeTimeout(() => setPowerUpSuccess(false), 2500);
         } finally {
             setPowerUpLoading(false);
         }
@@ -175,7 +197,7 @@ export const useWalletOperations = (
             );
             setPowerDownSuccess(true);
             scheduleRefresh();
-            setTimeout(() => setPowerDownSuccess(false), 2500);
+            safeTimeout(() => setPowerDownSuccess(false), 2500);
         } finally {
             setPowerDownLoading(false);
         }
@@ -197,7 +219,7 @@ export const useWalletOperations = (
             );
             setPowerDownSuccess(true);
             scheduleRefresh();
-            setTimeout(() => setPowerDownSuccess(false), 2500);
+            safeTimeout(() => setPowerDownSuccess(false), 2500);
         } finally {
             setPowerDownLoading(false);
         }

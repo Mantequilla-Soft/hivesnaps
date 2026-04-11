@@ -62,11 +62,13 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     }, [visible]);
 
     const amountNum = parseFloat(amount);
+    const hasValidPrecision = !amount.includes('.') || (amount.split('.')[1] ?? '').length <= 3;
     const isValid =
         to.trim().length > 0 &&
         !isNaN(amountNum) &&
         amountNum > 0 &&
         amountNum <= balance &&
+        hasValidPrecision &&
         (hasStoredKey || activeKeyInput.trim().length > 0);
 
     const handleConfirm = async (): Promise<void> => {
@@ -149,6 +151,9 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                                     {amountNum > balance && (
                                         <Text style={styles.errorText}>Amount exceeds available balance</Text>
                                     )}
+                                    {!hasValidPrecision && (
+                                        <Text style={styles.errorText}>Maximum 3 decimal places</Text>
+                                    )}
                                 </View>
 
                                 {/* Memo */}
@@ -187,8 +192,6 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                                             autoCapitalize="none"
                                             autoCorrect={false}
                                             editable={!loading}
-                                            multiline
-                                            textAlignVertical="top"
                                         />
                                     </View>
                                 )}

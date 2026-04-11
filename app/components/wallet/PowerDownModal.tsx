@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+
+const ERROR_COLOR = '#E74C3C';
 import {
     Modal,
     View,
@@ -206,8 +208,6 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                                             autoCapitalize="none"
                                             autoCorrect={false}
                                             editable={!loading}
-                                            multiline
-                                            textAlignVertical="top"
                                         />
                                     </View>
                                 )}
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     biometricText: { fontSize: 13 },
-    errorText: { color: '#E74C3C', fontSize: 13, marginTop: 4 },
+    errorText: { color: ERROR_COLOR, fontSize: 13, marginTop: 4 },
     buttons: { flexDirection: 'row', marginTop: 8 },
     button: { flex: 1, borderRadius: 8, padding: 12, alignItems: 'center' },
     buttonText: { fontSize: 15, fontWeight: '600' },

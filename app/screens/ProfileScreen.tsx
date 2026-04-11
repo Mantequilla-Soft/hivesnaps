@@ -361,7 +361,6 @@ const ProfileScreen = () => {
               hbd={profile?.hbd}
               hivePower={profile?.hivePower}
               colors={colors}
-              styles={styles}
             />
 
             {/* Additional Info */}

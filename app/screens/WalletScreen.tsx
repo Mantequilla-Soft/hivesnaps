@@ -133,15 +133,21 @@ const WalletScreen = (): React.JSX.Element => {
 
     // Dismiss success state and close modal after 2.5s
     useEffect(() => {
-        if (transferSuccess) setTimeout(() => { setTransferHiveVisible(false); setTransferHbdVisible(false); }, 2500);
+        if (!transferSuccess) return;
+        const id = setTimeout(() => { setTransferHiveVisible(false); setTransferHbdVisible(false); }, 2500);
+        return () => clearTimeout(id);
     }, [transferSuccess]);
 
     useEffect(() => {
-        if (powerUpSuccess) setTimeout(() => setPowerUpVisible(false), 2500);
+        if (!powerUpSuccess) return;
+        const id = setTimeout(() => setPowerUpVisible(false), 2500);
+        return () => clearTimeout(id);
     }, [powerUpSuccess]);
 
     useEffect(() => {
-        if (powerDownSuccess) setTimeout(() => setPowerDownVisible(false), 2500);
+        if (!powerDownSuccess) return;
+        const id = setTimeout(() => setPowerDownVisible(false), 2500);
+        return () => clearTimeout(id);
     }, [powerDownSuccess]);
 
     const handleTransfer = async (currency: 'HIVE' | 'HBD', to: string, amount: string, memo: string, manualKey?: string): Promise<void> => {

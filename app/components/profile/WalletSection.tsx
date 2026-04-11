@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { createProfileScreenStyles } from '../../../styles/ProfileScreenStyles';
+import type { Href } from 'expo-router';
 
 interface WalletSectionProps {
     isOwnProfile: boolean;
@@ -19,7 +19,6 @@ interface WalletSectionProps {
         button: string;
         buttonText: string;
     };
-    styles: ReturnType<typeof createProfileScreenStyles>;
 }
 
 export const WalletSection: React.FC<WalletSectionProps> = ({
@@ -59,7 +58,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
             {/* Open Wallet button */}
             <TouchableOpacity
                 style={[localStyles.walletButton, { backgroundColor: colors.button }]}
-                onPress={() => router.push('/screens/WalletScreen' as never)}
+                onPress={() => router.push('/screens/WalletScreen' as Href)}
                 accessibilityRole="button"
                 accessibilityLabel="Open wallet"
             >
