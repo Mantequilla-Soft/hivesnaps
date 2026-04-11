@@ -29,6 +29,7 @@ interface TransferModalProps {
         buttonInactive: string;
         inputBorder: string;
         infoBoxBackground: string;
+        error?: string;
     };
     onClose: () => void;
     onTransfer: (to: string, amount: string, memo: string, manualKey?: string) => Promise<void>;
@@ -149,10 +150,10 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                                         editable={!loading}
                                     />
                                     {amountNum > balance && (
-                                        <Text style={styles.errorText}>Amount exceeds available balance</Text>
+                                        <Text style={[styles.errorText, { color: colors.error ?? '#E74C3C' }]}>Amount exceeds available balance</Text>
                                     )}
                                     {!hasValidPrecision && (
-                                        <Text style={styles.errorText}>Maximum 3 decimal places</Text>
+                                        <Text style={[styles.errorText, { color: colors.error ?? '#E74C3C' }]}>Maximum 3 decimal places</Text>
                                     )}
                                 </View>
 
@@ -197,7 +198,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                                 )}
 
                                 {error ? (
-                                    <Text style={styles.errorText}>{error}</Text>
+                                    <Text style={[styles.errorText, { color: colors.error ?? '#E74C3C' }]}>{error}</Text>
                                 ) : null}
 
                                 {/* Buttons */}
@@ -293,7 +294,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     biometricText: { fontSize: 13 },
-    errorText: { color: '#E74C3C', fontSize: 13, marginTop: 4 },
+    errorText: { fontSize: 13, marginTop: 4 },
     buttons: { flexDirection: 'row', marginTop: 8 },
     button: { flex: 1, borderRadius: 8, padding: 12, alignItems: 'center' },
     buttonText: { fontSize: 15, fontWeight: '600' },

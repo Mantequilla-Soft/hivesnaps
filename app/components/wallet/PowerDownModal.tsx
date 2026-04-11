@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-
-const ERROR_COLOR = '#E74C3C';
 import {
     Modal,
     View,
@@ -183,7 +181,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                                         </Text>
                                     )}
                                     {amountNum > ownHivePower && (
-                                        <Text style={styles.errorText}>Amount exceeds available HP</Text>
+                                        <Text style={[styles.errorText, { color: colors.error ?? '#E74C3C' }]}>Amount exceeds available HP</Text>
                                     )}
                                 </View>
 
@@ -212,7 +210,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                                     </View>
                                 )}
 
-                                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                                {error ? <Text style={[styles.errorText, { color: colors.error ?? '#E74C3C' }]}>{error}</Text> : null}
 
                                 <View style={styles.buttons}>
                                     <Pressable
@@ -332,7 +330,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     biometricText: { fontSize: 13 },
-    errorText: { color: ERROR_COLOR, fontSize: 13, marginTop: 4 },
+    errorText: { fontSize: 13, marginTop: 4 },
     buttons: { flexDirection: 'row', marginTop: 8 },
     button: { flex: 1, borderRadius: 8, padding: 12, alignItems: 'center' },
     buttonText: { fontSize: 15, fontWeight: '600' },

@@ -54,6 +54,7 @@ const WalletScreen = (): React.JSX.Element => {
         inputBorder: theme.inputBorder,
         infoBoxBackground: theme.infoBoxBackground,
         warningBoxBackground: theme.warningBoxBackground,
+        error: theme.error,
     };
 
     // Wallet data state
