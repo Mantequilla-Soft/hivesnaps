@@ -38,7 +38,6 @@ import AudioEmbed from './AudioEmbed';
 import InstagramEmbed from './InstagramEmbed';
 import { extractBlogPostUrls } from '../../utils/extractHivePostInfo';
 import { OptimizedHivePostPreviewRenderer } from '../../components/OptimizedHivePostPreviewRenderer';
-import { classifyUrl } from '../../utils/urlClassifier';
 import { canBeResnapped } from '../../utils/postTypeDetector';
 import { getMarkdownStyles } from '../../styles/markdownStyles';
 import { linkStyles, useLinkTextStyle } from '../../styles/linkStyles';
@@ -54,6 +53,8 @@ import { SnapData } from '../../hooks/useConversationData';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
 import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
 import { renderHiveToHtml } from '../../utils/renderHive';
+import { linkifyMentions } from '../../utils/linkifyMentions';
+import { linkifyUrls } from '../../utils/linkifyUrls';
 
 interface SnapProps {
   snap: SnapData;
@@ -99,55 +100,7 @@ function containsHtml(str: string): boolean {
   return /<([a-z][\s\S]*?)>/i.test(str);
 }
 
-// Utility: Preprocess @username mentions to clickable profile links
-function linkifyMentions(text: string): string {
-  // Only match @username if not preceded by a '/' or inside a markdown link
-  // Negative lookbehind for '/': (?<!/)
-  // Hive usernames: 3-16 chars, a-z, 0-9, dash, dot (no @ in username)
-  // Avoid emails and already-linked mentions
-  return text.replace(
-    /(^|[^\w/@])@([a-z0-9\-\.]{3,16})(?![a-z0-9\-\.])/gi,
-    (match, pre, username, offset, string) => {
-      // Don't process if we're inside a markdown link [text](url)
-      const beforeMatch = string.substring(0, offset);
-      const afterMatch = string.substring(offset + match.length);
 
-      const openBrackets = (beforeMatch.match(/\[/g) || []).length;
-      const closeBrackets = (beforeMatch.match(/\]/g) || []).length;
-      const isInsideMarkdownLink =
-        openBrackets > closeBrackets && afterMatch.includes('](');
-
-      if (isInsideMarkdownLink) {
-        return match; // Don't modify if inside a markdown link
-      }
-
-      // Return non-bold markdown link; bold is applied via linkStyles.mention
-      return `${pre}[@${username}](profile://${username})`;
-    }
-  );
-}
-
-// Utility: Preprocess raw URLs to clickable markdown links (if not already linked)
-function linkifyUrls(text: string): string {
-  // Use our URL classifier to determine how to handle each URL
-  return text.replace(/(https?:\/\/[\w.-]+(?:\/[\w\-./?%&=+#@]*)?)/gi, url => {
-    // If already inside a markdown or html link, skip
-    if (/\]\([^)]+\)$/.test(url) || /href=/.test(url)) return url;
-
-    // Classify the URL using our utility
-    const urlInfo = classifyUrl(url);
-
-    // For now, only create markdown links for normal URLs
-    // Hive posts and embedded media will be handled by their respective renderers
-    if (urlInfo.type === 'normal') {
-      return `[${urlInfo.displayText || url}](${url})`;
-    }
-
-    // For all other types (hive_post, embedded_media, invalid), return as-is
-    // This allows the existing renderers to handle them properly
-    return url;
-  });
-}
 
 // Helper: Render mp4 video using expo-av Video
 const renderMp4Video = (uri: string, key?: string | number) => (

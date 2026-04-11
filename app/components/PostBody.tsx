@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import { renderHiveToHtml } from '../../utils/renderHive';
 import { proxyImageUrl } from '../../utils/proxyImageUrl';
+import { linkifyMentions } from '../../utils/linkifyMentions';
 import {
   extractVideoInfo,
   removeVideoUrls,
@@ -203,7 +204,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             },
           }}
         >
-          {preprocessForMarkdown(body)}
+          {preprocessForMarkdown(linkifyMentions(body))}
         </Markdown>
       </View>
     );
@@ -466,7 +467,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             },
           }}
         >
-          {preprocessForMarkdown(contentToRender)}
+          {preprocessForMarkdown(linkifyMentions(contentToRender))}
         </Markdown>
       )}
     </View>
