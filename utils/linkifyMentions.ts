@@ -12,9 +12,9 @@ export function linkifyMentions(text: string): string {
     // Hive usernames: start with a letter, end with alphanumeric, 3–16 chars total.
     // Middle chars may include letters, digits, hyphens, and dots.
     /(^|[^\w/@])@([a-z][a-z0-9\-.]{1,14}[a-z0-9])(?![a-z0-9\-.])/gi,
-    (match, pre, username, offset, string) => {
-      const beforeMatch = string.substring(0, offset);
-      const afterMatch = string.substring(offset + match.length);
+    (match: string, pre: string, username: string, offset: number, source: string): string => {
+      const beforeMatch = source.substring(0, offset);
+      const afterMatch = source.substring(offset + match.length);
 
       // Case 1: the match IS the link text — e.g. "[@username" where pre='['
       // and the rest of the string begins with "](url)".  The '[' was captured

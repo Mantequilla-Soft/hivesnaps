@@ -144,6 +144,13 @@ describe('linkifyUrls', () => {
     expect(linkifyUrls(hive)).toBe(hive);
   });
 
+  it('DOES linkify a URL that appears inside plain parentheses in text', () => {
+    // (https://example.com) is just prose punctuation, not a markdown link dest
+    const input = 'See the docs (https://example.com) for details.';
+    const result = linkifyUrls(input);
+    expect(result).toContain('[https://example.com](https://example.com)');
+  });
+
   it('truncates display text for long URLs', () => {
     const long =
       'https://example.com/this/is/a/very/long/path/that/exceeds/fifty/characters/total';
