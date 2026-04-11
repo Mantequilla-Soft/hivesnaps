@@ -124,6 +124,8 @@ const WalletScreen = (): React.JSX.Element => {
             if (seq !== fetchSeq.current) return;
             if (!silent) {
                 Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load wallet');
+            } else {
+                throw err instanceof Error ? err : new Error('Failed to load wallet');
             }
         } finally {
             if (seq !== fetchSeq.current) return;
@@ -246,7 +248,12 @@ const WalletScreen = (): React.JSX.Element => {
         <SafeAreaView style={styles.safeArea}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back"
+                >
                     <FontAwesome name="arrow-left" size={18} color={theme.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Wallet</Text>

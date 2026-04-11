@@ -123,6 +123,14 @@ export const useWalletOperations = (
         return currentUsername;
     };
 
+    const parsePositiveAmount = (raw: string, assetLabel: string): number => {
+        const value = Number.parseFloat(raw);
+        if (!Number.isFinite(value) || value <= 0) {
+            throw new Error(`Invalid ${assetLabel} amount. Please enter a value greater than 0.`);
+        }
+        return value;
+    };
+
     /**
      * Transfer HIVE or HBD to another account.
      * @param to - recipient username
@@ -143,7 +151,7 @@ export const useWalletOperations = (
         setTransferSuccess(false);
         try {
             const activeKey = await resolveKey(manualKey);
-            const formattedAmount = `${parseFloat(amount).toFixed(3)} ${currency}`;
+            const formattedAmount = `${parsePositiveAmount(amount, currency).toFixed(3)} ${currency}`;
             await client.broadcast.sendOperations(
                 [['transfer', { from: username, to, amount: formattedAmount, memo }]],
                 activeKey
@@ -166,7 +174,7 @@ export const useWalletOperations = (
         setPowerUpSuccess(false);
         try {
             const activeKey = await resolveKey(manualKey);
-            const formattedAmount = `${parseFloat(amount).toFixed(3)} HIVE`;
+            const formattedAmount = `${parsePositiveAmount(amount, 'HIVE').toFixed(3)} HIVE`;
             await client.broadcast.sendOperations(
                 [['transfer_to_vesting', { from: username, to: username, amount: formattedAmount }]],
                 activeKey
@@ -195,7 +203,7 @@ export const useWalletOperations = (
         try {
             const activeKey = await resolveKey(manualKey);
             const vests = hpToVests(
-                parseFloat(amountHp),
+                parsePositiveAmount(amountHp, 'HP'),
                 globalProps.total_vesting_fund_hive,
                 globalProps.total_vesting_shares
             );
