@@ -8,6 +8,8 @@ import {
     ScrollView,
     StyleSheet,
     ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
@@ -99,7 +101,11 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.overlay}>
+            <KeyboardAvoidingView
+                style={styles.overlay}
+                behavior="padding"
+                enabled={Platform.OS === 'ios'}
+            >
                     <View style={[styles.content, { backgroundColor: colors.background }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Power Down</Text>
 
@@ -232,7 +238,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
                             </ScrollView>
                         )}
                     </View>
-                </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };

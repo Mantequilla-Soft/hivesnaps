@@ -8,6 +8,8 @@ import {
     ScrollView,
     StyleSheet,
     ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
@@ -85,7 +87,11 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.overlay}>
+            <KeyboardAvoidingView
+                style={styles.overlay}
+                behavior="padding"
+                enabled={Platform.OS === 'ios'}
+            >
                 <View style={[styles.content, { backgroundColor: colors.background }]}>
                         <Text style={[styles.title, { color: colors.text }]}>
                             Transfer {currency}
@@ -222,7 +228,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                             </ScrollView>
                         )}
                     </View>
-                </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };

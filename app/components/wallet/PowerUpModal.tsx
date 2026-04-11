@@ -7,6 +7,8 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { vestsToHp } from '../../../utils/hiveCalculations';
@@ -94,7 +96,11 @@ export const PowerUpModal: React.FC<PowerUpModalProps> = ({
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.overlay}>
+            <KeyboardAvoidingView
+                style={styles.overlay}
+                behavior="padding"
+                enabled={Platform.OS === 'ios'}
+            >
                     <View style={[styles.content, { backgroundColor: colors.background }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Power Up</Text>
 
@@ -207,7 +213,7 @@ export const PowerUpModal: React.FC<PowerUpModalProps> = ({
                             </>
                         )}
                     </View>
-                </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };
