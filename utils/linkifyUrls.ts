@@ -24,12 +24,13 @@ export function linkifyUrls(text: string): string {
       const closeBrackets = (beforeMatch.match(/\]/g) || []).length;
       if (openBrackets > closeBrackets && afterMatch.includes('](')) return url;
 
-      // Skip if the URL is the href of a markdown link [text](url "title").
-      // Require beforeMatch to end with "](" so plain parenthesised URLs like
-      // (https://example.com) are still linkified.
+      // Skip if the URL is the href of a markdown link, including optional
+      // title and angle-bracket destinations: [text](url), [text](url "title"),
+      // [text](<url>).  Require beforeMatch to end with "](" (optionally followed
+      // by "<") so plain parenthesised prose URLs are still linkified.
       if (
-        /\]\(\s*$/.test(beforeMatch) &&
-        /^\s*(?:"[^"]*"|'[^']*'|\([^)]*\))?\)/.test(afterMatch)
+        /\]\(\s*<?\s*$/.test(beforeMatch) &&
+        /^\s*>?\s*(?:(?:"[^"]*"|'[^']*'|\([^)]*\))\s*)?\)/.test(afterMatch)
       ) {
         return url;
       }

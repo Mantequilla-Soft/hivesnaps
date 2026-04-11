@@ -86,10 +86,6 @@ describe('linkifyMentions', () => {
     );
   });
 
-  it('does NOT wrap a URL inside an HTML href with uppercase HREF', () => {
-    const input = '<a HREF="https://example.com">click</a>';
-    expect(linkifyUrls(input)).toBe(input);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -129,8 +125,13 @@ describe('linkifyUrls', () => {
     expect(linkifyUrls(input)).toBe(input);
   });
 
-  it('does NOT wrap a URL inside an HTML href attribute without quotes', () => {
+  it('does NOT wrap a URL inside an HTML href attribute with single quotes', () => {
     const input = "<a href='https://example.com'>click</a>";
+    expect(linkifyUrls(input)).toBe(input);
+  });
+
+  it('does NOT wrap a URL inside an HTML href with uppercase HREF', () => {
+    const input = '<a HREF="https://example.com">click</a>';
     expect(linkifyUrls(input)).toBe(input);
   });
 
@@ -142,6 +143,12 @@ describe('linkifyUrls', () => {
   it('leaves Hive post URLs unwrapped (handled by the post-preview renderer)', () => {
     const hive = 'https://peakd.com/@alice/my-great-post';
     expect(linkifyUrls(hive)).toBe(hive);
+  });
+
+  it('does NOT wrap a URL inside an angle-bracket markdown destination', () => {
+    // [label](<https://example.com>) is valid CommonMark
+    const input = '[label](<https://example.com>)';
+    expect(linkifyUrls(input)).toBe(input);
   });
 
   it('DOES linkify a URL that appears inside plain parentheses in text', () => {
