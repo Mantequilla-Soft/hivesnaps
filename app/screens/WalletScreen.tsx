@@ -6,12 +6,11 @@ import {
     ScrollView,
     ActivityIndicator,
     Alert,
-    useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { getTheme } from '../../constants/Colors';
+import { useTheme } from '../../hooks/useTheme';
 import { getClient } from '../../services/HiveClient';
 import { useAuth } from '../../store/context';
 import { createWalletScreenStyles } from '../../styles/WalletScreenStyles';
@@ -33,12 +32,11 @@ interface WalletData {
 }
 
 const WalletScreen = (): React.JSX.Element => {
-    const colorScheme = useColorScheme() || 'light';
-    const isDark = colorScheme === 'dark';
+    const theme = useTheme();
+    const { isDark } = theme;
     const router = useRouter();
     const { currentUsername } = useAuth();
 
-    const theme = getTheme(isDark ? 'dark' : 'light');
     const styles = useMemo(() => createWalletScreenStyles(isDark), [isDark]);
 
     const colors = {
@@ -103,12 +101,16 @@ const WalletScreen = (): React.JSX.Element => {
             };
             setGlobalProps(gProps);
 
-            const hiveBalance = parseFloat((account.balance || '0.000 HIVE').replace(' HIVE', ''));
-            const hbdBalance = parseFloat((account.hbd_balance || '0.000 HBD').replace(' HBD', ''));
-            const vestingShares = parseFloat((account.vesting_shares || '0.000000 VESTS').replace(' VESTS', ''));
-            const delegatedVests = parseFloat((account.delegated_vesting_shares || '0.000000 VESTS').replace(' VESTS', ''));
-            const receivedVests = parseFloat((account.received_vesting_shares || '0.000000 VESTS').replace(' VESTS', ''));
-            const withdrawRate = parseFloat((account.vesting_withdraw_rate || '0.000000 VESTS').replace(' VESTS', ''));
+            const parseBalance = (val: string | undefined, fallback: string, suffix: string): number => {
+                const num = parseFloat((val || fallback).replace(suffix, ''));
+                return Number.isNaN(num) ? 0 : num;
+            };
+            const hiveBalance = parseBalance(account.balance, '0.000 HIVE', ' HIVE');
+            const hbdBalance = parseBalance(account.hbd_balance, '0.000 HBD', ' HBD');
+            const vestingShares = parseBalance(account.vesting_shares, '0.000000 VESTS', ' VESTS');
+            const delegatedVests = parseBalance(account.delegated_vesting_shares, '0.000000 VESTS', ' VESTS');
+            const receivedVests = parseBalance(account.received_vesting_shares, '0.000000 VESTS', ' VESTS');
+            const withdrawRate = parseBalance(account.vesting_withdraw_rate, '0.000000 VESTS', ' VESTS');
 
             const effectiveVests = vestingShares - delegatedVests + receivedVests;
             const ownVests = vestingShares - delegatedVests;

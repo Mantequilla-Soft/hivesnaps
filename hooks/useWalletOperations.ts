@@ -34,12 +34,15 @@ export const useWalletOperations = (
     const [powerDownLoading, setPowerDownLoading] = useState(false);
     const [powerDownSuccess, setPowerDownSuccess] = useState(false);
 
-    const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const pendingTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
     useEffect(() => () => { pendingTimers.current.forEach(clearTimeout); }, []);
 
     const safeTimeout = (fn: () => void, delay: number): void => {
-        const id = setTimeout(fn, delay);
-        pendingTimers.current.push(id);
+        const id = setTimeout(() => {
+            pendingTimers.current.delete(id);
+            fn();
+        }, delay);
+        pendingTimers.current.add(id);
     };
 
     /**
