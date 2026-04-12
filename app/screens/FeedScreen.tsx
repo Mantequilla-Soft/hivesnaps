@@ -29,6 +29,7 @@ import { createFeedScreenStyles } from '../../styles/FeedScreenStyles';
 // Custom hooks for business logic
 import { useAuth } from '../../store/context';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
+import { useBlogFeed } from '../../hooks/useBlogFeed';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
@@ -43,6 +44,7 @@ import { useAppStore, useCurrentUser, useAppDebug, useFollowCacheManagement } fr
 
 // Components
 import Snap from '../components/Snap';
+import { BlogCard } from '../components/BlogCard';
 import NotificationBadge from '../components/NotificationBadge';
 import SmallButton from '../../components/SmallButton';
 import StaticContentModal from '../../components/StaticContentModal';
@@ -167,6 +169,18 @@ const FeedScreenRefactored = () => {
     clearContainerMap
   } = useFeedData();
 
+  // Blog feed
+  const [activeFeed, setActiveFeed] = useState<'blogs' | 'snaps'>('blogs');
+  const {
+    posts: blogPosts,
+    loading: blogLoading,
+    loadingMore: blogLoadingMore,
+    error: blogError,
+    fetchPosts: fetchBlogPosts,
+    refresh: refreshBlogPosts,
+    loadMore: loadMoreBlogPosts,
+  } = useBlogFeed();
+
   // Cache management for follow/mute lists
   const { invalidateFollowingCache, invalidateMutedCache } = useFollowCacheManagement();
 
@@ -265,6 +279,7 @@ const FeedScreenRefactored = () => {
         `🏗️ [FeedScreen] About to fetch snaps using container-pagination strategy...`
       );
       hasInitialFetch.current = true;
+      void fetchBlogPosts();
       fetchSnaps(false).then(() => {
         // Log memory state after initial fetch
         const postFetchStats = getMemoryStats();
@@ -475,6 +490,9 @@ const FeedScreenRefactored = () => {
       // Clear container state to ensure fresh data and resolve refresh delays
       console.log('🧹 [FeedScreen] Clearing container map for fresh state');
       clearContainerMap();
+
+      // Refresh blog feed in parallel
+      ops.push(refreshBlogPosts());
 
       // Now refresh feed snaps with fresh muted/following data (returns a promise)
       ops.push(refreshSnaps());
@@ -878,59 +896,108 @@ const FeedScreenRefactored = () => {
             style={styles.filterScrollView}
           >
             {[
-              { key: 'following', label: 'Following', icon: 'users' },
-              { key: 'newest', label: 'Newest', icon: 'clock-o' },
-              { key: 'trending', label: 'Trending', icon: 'fire' },
-              { key: 'my', label: 'My Snaps', icon: 'user' },
-            ].map((filter, index) => (
-              <TouchableOpacity
-                key={filter.key}
-                style={[
-                  styles.filterBtnScrollable,
-                  {
-                    backgroundColor:
-                      currentFilter === filter.key
-                        ? colors.button
-                        : colors.buttonInactive,
-                    marginLeft: index === 0 ? 0 : 8,
-                    marginRight: index === 3 ? 0 : 0,
-                  },
-                ]}
-                onPress={() => handleFilterPress(filter.key as FeedFilter)}
-                activeOpacity={0.7}
-              >
-                <FontAwesome
-                  name={filter.icon as any}
-                  size={16}
-                  color={
-                    currentFilter === filter.key
-                      ? colors.buttonText
-                      : colors.text
-                  }
-                  style={{ marginRight: 6 }}
-                />
-                <Text
+              { key: 'blogs', label: 'Blogs', icon: 'newspaper-o', feed: 'blogs' as const },
+              { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' as const },
+              { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' as const },
+              { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' as const },
+              { key: 'my', label: 'My Snaps', icon: 'user', feed: 'snaps' as const },
+            ].map((filter, index) => {
+              const isActive = filter.key === 'blogs'
+                ? activeFeed === 'blogs'
+                : activeFeed === 'snaps' && currentFilter === filter.key;
+              return (
+                <TouchableOpacity
+                  key={filter.key}
                   style={[
-                    styles.filterTextScrollable,
+                    styles.filterBtnScrollable,
                     {
-                      color:
-                        currentFilter === filter.key
-                          ? colors.buttonText
-                          : colors.text,
+                      backgroundColor: isActive ? colors.button : colors.buttonInactive,
+                      marginLeft: index === 0 ? 0 : 8,
                     },
                   ]}
+                  onPress={() => {
+                    if (filter.key === 'blogs') {
+                      setActiveFeed('blogs');
+                    } else {
+                      setActiveFeed('snaps');
+                      handleFilterPress(filter.key as FeedFilter);
+                    }
+                  }}
+                  activeOpacity={0.7}
                 >
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <FontAwesome
+                    name={filter.icon as any}
+                    size={16}
+                    color={isActive ? colors.buttonText : colors.text}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.filterTextScrollable,
+                      { color: isActive ? colors.buttonText : colors.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       </SafeAreaView>
 
       {/* Feed list */}
       <View style={styles.feedContainer}>
-        {feedLoading ? (
+        {activeFeed === 'blogs' ? (
+          blogLoading ? (
+            <View style={{ alignItems: 'center', marginTop: 40 }}>
+              <ActivityIndicator size="large" color={colors.button} />
+              <Text style={{ color: colors.text, fontSize: 16, marginTop: 12 }}>
+                Loading blogs...
+              </Text>
+            </View>
+          ) : blogError ? (
+            <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 24 }}>
+              <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center' }}>
+                {blogError}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={blogPosts}
+              keyExtractor={(item) => `${item.author}-${item.permlink}`}
+              renderItem={({ item }) => (
+                <BlogCard
+                  post={item}
+                  onPress={() => router.push({
+                    pathname: '/screens/ConversationScreen',
+                    params: { author: item.author, permlink: item.permlink },
+                  })}
+                  onAuthorPress={(u) => router.push(`/screens/ProfileScreen?username=${u}` as any)}
+                />
+              )}
+              contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+              onEndReached={loadMoreBlogPosts}
+              onEndReachedThreshold={0.3}
+              refreshing={globalRefreshing}
+              onRefresh={handleGlobalRefresh}
+              ListFooterComponent={
+                blogLoadingMore ? (
+                  <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={colors.button} />
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 24 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center' }}>
+                    No blog posts yet. Be the first!
+                  </Text>
+                </View>
+              }
+            />
+          )
+        ) : feedLoading ? (
           <View style={{ alignItems: 'center', marginTop: 40 }}>
             <FontAwesome
               name='hourglass-half'
