@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 
@@ -50,6 +50,7 @@ export interface UseBlogFeedResult {
   loading: boolean;
   loadingMore: boolean;
   error: string | null;
+  loadMoreError: string | null;
   fetchPosts: () => Promise<void>;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -60,9 +61,16 @@ export function useBlogFeed(): UseBlogFeedResult {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const cursorRef = useRef<{ author: string; permlink: string } | null>(null);
   const hasMoreRef = useRef(true);
   const isFetchingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   const enrichWithAvatars = useCallback(async (rawPosts: BlogPost[]): Promise<BlogPost[]> => {
     const enriched = await Promise.all(
@@ -98,8 +106,7 @@ export function useBlogFeed(): UseBlogFeedResult {
   const fetchPosts = useCallback(async (): Promise<void> => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
-    setLoading(true);
-    setError(null);
+    if (isMountedRef.current) { setLoading(true); setError(null); }
     cursorRef.current = null;
     hasMoreRef.current = true;
 
@@ -116,6 +123,8 @@ export function useBlogFeed(): UseBlogFeedResult {
 
       const parsed = parseRawPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
+
+      if (!isMountedRef.current) return;
       setPosts(enriched);
       hasMoreRef.current = enriched.length === PAGE_SIZE;
       if (enriched.length > 0) {
@@ -123,9 +132,11 @@ export function useBlogFeed(): UseBlogFeedResult {
         cursorRef.current = { author: last.author, permlink: last.permlink };
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load blog posts');
+      if (isMountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load blog posts');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
       isFetchingRef.current = false;
     }
   }, [parseRawPosts, enrichWithAvatars]);
@@ -133,7 +144,7 @@ export function useBlogFeed(): UseBlogFeedResult {
   const loadMore = useCallback(async (): Promise<void> => {
     if (isFetchingRef.current || !hasMoreRef.current || !cursorRef.current) return;
     isFetchingRef.current = true;
-    setLoadingMore(true);
+    if (isMountedRef.current) { setLoadingMore(true); setLoadMoreError(null); }
 
     try {
       const client = getClient();
@@ -150,6 +161,8 @@ export function useBlogFeed(): UseBlogFeedResult {
 
       const parsed = parseRawPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
+
+      if (!isMountedRef.current) return;
       setPosts((prev) => [...prev, ...enriched]);
       hasMoreRef.current = enriched.length === PAGE_SIZE;
       if (enriched.length > 0) {
@@ -157,9 +170,11 @@ export function useBlogFeed(): UseBlogFeedResult {
         cursorRef.current = { author: last.author, permlink: last.permlink };
       }
     } catch (err) {
-      if (__DEV__) console.error('[useBlogFeed] loadMore error:', err);
+      if (isMountedRef.current) {
+        setLoadMoreError(err instanceof Error ? err.message : 'Failed to load more posts');
+      }
     } finally {
-      setLoadingMore(false);
+      if (isMountedRef.current) setLoadingMore(false);
       isFetchingRef.current = false;
     }
   }, [parseRawPosts, enrichWithAvatars]);
@@ -168,5 +183,5 @@ export function useBlogFeed(): UseBlogFeedResult {
     await fetchPosts();
   }, [fetchPosts]);
 
-  return { posts, loading, loadingMore, error, fetchPosts, refresh, loadMore };
+  return { posts, loading, loadingMore, error, loadMoreError, fetchPosts, refresh, loadMore };
 }

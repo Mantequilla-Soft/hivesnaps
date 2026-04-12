@@ -184,6 +184,7 @@ const FeedScreenRefactored = () => {
     loading: blogLoading,
     loadingMore: blogLoadingMore,
     error: blogError,
+    loadMoreError: blogLoadMoreError,
     fetchPosts: fetchBlogPosts,
     refresh: refreshBlogPosts,
     loadMore: loadMoreBlogPosts,
@@ -955,6 +956,8 @@ const FeedScreenRefactored = () => {
                     }
                   }}
                   activeOpacity={0.7}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
                 >
                   <FontAwesome
                     name={filter.icon}
@@ -987,7 +990,7 @@ const FeedScreenRefactored = () => {
                 Loading blogs...
               </Text>
             </View>
-          ) : blogError ? (
+          ) : blogError && filteredBlogPosts.length === 0 ? (
             <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 24 }}>
               <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center' }}>
                 {blogError}
@@ -1005,9 +1008,21 @@ const FeedScreenRefactored = () => {
                     pathname: '/screens/HivePostScreen',
                     params: { author: item.author, permlink: item.permlink },
                   })}
-                  onAuthorPress={(u) => router.push(`/screens/ProfileScreen?username=${u}` as any)}
+                  onAuthorPress={(u) => router.push({
+                    pathname: '/screens/ProfileScreen',
+                    params: { username: u },
+                  })}
                 />
               )}
+              ListHeaderComponent={
+                blogError && filteredBlogPosts.length > 0 ? (
+                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, textAlign: 'center', opacity: 0.7 }}>
+                      Refresh failed — showing cached posts
+                    </Text>
+                  </View>
+                ) : null
+              }
               contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
               onEndReached={handleBlogEndReached}
               onEndReachedThreshold={0.3}
@@ -1017,6 +1032,12 @@ const FeedScreenRefactored = () => {
                 blogLoadingMore ? (
                   <View style={{ paddingVertical: 20, alignItems: 'center' }}>
                     <ActivityIndicator size="small" color={colors.button} />
+                  </View>
+                ) : blogLoadMoreError ? (
+                  <View style={{ paddingVertical: 16, alignItems: 'center', paddingHorizontal: 24 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, textAlign: 'center' }}>
+                      {blogLoadMoreError}
+                    </Text>
                   </View>
                 ) : null
               }
