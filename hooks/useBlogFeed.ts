@@ -86,7 +86,7 @@ export function useBlogFeed() {
       // cursor pagination with start_author/start_permlink without "Invalid parameters"
       const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
         sort: 'created',
-        community: SNAPIE_COMMUNITY,
+        tag: SNAPIE_COMMUNITY,
         limit: PAGE_SIZE,
         observer: '',
       });
@@ -116,7 +116,7 @@ export function useBlogFeed() {
       const client = getClient();
       const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
         sort: 'created',
-        community: SNAPIE_COMMUNITY,
+        tag: SNAPIE_COMMUNITY,
         limit: PAGE_SIZE + 1, // +1 because cursor item is included in results
         start_author: cursorRef.current.author,
         start_permlink: cursorRef.current.permlink,
