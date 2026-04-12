@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -29,6 +30,7 @@ import { createFeedScreenStyles } from '../../styles/FeedScreenStyles';
 // Custom hooks for business logic
 import { useAuth } from '../../store/context';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
+import { useBlogFeed } from '../../hooks/useBlogFeed';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
@@ -43,6 +45,7 @@ import { useAppStore, useCurrentUser, useAppDebug, useFollowCacheManagement } fr
 
 // Components
 import Snap from '../components/Snap';
+import { BlogCard } from '../components/BlogCard';
 import NotificationBadge from '../components/NotificationBadge';
 import SmallButton from '../../components/SmallButton';
 import StaticContentModal from '../../components/StaticContentModal';
@@ -51,6 +54,13 @@ import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
 import { getTheme } from '../../constants/Colors';
 
+
+type FeedTab = {
+  key: 'blogs' | FeedFilter;
+  label: string;
+  icon: ComponentProps<typeof FontAwesome>['name'];
+  feed: 'blogs' | 'snaps';
+};
 
 // Modal content constants
 const VP_MODAL_CONTENT = {
@@ -167,6 +177,25 @@ const FeedScreenRefactored = () => {
     clearContainerMap
   } = useFeedData();
 
+  // Blog feed
+  const [activeFeed, setActiveFeed] = useState<'blogs' | 'snaps'>('snaps');
+  const {
+    posts: blogPosts,
+    loading: blogLoading,
+    loadingMore: blogLoadingMore,
+    error: blogError,
+    loadMoreError: blogLoadMoreError,
+    fetchPosts: fetchBlogPosts,
+    refresh: refreshBlogPosts,
+    loadMore: loadMoreBlogPosts,
+  } = useBlogFeed();
+
+  const handleBlogEndReached = useCallback(() => {
+    if (!blogLoadingMore) {
+      loadMoreBlogPosts();
+    }
+  }, [blogLoadingMore, loadMoreBlogPosts]);
+
   // Cache management for follow/mute lists
   const { invalidateFollowingCache, invalidateMutedCache } = useFollowCacheManagement();
 
@@ -192,6 +221,13 @@ const FeedScreenRefactored = () => {
     const filtered = snaps.filter((item) => !mutedList || !mutedList.includes(item.author));
     return filtered;
   }, [snaps, mutedList]);
+
+  // Apply the same muted-list filter to blog posts
+  const filteredBlogPosts = useMemo(() => {
+    if (!mutedList || mutedList.length === 0) return blogPosts;
+    const mutedSet = new Set(mutedList);
+    return blogPosts.filter((post) => !mutedSet.has(post.author));
+  }, [blogPosts, mutedList]);
 
   const { medianPrice, rewardFund } = useHiveData();
 
@@ -244,6 +280,7 @@ const FeedScreenRefactored = () => {
   // Refs
   const flatListRef = useRef<FlatList<any>>(null);
   const hasInitialFetch = useRef(false);
+  const hasOpenedBlogsRef = useRef(false);
 
   // Load recent searches on mount
   useEffect(() => {
@@ -280,6 +317,14 @@ const FeedScreenRefactored = () => {
       }); // Force fresh fetch on mount
     }
   }, []); // Empty deps - only run once on mount
+
+  // Lazy blog fetch — only load when the user first opens the Blogs tab
+  useEffect(() => {
+    if (activeFeed === 'blogs' && !hasOpenedBlogsRef.current) {
+      hasOpenedBlogsRef.current = true;
+      void fetchBlogPosts();
+    }
+  }, [activeFeed, fetchBlogPosts]);
 
   // Log filter changes (client-side filtering happens automatically in useFeedData)
   useEffect(() => {
@@ -475,6 +520,11 @@ const FeedScreenRefactored = () => {
       // Clear container state to ensure fresh data and resolve refresh delays
       console.log('🧹 [FeedScreen] Clearing container map for fresh state');
       clearContainerMap();
+
+      // Refresh blog feed only if user has opened the tab at least once
+      if (activeFeed === 'blogs' || hasOpenedBlogsRef.current) {
+        ops.push(refreshBlogPosts());
+      }
 
       // Now refresh feed snaps with fresh muted/following data (returns a promise)
       ops.push(refreshSnaps());
@@ -877,60 +927,130 @@ const FeedScreenRefactored = () => {
             contentContainerStyle={styles.filterScrollContent}
             style={styles.filterScrollView}
           >
-            {[
-              { key: 'following', label: 'Following', icon: 'users' },
-              { key: 'newest', label: 'Newest', icon: 'clock-o' },
-              { key: 'trending', label: 'Trending', icon: 'fire' },
-              { key: 'my', label: 'My Snaps', icon: 'user' },
-            ].map((filter, index) => (
-              <TouchableOpacity
-                key={filter.key}
-                style={[
-                  styles.filterBtnScrollable,
-                  {
-                    backgroundColor:
-                      currentFilter === filter.key
-                        ? colors.button
-                        : colors.buttonInactive,
-                    marginLeft: index === 0 ? 0 : 8,
-                    marginRight: index === 3 ? 0 : 0,
-                  },
-                ]}
-                onPress={() => handleFilterPress(filter.key as FeedFilter)}
-                activeOpacity={0.7}
-              >
-                <FontAwesome
-                  name={filter.icon as any}
-                  size={16}
-                  color={
-                    currentFilter === filter.key
-                      ? colors.buttonText
-                      : colors.text
-                  }
-                  style={{ marginRight: 6 }}
-                />
-                <Text
+            {(([
+              { key: 'blogs', label: 'Blogs', icon: 'newspaper-o', feed: 'blogs' },
+              { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' },
+              { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' },
+              { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' },
+              { key: 'my', label: 'My Snaps', icon: 'user', feed: 'snaps' },
+            ]) as FeedTab[]).map((filter, index) => {
+              const isActive = filter.key === 'blogs'
+                ? activeFeed === 'blogs'
+                : activeFeed === 'snaps' && currentFilter === filter.key;
+              return (
+                <TouchableOpacity
+                  key={filter.key}
                   style={[
-                    styles.filterTextScrollable,
+                    styles.filterBtnScrollable,
                     {
-                      color:
-                        currentFilter === filter.key
-                          ? colors.buttonText
-                          : colors.text,
+                      backgroundColor: isActive ? colors.button : colors.buttonInactive,
+                      marginLeft: index === 0 ? 0 : 8,
                     },
                   ]}
+                  onPress={() => {
+                    if (filter.key === 'blogs') {
+                      setActiveFeed('blogs');
+                    } else {
+                      setActiveFeed('snaps');
+                      handleFilterPress(filter.key as FeedFilter);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
                 >
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <FontAwesome
+                    name={filter.icon}
+                    size={16}
+                    color={isActive ? colors.buttonText : colors.text}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.filterTextScrollable,
+                      { color: isActive ? colors.buttonText : colors.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       </SafeAreaView>
 
       {/* Feed list */}
       <View style={styles.feedContainer}>
-        {feedLoading ? (
+        {activeFeed === 'blogs' ? (
+          blogLoading ? (
+            <View style={{ alignItems: 'center', marginTop: 40 }}>
+              <ActivityIndicator size="large" color={colors.button} />
+              <Text style={{ color: colors.text, fontSize: 16, marginTop: 12 }}>
+                Loading blogs...
+              </Text>
+            </View>
+          ) : blogError && filteredBlogPosts.length === 0 ? (
+            <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 24 }}>
+              <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center' }}>
+                {blogError}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              key="blogs-feed"
+              data={filteredBlogPosts}
+              keyExtractor={(item) => `${item.author}-${item.permlink}`}
+              renderItem={({ item }) => (
+                <BlogCard
+                  post={item}
+                  onPress={() => router.push({
+                    pathname: '/screens/HivePostScreen',
+                    params: { author: item.author, permlink: item.permlink },
+                  })}
+                  onAuthorPress={(u) => router.push({
+                    pathname: '/screens/ProfileScreen',
+                    params: { username: u },
+                  })}
+                />
+              )}
+              ListHeaderComponent={
+                blogError && filteredBlogPosts.length > 0 ? (
+                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, textAlign: 'center', opacity: 0.7 }}>
+                      Refresh failed — showing cached posts
+                    </Text>
+                  </View>
+                ) : null
+              }
+              contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+              onEndReached={handleBlogEndReached}
+              onEndReachedThreshold={0.3}
+              refreshing={globalRefreshing}
+              onRefresh={handleGlobalRefresh}
+              ListFooterComponent={
+                blogLoadingMore ? (
+                  <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={colors.button} />
+                  </View>
+                ) : blogLoadMoreError ? (
+                  <View style={{ paddingVertical: 16, alignItems: 'center', paddingHorizontal: 24 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, textAlign: 'center' }}>
+                      {blogLoadMoreError}
+                    </Text>
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 24 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center' }}>
+                    No blog posts yet. Be the first!
+                  </Text>
+                </View>
+              }
+            />
+          )
+        ) : feedLoading ? (
           <View style={{ alignItems: 'center', marginTop: 40 }}>
             <FontAwesome
               name='hourglass-half'
@@ -962,6 +1082,7 @@ const FeedScreenRefactored = () => {
           </View>
         ) : (
           <FlatList
+            key="snaps-feed"
             ref={flatListRef}
             data={filteredSnaps}
             keyExtractor={(item, index) =>
