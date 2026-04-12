@@ -40,6 +40,7 @@ export default function HangoutsLobbyScreen() {
     if (!isAuthenticated && !authLoading) {
       authenticate();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once auth check
   }, []);
 
   const handleCreateRoom = async () => {
@@ -130,6 +131,7 @@ export default function HangoutsLobbyScreen() {
           accessibilityRole='button'
           accessibilityLabel='Start a new hangout'
           accessibilityHint='Opens room creation form'
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={() => {
             if (!isAuthenticated) {
               authenticate().then((ok) => {
@@ -231,6 +233,8 @@ export default function HangoutsLobbyScreen() {
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.border }]}
+                accessibilityRole='button'
+                accessibilityLabel='Cancel'
                 onPress={() => {
                   setCreateModalVisible(false);
                   setRoomTitle('');
@@ -241,6 +245,9 @@ export default function HangoutsLobbyScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCreate, { backgroundColor: theme.button, opacity: roomTitle.trim() ? 1 : 0.5 }]}
+                accessibilityRole='button'
+                accessibilityLabel='Go Live'
+                accessibilityHint='Creates the room and starts your hangout'
                 onPress={handleCreateRoom}
                 disabled={!roomTitle.trim() || createLoading}
               >
