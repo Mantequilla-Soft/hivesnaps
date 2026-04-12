@@ -38,6 +38,8 @@ import AudioEmbed from './AudioEmbed';
 import InstagramEmbed from './InstagramEmbed';
 import { extractBlogPostUrls } from '../../utils/extractHivePostInfo';
 import { OptimizedHivePostPreviewRenderer } from '../../components/OptimizedHivePostPreviewRenderer';
+import { extractHangoutRoomNames } from '../../utils/extractHangoutInfo';
+import HangoutPreviewCard from './HangoutPreviewCard';
 import { canBeResnapped } from '../../utils/postTypeDetector';
 import { getMarkdownStyles } from '../../styles/markdownStyles';
 import { linkStyles, useLinkTextStyle } from '../../styles/linkStyles';
@@ -213,6 +215,7 @@ const Snap: React.FC<SnapProps> = ({
   const embeddedContent = extractVideoInfo(body); // Renamed from videoInfo to be more accurate
   const mediaInfo = detectMediaInBody(body); // Detect audio and video media
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
+  const hangoutRoomNames = useMemo(() => extractHangoutRoomNames(body), [body]);
   const router = useRouter(); // For navigation in reply mode
 
   // Calculate indentation and content width for replies
@@ -1131,6 +1134,25 @@ const Snap: React.FC<SnapProps> = ({
             />
           </View>
         )}
+        {/* Hangout Preview Cards */}
+        {hangoutRoomNames.length > 0 && (
+          <View style={{ marginTop: 8 }}>
+            {hangoutRoomNames.map((name) => (
+              <HangoutPreviewCard
+                key={name}
+                roomName={name}
+                colors={{
+                  text: colors.text,
+                  textSecondary: colors.textSecondary,
+                  border: colors.border,
+                  card: colors.card,
+                  background: colors.background,
+                }}
+              />
+            ))}
+          </View>
+        )}
+
         {/* Three-dots Action Sheet */}
         <ActionSheet
           visible={moreMenuVisible}
