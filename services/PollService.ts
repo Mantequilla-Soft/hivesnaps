@@ -1,27 +1,41 @@
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from './HiveClient';
 
+export interface PollChoiceVotes {
+  total_votes: number;
+  hive_hp: number;
+  hive_hp_incl_proxied: number;
+}
+
 export interface PollChoiceResult {
-  choice_num: number;
-  votes: number;
-  hive_hp_incl_proxied?: number;
+  choice_num: number;   // 1-based
+  choice_text: string;
+  votes: PollChoiceVotes | null;
 }
 
 export interface PollVoter {
-  voter: string;
-  choices: number[];
+  name: string;         // username
+  choices: number[];    // 1-based choice numbers
+  hive_hp: number;
+  hive_hp_incl_proxied: number;
+}
+
+export interface PollStats {
+  total_voting_accounts_num: number;
+  total_hive_hp: number;
+  total_hive_hp_incl_proxied: number;
 }
 
 export interface PollResults {
-  total_votes: number;
-  choices: PollChoiceResult[];
-  voters?: PollVoter[];
+  poll_choices: PollChoiceResult[];
+  poll_voters: PollVoter[] | null;
+  poll_stats: PollStats | null;
 }
 
 const HIVEHUB_API = 'https://polls.hivehub.dev/rpc/poll';
 
-export async function fetchPollResults(author: string, permlink: string): Promise<PollResults> {
-  // hivehub.dev uses PostgREST filter syntax: field=eq.value
+export async function fetchPollResults(author: string, permlink: string): Promise<PollResults | null> {
+  // hivehub.dev is PostgREST — filter syntax is field=eq.value
   const url = `${HIVEHUB_API}?author=eq.${encodeURIComponent(author)}&permlink=eq.${encodeURIComponent(permlink)}`;
   const response = await fetch(url);
   if (!response.ok) {
@@ -30,10 +44,7 @@ export async function fetchPollResults(author: string, permlink: string): Promis
   const data = await response.json();
   // PostgREST returns an array; take first element
   const result = Array.isArray(data) ? data[0] : data;
-  if (!result) {
-    return { total_votes: 0, choices: [], voters: [] };
-  }
-  return result as PollResults;
+  return result ?? null;
 }
 
 export async function votePoll(

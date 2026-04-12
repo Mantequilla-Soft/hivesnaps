@@ -57,13 +57,15 @@ export function usePoll(
     void loadResults();
   }, [loadResults]);
 
+  const currentUserLower = currentUsername?.toLowerCase() ?? '';
+
   const voted = !!(
     currentUsername &&
-    results?.voters?.some((v) => v.voter === currentUsername)
+    results?.poll_voters?.some((v) => v.name?.toLowerCase() === currentUserLower)
   );
 
   const userChoices: number[] = currentUsername
-    ? (results?.voters?.find((v) => v.voter === currentUsername)?.choices ?? [])
+    ? (results?.poll_voters?.find((v) => v.name?.toLowerCase() === currentUserLower)?.choices ?? [])
     : [];
 
   const castVote = useCallback(async (choices: number[], keyStr: string) => {

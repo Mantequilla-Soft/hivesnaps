@@ -69,23 +69,30 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
     voted ||
     (!poll.ui_hide_res_until_voted && results !== null);
 
-  const totalVotes = results?.total_votes ?? 0;
+  // Total votes: prefer poll_stats, fall back to voters length
+  const totalVotes =
+    results?.poll_stats?.total_voting_accounts_num ??
+    (results?.poll_voters?.length ?? 0);
 
+  // choice_num in the API is 1-based (index + 1)
   const getVotesForChoice = (choiceIndex: number): number => {
-    return results?.choices?.find((c) => c.choice_num === choiceIndex)?.votes ?? 0;
+    const choiceNum = choiceIndex + 1;
+    const apiChoice = results?.poll_choices?.find((c) => c.choice_num === choiceNum);
+    return apiChoice?.votes?.total_votes ?? 0;
   };
 
   const toggleChoice = (index: number) => {
+    const choiceNum = index + 1; // convert to 1-based for Hive
     if (isMultiChoice) {
       setSelectedChoices((prev) =>
-        prev.includes(index)
-          ? prev.filter((c) => c !== index)
+        prev.includes(choiceNum)
+          ? prev.filter((c) => c !== choiceNum)
           : prev.length < poll.max_choices_voted
-          ? [...prev, index]
+          ? [...prev, choiceNum]
           : prev
       );
     } else {
-      setSelectedChoices([index]);
+      setSelectedChoices([choiceNum]);
     }
   };
 
@@ -110,9 +117,10 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
       {/* Choices */}
       <View style={styles.choices}>
         {poll.choices.map((choice, index) => {
+          const choiceNum = index + 1; // 1-based
           const votes = getVotesForChoice(index);
           const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-          const isSelected = selectedChoices.includes(index) || userChoices.includes(index);
+          const isSelected = selectedChoices.includes(choiceNum) || userChoices.includes(choiceNum);
 
           if (showResults) {
             return (
@@ -122,14 +130,14 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
                     styles.resultBar,
                     {
                       width: `${pct}%`,
-                      backgroundColor: userChoices.includes(index)
+                      backgroundColor: userChoices.includes(choiceNum)
                         ? colors.button + '33'
                         : colors.border,
                     },
                   ]}
                 />
                 <Text style={[styles.choiceLabel, { color: colors.text }]} numberOfLines={1}>
-                  {userChoices.includes(index) ? '✓ ' : ''}{choice}
+                  {userChoices.includes(choiceNum) ? '✓ ' : ''}{choice}
                 </Text>
                 <Text style={[styles.pctLabel, { color: colors.textSecondary }]}>
                   {pct}%
