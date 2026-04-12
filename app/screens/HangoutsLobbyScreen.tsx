@@ -10,8 +10,11 @@ import {
   TextInput,
   Alert,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome } from '@expo/vector-icons';
@@ -25,6 +28,7 @@ import { useHangoutsRoom } from '../../hooks/useHangoutsRoom';
 export default function HangoutsLobbyScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
   const theme = getTheme(isDark ? 'dark' : 'light');
   const router = useRouter();
 
@@ -205,61 +209,70 @@ export default function HangoutsLobbyScreen() {
         animationType='slide'
         onRequestClose={() => setCreateModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={[styles.modalSheet, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Start a Hangout</Text>
+            <ScrollView
+              keyboardShouldPersistTaps='handled'
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 8 }}
+            >
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Start a Hangout</Text>
 
-            <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.card }]}
-              placeholder='Room title'
-              placeholderTextColor={theme.textSecondary}
-              value={roomTitle}
-              onChangeText={setRoomTitle}
-              maxLength={80}
-              returnKeyType='next'
-            />
+              <TextInput
+                style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.card }]}
+                placeholder='Room title'
+                placeholderTextColor={theme.textSecondary}
+                value={roomTitle}
+                onChangeText={setRoomTitle}
+                maxLength={80}
+                returnKeyType='next'
+              />
 
-            <TextInput
-              style={[styles.modalInput, styles.modalInputMulti, { color: theme.text, borderColor: theme.border, backgroundColor: theme.card }]}
-              placeholder='Description (optional)'
-              placeholderTextColor={theme.textSecondary}
-              value={roomDescription}
-              onChangeText={setRoomDescription}
-              maxLength={200}
-              multiline
-              numberOfLines={3}
-            />
+              <TextInput
+                style={[styles.modalInput, styles.modalInputMulti, { color: theme.text, borderColor: theme.border, backgroundColor: theme.card }]}
+                placeholder='Description (optional)'
+                placeholderTextColor={theme.textSecondary}
+                value={roomDescription}
+                onChangeText={setRoomDescription}
+                maxLength={200}
+                multiline
+                numberOfLines={3}
+              />
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.border }]}
-                accessibilityRole='button'
-                accessibilityLabel='Cancel'
-                onPress={() => {
-                  setCreateModalVisible(false);
-                  setRoomTitle('');
-                  setRoomDescription('');
-                }}
-              >
-                <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCreate, { backgroundColor: theme.button, opacity: roomTitle.trim() ? 1 : 0.5 }]}
-                accessibilityRole='button'
-                accessibilityLabel='Go Live'
-                accessibilityHint='Creates the room and starts your hangout'
-                onPress={handleCreateRoom}
-                disabled={!roomTitle.trim() || createLoading}
-              >
-                {createLoading ? (
-                  <ActivityIndicator size='small' color={theme.buttonText} />
-                ) : (
-                  <Text style={[styles.modalBtnText, { color: theme.buttonText }]}>Go Live</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.border }]}
+                  accessibilityRole='button'
+                  accessibilityLabel='Cancel'
+                  onPress={() => {
+                    setCreateModalVisible(false);
+                    setRoomTitle('');
+                    setRoomDescription('');
+                  }}
+                >
+                  <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnCreate, { backgroundColor: theme.button, opacity: roomTitle.trim() ? 1 : 0.5 }]}
+                  accessibilityRole='button'
+                  accessibilityLabel='Go Live'
+                  accessibilityHint='Creates the room and starts your hangout'
+                  onPress={handleCreateRoom}
+                  disabled={!roomTitle.trim() || createLoading}
+                >
+                  {createLoading ? (
+                    <ActivityIndicator size='small' color={theme.buttonText} />
+                  ) : (
+                    <Text style={[styles.modalBtnText, { color: theme.buttonText }]}>Go Live</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
