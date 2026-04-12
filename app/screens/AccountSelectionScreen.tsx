@@ -101,7 +101,7 @@ export default function AccountSelectionScreen(): React.JSX.Element {
                 if (remaining.length > 0) {
                   try {
                     await switchAccount(remaining[0].username);
-                    router.replace('/');
+                    router.back();
                   } catch {
                     // Switch failed after deletion — fall back to login
                     await logout();
