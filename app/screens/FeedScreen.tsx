@@ -35,6 +35,7 @@ import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
 import { useResourceCredits } from '../../hooks/useResourceCredits';
 import { useUserProfile } from '../../hooks/useUserProfile';
@@ -265,6 +266,7 @@ const FeedScreenRefactored = () => {
   } = useSearch();
 
   const { unreadCount, refresh: refreshNotifications } = useNotifications(username || null);
+  const hangoutsCount = useHangoutsCount();
 
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   const [vpInfoModalVisible, setVpInfoModalVisible] = useState(false);
@@ -902,7 +904,15 @@ const FeedScreenRefactored = () => {
               accessibilityHint='Navigates to the Hangouts lobby'
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <FontAwesome name='microphone' size={22} color={colors.icon} />
+              <View style={{ position: 'relative' }}>
+                <FontAwesome name='microphone' size={22} color={colors.icon} />
+                <NotificationBadge
+                  count={hangoutsCount}
+                  size='small'
+                  color='#22c55e'
+                  visible={hangoutsCount > 0}
+                />
+              </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.searchBtn, { marginRight: 12 }]}
