@@ -52,8 +52,8 @@ export default function HangoutsLobbyScreen() {
       setRoomDescription('');
       refresh();
       Alert.alert('Room Created', 'Your hangout is live! Audio joining coming soon.');
-    } catch {
-      Alert.alert('Error', createError ?? 'Failed to create room');
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create room');
     }
   };
 
@@ -112,12 +112,21 @@ export default function HangoutsLobbyScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole='button'
+          accessibilityLabel='Go back'
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <FontAwesome name='arrow-left' size={20} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Hangouts</Text>
         <TouchableOpacity
           style={[styles.createBtn, { backgroundColor: theme.button }]}
+          accessibilityRole='button'
+          accessibilityLabel='Start a new hangout'
+          accessibilityHint='Opens room creation form'
           onPress={() => {
             if (!isAuthenticated) {
               authenticate().then((ok) => {

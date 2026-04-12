@@ -7,7 +7,6 @@
 import { HangoutsApiClient } from '@snapie/hangouts-core';
 import { Buffer } from 'buffer';
 import { sha256 } from 'js-sha256';
-// @ts-ignore - bs58 types not needed for runtime
 import bs58 from 'bs58';
 import { ec as EC } from 'elliptic';
 import { accountStorageService } from './AccountStorageService';

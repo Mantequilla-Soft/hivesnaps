@@ -1,11 +1,20 @@
 import { useState, useCallback } from 'react';
+import type { HangoutsApiClient } from '@snapie/hangouts-core';
 import { hangoutsAuthService } from '../services/HangoutsAuthService';
 
-export function useHangoutsAuth() {
+interface UseHangoutsAuthResult {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  authenticate: () => Promise<boolean>;
+  client: HangoutsApiClient;
+}
+
+export function useHangoutsAuth(): UseHangoutsAuthResult {
   const [isAuthenticated, setIsAuthenticated] = useState(hangoutsAuthService.isAuthenticated());
   const [isLoading, setIsLoading] = useState(false);
 
-  const authenticate = useCallback(async () => {
+  const authenticate = useCallback(async (): Promise<boolean> => {
+    if (isLoading) return false;
     setIsLoading(true);
     try {
       const success = await hangoutsAuthService.authenticate();
@@ -14,7 +23,7 @@ export function useHangoutsAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isLoading]);
 
   return {
     isAuthenticated,

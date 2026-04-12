@@ -1,8 +1,20 @@
 import { useState, useCallback } from 'react';
-import type { Room } from '@snapie/hangouts-core';
+import type { Room, JoinRoomResponse, CreateRoomResponse } from '@snapie/hangouts-core';
 import { hangoutsAuthService } from '../services/HangoutsAuthService';
 
-export function useHangoutsRoom() {
+interface UseHangoutsRoomResult {
+  livekitToken: string | null;
+  roomName: string | null;
+  roomMeta: Room | null;
+  isHost: boolean;
+  isLoading: boolean;
+  error: string | null;
+  join: (name: string) => Promise<JoinRoomResponse>;
+  create: (title: string, description?: string) => Promise<Room>;
+  leave: () => void;
+}
+
+export function useHangoutsRoom(): UseHangoutsRoomResult {
   const [livekitToken, setLivekitToken] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
   const [roomMeta, setRoomMeta] = useState<Room | null>(null);
@@ -12,18 +24,16 @@ export function useHangoutsRoom() {
 
   const client = hangoutsAuthService.getClient();
 
-  const join = useCallback(async (name: string) => {
+  const join = useCallback(async (name: string): Promise<JoinRoomResponse> => {
     setIsLoading(true);
     setError(null);
     try {
-      const [result, meta] = await Promise.all([
-        client.joinRoom(name),
-        client.getRoom(name),
-      ]);
+      const result = await client.joinRoom(name);
       setLivekitToken(result.token);
       setRoomName(result.roomName);
-      setRoomMeta(meta);
       setIsHost(result.isHost);
+      // Best-effort metadata — don't fail the join if this 404s
+      client.getRoom(name).then(setRoomMeta).catch(() => {});
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
@@ -33,11 +43,11 @@ export function useHangoutsRoom() {
     }
   }, [client]);
 
-  const create = useCallback(async (title: string, description?: string) => {
+  const create = useCallback(async (title: string, description?: string): Promise<Room> => {
     setIsLoading(true);
     setError(null);
     try {
-      const { room, token } = await client.createRoom(title, description);
+      const { room, token }: CreateRoomResponse = await client.createRoom(title, description);
       setLivekitToken(token);
       setRoomName(room.name);
       setRoomMeta(room);
