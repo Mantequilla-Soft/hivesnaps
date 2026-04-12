@@ -971,6 +971,7 @@ const FeedScreenRefactored = () => {
             </View>
           ) : (
             <FlatList
+              key="blogs-feed"
               data={filteredBlogPosts}
               keyExtractor={(item) => `${item.author}-${item.permlink}`}
               renderItem={({ item }) => (
@@ -1036,6 +1037,7 @@ const FeedScreenRefactored = () => {
           </View>
         ) : (
           <FlatList
+            key="snaps-feed"
             ref={flatListRef}
             data={filteredSnaps}
             keyExtractor={(item, index) =>
