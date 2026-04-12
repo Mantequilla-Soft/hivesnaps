@@ -95,9 +95,16 @@ export default function AccountSelectionScreen(): React.JSX.Element {
             try {
               await accountStorageService.removeAccount(account.username);
               if (account.username === currentUsername) {
-                // Removed the active account — clear auth state then go to login
-                await logout();
-                router.replace('/');
+                // Removed the active account — switch to another if one exists,
+                // otherwise clear auth and go to login.
+                const remaining = await accountStorageService.getAccounts();
+                if (remaining.length > 0) {
+                  await switchAccount(remaining[0].username);
+                  router.replace('/');
+                } else {
+                  await logout();
+                  router.replace('/');
+                }
               } else {
                 await loadAccounts();
               }
@@ -109,7 +116,7 @@ export default function AccountSelectionScreen(): React.JSX.Element {
         },
       ]
     );
-  }, [currentUsername, loadAccounts, logout, router]);
+  }, [currentUsername, loadAccounts, logout, switchAccount, router]);
 
   const renderAccount = useCallback(({ item }: { item: StoredAccount }): React.JSX.Element => {
     const isActive = item.username === currentUsername;
