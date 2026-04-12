@@ -215,7 +215,7 @@ const Snap: React.FC<SnapProps> = ({
   const embeddedContent = extractVideoInfo(body); // Renamed from videoInfo to be more accurate
   const mediaInfo = detectMediaInBody(body); // Detect audio and video media
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
-  const hangoutRoomNames = useMemo(() => extractHangoutRoomNames(body), [body]);
+  const hangoutRoomNames = useMemo(() => [...new Set(extractHangoutRoomNames(body))], [body]);
   const router = useRouter(); // For navigation in reply mode
 
   // Calculate indentation and content width for replies

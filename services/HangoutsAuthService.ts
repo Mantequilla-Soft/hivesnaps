@@ -33,7 +33,7 @@ class HangoutsAuthServiceImpl {
   /**
    * Sign a challenge string with the posting key.
    * The Hangouts server signs just the raw challenge (matching Keychain's requestSignBuffer behavior).
-   * Output format: r(32 bytes BE) + s(32 bytes BE) + recovery(1 byte) as hex — matches dhive Signature.
+   * Output format: [recoveryParam+31, r(32), s(32)] as hex — dhive Signature.fromString() wire format.
    */
   private signChallenge(challenge: string, postingKey: string): string {
     const decoded = bs58.decode(postingKey);
@@ -60,7 +60,10 @@ class HangoutsAuthServiceImpl {
     try {
       const username = await accountStorageService.getCurrentAccountUsername();
       const postingKey = await accountStorageService.getCurrentPostingKey();
-      if (!username || !postingKey) return false;
+      if (!username || !postingKey) {
+        this.clearSession();
+        return false;
+      }
 
       const { challenge } = await this.client.requestChallenge(username);
       const signature = this.signChallenge(challenge, postingKey);
@@ -69,7 +72,9 @@ class HangoutsAuthServiceImpl {
       this.client.setSessionToken(session.token);
       return true;
     } catch (error) {
-      console.error('[HangoutsAuth] Authentication failed:', error);
+      this.clearSession();
+      const name = error instanceof Error ? error.name : 'UnknownError';
+      console.error(`[HangoutsAuth] Authentication failed: ${name}`);
       return false;
     }
   }

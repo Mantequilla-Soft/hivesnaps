@@ -6,6 +6,12 @@ import { FontAwesome } from '@expo/vector-icons';
 import type { Room } from '@snapie/hangouts-core';
 import { hangoutsAuthService } from '../../services/HangoutsAuthService';
 
+type FetchState =
+  | { status: 'loading' }
+  | { status: 'found'; room: Room }
+  | { status: 'not_found' }
+  | { status: 'error' };
+
 interface Props {
   roomName: string;
   colors: {
@@ -18,37 +24,61 @@ interface Props {
 }
 
 export default function HangoutPreviewCard({ roomName, colors }: Props) {
-  const [room, setRoom] = useState<Room | null | undefined>(undefined);
+  const [state, setState] = useState<FetchState>({ status: 'loading' });
   const router = useRouter();
 
   useEffect(() => {
+    let stale = false;
+    setState({ status: 'loading' });
+
     hangoutsAuthService.getClient().getRoom(roomName)
-      .then((data) => setRoom(data))
-      .catch(() => setRoom(null));
+      .then((data) => {
+        if (stale) return;
+        setState(data ? { status: 'found', room: data } : { status: 'not_found' });
+      })
+      .catch(() => {
+        if (stale) return;
+        setState({ status: 'error' });
+      });
+
+    return () => { stale = true; };
   }, [roomName]);
 
-  if (room === undefined) {
+  if (state.status === 'loading') {
     return (
       <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
         <ActivityIndicator size='small' color={colors.textSecondary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading hangout...</Text>
+        <Text style={[styles.statusText, { color: colors.textSecondary }]}>Loading hangout...</Text>
       </View>
     );
   }
 
-  if (room === null) {
+  if (state.status === 'not_found') {
     return (
       <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
         <FontAwesome name='microphone-slash' size={18} color={colors.textSecondary} />
-        <Text style={[styles.endedText, { color: colors.textSecondary }]}>This hangout has ended</Text>
+        <Text style={[styles.statusText, { color: colors.textSecondary }]}>This hangout has ended</Text>
       </View>
     );
   }
+
+  if (state.status === 'error') {
+    return (
+      <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <FontAwesome name='exclamation-circle' size={18} color={colors.textSecondary} />
+        <Text style={[styles.statusText, { color: colors.textSecondary }]}>Could not load hangout</Text>
+      </View>
+    );
+  }
+
+  const { room } = state;
 
   return (
     <Pressable
       style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}
       onPress={() => router.push('/screens/HangoutsLobbyScreen')}
+      accessibilityRole='button'
+      accessibilityLabel={`Hangout: ${room.title}, hosted by ${room.host}`}
     >
       <ExpoImage
         source={{ uri: `https://images.hive.blog/u/${room.host}/avatar/sm` }}
@@ -88,8 +118,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
     gap: 8,
   },
-  loadingText: { fontSize: 13, marginLeft: 4 },
-  endedText: { fontSize: 13, marginLeft: 6 },
+  statusText: { fontSize: 13, marginLeft: 6 },
   avatar: { width: 44, height: 44, borderRadius: 22 },
   info: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

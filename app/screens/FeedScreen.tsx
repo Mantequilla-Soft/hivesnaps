@@ -898,6 +898,8 @@ const FeedScreenRefactored = () => {
               style={[styles.searchBtn, { marginRight: 12 }]}
               onPress={() => router.push('/screens/HangoutsLobbyScreen')}
               accessibilityLabel='Open Hangouts'
+              accessibilityRole='button'
+              accessibilityHint='Navigates to the Hangouts lobby'
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <FontAwesome name='microphone' size={22} color={colors.icon} />
