@@ -45,7 +45,17 @@ function extractThumbnail(jsonMeta: string, body: string): string | null {
   return match ? match[1] : null;
 }
 
-export function useBlogFeed() {
+export interface UseBlogFeedResult {
+  posts: BlogPost[];
+  loading: boolean;
+  loadingMore: boolean;
+  error: string | null;
+  fetchPosts: () => Promise<void>;
+  refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
+}
+
+export function useBlogFeed(): UseBlogFeedResult {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);

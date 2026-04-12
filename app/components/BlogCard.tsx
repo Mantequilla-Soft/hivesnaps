@@ -113,8 +113,12 @@ export const BlogCard: React.FC<BlogCardProps> = ({ post, onPress, onAuthorPress
             </Text>
           </TouchableOpacity>
 
-          <Text style={[styles.dot, { color: theme.textSecondary }]}>·</Text>
-          <Text style={[styles.meta, { color: theme.textSecondary }]}>{timeAgo}</Text>
+          {timeAgo ? (
+            <>
+              <Text style={[styles.dot, { color: theme.textSecondary }]}>·</Text>
+              <Text style={[styles.meta, { color: theme.textSecondary }]}>{timeAgo}</Text>
+            </>
+          ) : null}
 
           {/* Stats */}
           <View style={styles.stats}>

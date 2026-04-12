@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -53,6 +54,13 @@ import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
 import { getTheme } from '../../constants/Colors';
 
+
+type FeedTab = {
+  key: 'blogs' | FeedFilter;
+  label: string;
+  icon: ComponentProps<typeof FontAwesome>['name'];
+  feed: 'blogs' | 'snaps';
+};
 
 // Modal content constants
 const VP_MODAL_CONTENT = {
@@ -271,6 +279,7 @@ const FeedScreenRefactored = () => {
   // Refs
   const flatListRef = useRef<FlatList<any>>(null);
   const hasInitialFetch = useRef(false);
+  const hasOpenedBlogsRef = useRef(false);
 
   // Load recent searches on mount
   useEffect(() => {
@@ -292,7 +301,6 @@ const FeedScreenRefactored = () => {
         `🏗️ [FeedScreen] About to fetch snaps using container-pagination strategy...`
       );
       hasInitialFetch.current = true;
-      void fetchBlogPosts();
       fetchSnaps(false).then(() => {
         // Log memory state after initial fetch
         const postFetchStats = getMemoryStats();
@@ -308,6 +316,14 @@ const FeedScreenRefactored = () => {
       }); // Force fresh fetch on mount
     }
   }, []); // Empty deps - only run once on mount
+
+  // Lazy blog fetch — only load when the user first opens the Blogs tab
+  useEffect(() => {
+    if (activeFeed === 'blogs' && !hasOpenedBlogsRef.current) {
+      hasOpenedBlogsRef.current = true;
+      void fetchBlogPosts();
+    }
+  }, [activeFeed, fetchBlogPosts]);
 
   // Log filter changes (client-side filtering happens automatically in useFeedData)
   useEffect(() => {
@@ -504,8 +520,10 @@ const FeedScreenRefactored = () => {
       console.log('🧹 [FeedScreen] Clearing container map for fresh state');
       clearContainerMap();
 
-      // Refresh blog feed in parallel
-      ops.push(refreshBlogPosts());
+      // Refresh blog feed only if user has opened the tab at least once
+      if (activeFeed === 'blogs' || hasOpenedBlogsRef.current) {
+        ops.push(refreshBlogPosts());
+      }
 
       // Now refresh feed snaps with fresh muted/following data (returns a promise)
       ops.push(refreshSnaps());
@@ -908,13 +926,13 @@ const FeedScreenRefactored = () => {
             contentContainerStyle={styles.filterScrollContent}
             style={styles.filterScrollView}
           >
-            {[
-              { key: 'blogs', label: 'Blogs', icon: 'newspaper-o', feed: 'blogs' as const },
-              { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' as const },
-              { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' as const },
-              { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' as const },
-              { key: 'my', label: 'My Snaps', icon: 'user', feed: 'snaps' as const },
-            ].map((filter, index) => {
+            {(([
+              { key: 'blogs', label: 'Blogs', icon: 'newspaper-o', feed: 'blogs' },
+              { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' },
+              { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' },
+              { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' },
+              { key: 'my', label: 'My Snaps', icon: 'user', feed: 'snaps' },
+            ]) as FeedTab[]).map((filter, index) => {
               const isActive = filter.key === 'blogs'
                 ? activeFeed === 'blogs'
                 : activeFeed === 'snaps' && currentFilter === filter.key;
@@ -939,7 +957,7 @@ const FeedScreenRefactored = () => {
                   activeOpacity={0.7}
                 >
                   <FontAwesome
-                    name={filter.icon as any}
+                    name={filter.icon}
                     size={16}
                     color={isActive ? colors.buttonText : colors.text}
                     style={{ marginRight: 6 }}
