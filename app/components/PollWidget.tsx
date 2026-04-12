@@ -72,7 +72,7 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
   const totalVotes = results?.total_votes ?? 0;
 
   const getVotesForChoice = (choiceIndex: number): number => {
-    return results?.choices.find((c) => c.choice_num === choiceIndex)?.votes ?? 0;
+    return results?.choices?.find((c) => c.choice_num === choiceIndex)?.votes ?? 0;
   };
 
   const toggleChoice = (index: number) => {
