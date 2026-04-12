@@ -133,6 +133,7 @@ const FeedScreenRefactored = () => {
     buttonInactive: theme.buttonInactive,
     icon: theme.icon,
     bubble: theme.bubble,
+    success: theme.success,
   };
 
   // Initialize styles
@@ -909,7 +910,7 @@ const FeedScreenRefactored = () => {
                 <NotificationBadge
                   count={hangoutsCount}
                   size='small'
-                  color='#22c55e'
+                  color={colors.success}
                   visible={hangoutsCount > 0}
                 />
               </View>

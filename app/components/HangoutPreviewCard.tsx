@@ -20,6 +20,7 @@ interface Props {
     border: string;
     card: string;
     background: string;
+    success: string;
   };
 }
 
@@ -90,7 +91,7 @@ export default function HangoutPreviewCard({ roomName, colors }: Props) {
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
             {room.title}
           </Text>
-          <View style={styles.liveBadge}>
+          <View style={[styles.liveBadge, { backgroundColor: colors.success }]}>
             <Text style={styles.liveText}>LIVE</Text>
           </View>
         </View>
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontSize: 15, fontWeight: '600', flex: 1 },
-  liveBadge: { backgroundColor: '#22c55e', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  liveBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   liveText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   host: { fontSize: 13, marginTop: 2 },
   countWrap: { alignItems: 'center', gap: 4 },

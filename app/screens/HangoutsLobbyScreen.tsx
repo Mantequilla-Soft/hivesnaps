@@ -88,7 +88,7 @@ export default function HangoutsLobbyScreen() {
           <Text style={[styles.roomTitle, { color: theme.text }]} numberOfLines={1}>
             {item.title}
           </Text>
-          <View style={styles.liveBadge}>
+          <View style={[styles.liveBadge, { backgroundColor: theme.success }]}>
             <Text style={styles.liveText}>LIVE</Text>
           </View>
         </View>
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   roomInfo: { flex: 1, marginLeft: 12 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   roomTitle: { fontSize: 15, fontWeight: '600', flex: 1 },
-  liveBadge: { backgroundColor: '#22c55e', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  liveBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   liveText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   hostName: { fontSize: 13, marginTop: 3 },
   participantWrap: { alignItems: 'center', marginLeft: 12, gap: 4 },

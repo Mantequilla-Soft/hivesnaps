@@ -1147,6 +1147,7 @@ const Snap: React.FC<SnapProps> = ({
                   border: colors.border,
                   card: colors.card,
                   background: colors.background,
+                  success: colors.success,
                 }}
               />
             ))}
