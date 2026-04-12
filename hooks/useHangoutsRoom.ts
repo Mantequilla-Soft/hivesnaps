@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { Room, JoinRoomResponse, CreateRoomResponse } from '@snapie/hangouts-core';
 import { hangoutsAuthService } from '../services/HangoutsAuthService';
 
@@ -23,17 +23,27 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
   const [error, setError] = useState<string | null>(null);
 
   const client = hangoutsAuthService.getClient();
+  // Tracks the most recently joined room name so stale getRoom responses can't
+  // overwrite metadata if a second join happens before the first resolves.
+  const latestJoinRef = useRef<string | null>(null);
 
   const join = useCallback(async (name: string): Promise<JoinRoomResponse> => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await client.joinRoom(name);
+      const joinedName = result.roomName;
+      latestJoinRef.current = joinedName;
       setLivekitToken(result.token);
-      setRoomName(result.roomName);
+      setRoomName(joinedName);
       setIsHost(result.isHost);
-      // Best-effort metadata — don't fail the join if this 404s
-      client.getRoom(name).then(setRoomMeta).catch(() => {});
+      // Best-effort metadata using the server-normalized room name.
+      // Only commits if no newer join has started since.
+      client.getRoom(joinedName)
+        .then((meta) => {
+          if (latestJoinRef.current === joinedName) setRoomMeta(meta);
+        })
+        .catch(() => {});
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');

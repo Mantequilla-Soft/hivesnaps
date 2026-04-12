@@ -149,7 +149,11 @@ export default function HangoutsLobbyScreen() {
           <Text style={[styles.authBannerText, { color: theme.textSecondary }]}>
             Sign in to create or join rooms
           </Text>
-          <TouchableOpacity onPress={() => authenticate()}>
+          <TouchableOpacity onPress={() => {
+            authenticate().then((ok) => {
+              if (!ok) Alert.alert('Sign in required', 'Could not authenticate with Hangouts server.');
+            });
+          }}>
             <Text style={[styles.authBannerLink, { color: theme.button }]}>Connect</Text>
           </TouchableOpacity>
         </View>
@@ -160,7 +164,7 @@ export default function HangoutsLobbyScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size='large' color={theme.button} />
         </View>
-      ) : roomsError ? (
+      ) : roomsError && rooms.length === 0 ? (
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>{roomsError}</Text>
           <TouchableOpacity onPress={refresh} style={[styles.retryBtn, { borderColor: theme.border }]}>
@@ -168,15 +172,25 @@ export default function HangoutsLobbyScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={rooms}
-          keyExtractor={(item) => item.name}
-          renderItem={renderRoomCard}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={styles.listContent}
-          onRefresh={refresh}
-          refreshing={roomsLoading}
-        />
+        <>
+          {roomsError && (
+            <View style={[styles.inlineError, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={[styles.inlineErrorText, { color: theme.textSecondary }]}>{roomsError}</Text>
+              <TouchableOpacity onPress={refresh}>
+                <Text style={[styles.inlineErrorRetry, { color: theme.button }]}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <FlatList
+            data={rooms}
+            keyExtractor={(item) => item.name}
+            renderItem={renderRoomCard}
+            ListEmptyComponent={renderEmpty}
+            contentContainerStyle={styles.listContent}
+            onRefresh={refresh}
+            refreshing={roomsLoading}
+          />
+        </>
       )}
 
       {/* Create Room Modal */}
@@ -276,6 +290,19 @@ const styles = StyleSheet.create({
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  inlineError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  inlineErrorText: { fontSize: 13, flex: 1 },
+  inlineErrorRetry: { fontSize: 13, fontWeight: '600', marginLeft: 12 },
   listContent: { padding: 16, flexGrow: 1 },
   roomCard: {
     flexDirection: 'row',
