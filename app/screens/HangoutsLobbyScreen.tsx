@@ -47,14 +47,18 @@ export default function HangoutsLobbyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once auth check
   }, []);
 
+  const closeCreateModal = () => {
+    setCreateModalVisible(false);
+    setRoomTitle('');
+    setRoomDescription('');
+  };
+
   const handleCreateRoom = async () => {
     const trimmed = roomTitle.trim();
     if (!trimmed) return;
     try {
       await create(trimmed, roomDescription.trim() || undefined);
-      setCreateModalVisible(false);
-      setRoomTitle('');
-      setRoomDescription('');
+      closeCreateModal();
       refresh();
       Alert.alert('Room Created', 'Your hangout is live! Audio joining coming soon.');
     } catch (err) {
@@ -137,6 +141,7 @@ export default function HangoutsLobbyScreen() {
           accessibilityHint='Opens room creation form'
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={() => {
+            if (authLoading) return;
             if (!isAuthenticated) {
               authenticate().then((ok) => {
                 if (ok) setCreateModalVisible(true);
@@ -146,7 +151,7 @@ export default function HangoutsLobbyScreen() {
               setCreateModalVisible(true);
             }
           }}
-          disabled={createLoading}
+          disabled={createLoading || authLoading}
         >
           <FontAwesome name='plus' size={14} color={theme.buttonText} />
         </TouchableOpacity>
@@ -207,7 +212,7 @@ export default function HangoutsLobbyScreen() {
         visible={createModalVisible}
         transparent
         animationType='slide'
-        onRequestClose={() => setCreateModalVisible(false)}
+        onRequestClose={closeCreateModal}
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -247,11 +252,7 @@ export default function HangoutsLobbyScreen() {
                   style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.border }]}
                   accessibilityRole='button'
                   accessibilityLabel='Cancel'
-                  onPress={() => {
-                    setCreateModalVisible(false);
-                    setRoomTitle('');
-                    setRoomDescription('');
-                  }}
+                  onPress={closeCreateModal}
                 >
                   <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
                 </TouchableOpacity>

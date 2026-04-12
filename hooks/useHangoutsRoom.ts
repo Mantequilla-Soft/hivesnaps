@@ -23,23 +23,28 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
   const [error, setError] = useState<string | null>(null);
 
   const client = hangoutsAuthService.getClient();
-  // Tracks the most recently joined room name so stale getRoom responses can't
-  // overwrite metadata if a second join happens before the first resolves.
+
+  // Incremented on every join/create/leave so any in-flight async completion
+  // from a previous operation cannot write state after the room has changed.
+  const activeOpRef = useRef(0);
+  // Tracks the normalized room name of the latest join for the best-effort
+  // getRoom metadata lookup.
   const latestJoinRef = useRef<string | null>(null);
 
   const join = useCallback(async (name: string): Promise<JoinRoomResponse> => {
+    const op = ++activeOpRef.current;
     setIsLoading(true);
     setError(null);
     try {
       const result = await client.joinRoom(name);
+      if (activeOpRef.current !== op) return result; // superseded by leave/create
       const joinedName = result.roomName;
       latestJoinRef.current = joinedName;
       setLivekitToken(result.token);
       setRoomName(joinedName);
       setIsHost(result.isHost);
-      setRoomMeta(null); // clear stale metadata before the lookup resolves
-      // Best-effort metadata using the server-normalized room name.
-      // Only commits if no newer join/create/leave has invalidated the ref.
+      setRoomMeta(null); // clear stale metadata before lookup
+      // Best-effort metadata — only commits if this op is still the latest.
       client.getRoom(joinedName)
         .then((meta) => {
           if (latestJoinRef.current === joinedName) setRoomMeta(meta);
@@ -49,34 +54,42 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
         });
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join room');
+      if (activeOpRef.current === op) {
+        setError(err instanceof Error ? err.message : 'Failed to join room');
+      }
       throw err;
     } finally {
-      setIsLoading(false);
+      if (activeOpRef.current === op) setIsLoading(false);
     }
   }, [client]);
 
   const create = useCallback(async (title: string, description?: string): Promise<Room> => {
+    const op = ++activeOpRef.current;
+    latestJoinRef.current = null; // invalidate any in-flight join metadata lookup
     setIsLoading(true);
     setError(null);
-    latestJoinRef.current = null; // invalidate any in-flight join metadata lookup
     try {
       const { room, token }: CreateRoomResponse = await client.createRoom(title, description);
+      if (activeOpRef.current !== op) return room; // superseded by leave
       setLivekitToken(token);
       setRoomName(room.name);
       setRoomMeta(room);
       setIsHost(true);
       return room;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create room');
+      if (activeOpRef.current === op) {
+        setError(err instanceof Error ? err.message : 'Failed to create room');
+      }
       throw err;
     } finally {
-      setIsLoading(false);
+      if (activeOpRef.current === op) setIsLoading(false);
     }
   }, [client]);
 
   const leave = useCallback(() => {
-    latestJoinRef.current = null; // invalidate any in-flight metadata lookup
+    activeOpRef.current++; // invalidate any in-flight join/create completion
+    latestJoinRef.current = null;
+    setIsLoading(false); // clear loading if an op was in flight
     setLivekitToken(null);
     setRoomName(null);
     setRoomMeta(null);
