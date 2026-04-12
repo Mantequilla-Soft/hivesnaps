@@ -170,7 +170,7 @@ const FeedScreenRefactored = () => {
   } = useFeedData();
 
   // Blog feed
-  const [activeFeed, setActiveFeed] = useState<'blogs' | 'snaps'>('blogs');
+  const [activeFeed, setActiveFeed] = useState<'blogs' | 'snaps'>('snaps');
   const {
     posts: blogPosts,
     loading: blogLoading,
