@@ -18,6 +18,8 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import PostBody from '../components/PostBody';
+import AudioEmbed from '../components/AudioEmbed';
+import { detectMediaInBody } from '../../utils/mediaDetection';
 import { Dimensions } from 'react-native';
 import { useCurrentUser } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
@@ -153,6 +155,8 @@ const HivePostScreen = () => {
   };
 
   const windowWidth = Dimensions.get('window').width;
+
+  const postMediaInfo = useMemo(() => detectMediaInBody(post?.body ?? ''), [post?.body]);
 
   // Filter comments to exclude muted users (includes personal mutes + global blacklist)
   const filteredComments = useMemo(() => {
@@ -389,6 +393,13 @@ const HivePostScreen = () => {
             {post.title}
           </Text>
         )}
+
+        {/* Audio embed (3Speak audio posts) */}
+        {postMediaInfo.hasAudio && postMediaInfo.audioUrl ? (
+          <View style={{ marginBottom: 8 }}>
+            <AudioEmbed embedUrl={postMediaInfo.audioUrl} />
+          </View>
+        ) : null}
 
         {/* Content */}
         <PostBody body={post.body} colors={colors} isDark={isDark} />
