@@ -21,13 +21,19 @@ export interface PollResults {
 const HIVEHUB_API = 'https://polls.hivehub.dev/rpc/poll';
 
 export async function fetchPollResults(author: string, permlink: string): Promise<PollResults> {
-  const url = `${HIVEHUB_API}?author=${encodeURIComponent(author)}&permlink=${encodeURIComponent(permlink)}`;
+  // hivehub.dev uses PostgREST filter syntax: field=eq.value
+  const url = `${HIVEHUB_API}?author=eq.${encodeURIComponent(author)}&permlink=eq.${encodeURIComponent(permlink)}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Poll results fetch failed: ${response.status}`);
   }
   const data = await response.json();
-  return data as PollResults;
+  // PostgREST returns an array; take first element
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    return { total_votes: 0, choices: [], voters: [] };
+  }
+  return result as PollResults;
 }
 
 export async function votePoll(
