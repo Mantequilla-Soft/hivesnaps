@@ -82,10 +82,14 @@ export function useBlogFeed() {
 
     try {
       const client = getClient();
-      const raw: any[] = await client.database.call('get_discussions_by_created', [{
-        tag: SNAPIE_COMMUNITY,
+      // bridge.get_ranked_posts is the correct API for community posts — supports
+      // cursor pagination with start_author/start_permlink without "Invalid parameters"
+      const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
+        sort: 'created',
+        community: SNAPIE_COMMUNITY,
         limit: PAGE_SIZE,
-      }]);
+        observer: '',
+      });
 
       const parsed = parseRawPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
@@ -110,12 +114,14 @@ export function useBlogFeed() {
 
     try {
       const client = getClient();
-      const raw: any[] = await client.database.call('get_discussions_by_created', [{
-        tag: SNAPIE_COMMUNITY,
+      const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
+        sort: 'created',
+        community: SNAPIE_COMMUNITY,
         limit: PAGE_SIZE + 1, // +1 because cursor item is included in results
         start_author: cursorRef.current.author,
         start_permlink: cursorRef.current.permlink,
-      }]);
+        observer: '',
+      });
 
       // Drop the first item — it's the cursor (already shown)
       const newRaw = (raw ?? []).slice(1);
@@ -128,7 +134,6 @@ export function useBlogFeed() {
         cursorRef.current = { author: last.author, permlink: last.permlink };
       }
     } catch (err) {
-      // Non-fatal — user can retry by scrolling again
       if (__DEV__) console.error('[useBlogFeed] loadMore error:', err);
     } finally {
       setLoadingMore(false);
