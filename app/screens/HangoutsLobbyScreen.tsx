@@ -76,7 +76,7 @@ export default function HangoutsLobbyScreen() {
       onPress={() => handleRoomPress(item)}
       accessibilityRole='button'
       accessibilityLabel={`${item.title} by @${item.host}`}
-      accessibilityHint={`${item.numParticipants ?? 0} listening. Tap to join`}
+      accessibilityHint={`${item.numParticipants ?? 0} listening. Audio joining coming soon`}
     >
       <ExpoImage
         source={{ uri: `https://images.hive.blog/u/${item.host}/avatar/sm` }}

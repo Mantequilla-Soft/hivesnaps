@@ -8,19 +8,20 @@ const POLL_INTERVAL = 30_000;
  * Lightweight hook for the feed header badge.
  * Returns the number of currently active hangout rooms.
  * Polling only runs while the screen is focused — stops on blur to save battery.
- * Fails silently — a missing count is not critical.
+ * Uses a generation counter so a stale response from a previous focus cycle
+ * cannot overwrite a fresh count after refocus. Fails silently.
  */
 export function useHangoutsCount(): number {
   const [count, setCount] = useState(0);
-  const mountedRef = useRef(true);
+  const generationRef = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
-      mountedRef.current = true;
+      const gen = ++generationRef.current;
 
       const fetch = () => {
         hangoutsAuthService.getClient().listRooms()
-          .then((rooms) => { if (mountedRef.current) setCount(rooms.length); })
+          .then((rooms) => { if (generationRef.current === gen) setCount(rooms.length); })
           .catch(() => {});
       };
 
@@ -28,7 +29,7 @@ export function useHangoutsCount(): number {
       const interval = setInterval(fetch, POLL_INTERVAL);
 
       return () => {
-        mountedRef.current = false;
+        generationRef.current++; // invalidate in-flight requests from this cycle
         clearInterval(interval);
       };
     }, [])

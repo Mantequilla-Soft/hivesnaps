@@ -428,6 +428,16 @@ const Snap: React.FC<SnapProps> = ({
       .join('\n');
   }
 
+  // Remove hangout URLs from text body — rendered as preview cards instead
+  if (hangoutRoomNames.length > 0) {
+    textBody = textBody.replace(/https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+/g, '').trim();
+    textBody = textBody
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map(l => l.replace(/[ \t]{2,}/g, ' ').replace(/ +$/, ''))
+      .join('\n');
+  }
+
   // Process spoiler syntax first, before other text processing
   const spoilerData = convertSpoilerSyntax(textBody);
   textBody = spoilerData.processedText;
