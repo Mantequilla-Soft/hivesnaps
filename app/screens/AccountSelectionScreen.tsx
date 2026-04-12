@@ -99,8 +99,14 @@ export default function AccountSelectionScreen(): React.JSX.Element {
                 // otherwise clear auth and go to login.
                 const remaining = await accountStorageService.getAccounts();
                 if (remaining.length > 0) {
-                  await switchAccount(remaining[0].username);
-                  router.replace('/');
+                  try {
+                    await switchAccount(remaining[0].username);
+                    router.replace('/');
+                  } catch {
+                    // Switch failed after deletion — fall back to login
+                    await logout();
+                    router.replace('/');
+                  }
                 } else {
                   await logout();
                   router.replace('/');

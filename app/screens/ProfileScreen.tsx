@@ -369,7 +369,7 @@ const ProfileScreen = () => {
             {/* Wallet Section — only shown when active key stored AND device auth available */}
             <WalletSection
               isOwnProfile={isOwnProfile}
-              hasStoredKey={walletAccessible}
+              isWalletAccessible={walletAccessible}
               hive={profile?.hive}
               hbd={profile?.hbd}
               hivePower={profile?.hivePower}
