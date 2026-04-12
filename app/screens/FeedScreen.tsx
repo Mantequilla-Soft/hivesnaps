@@ -207,6 +207,13 @@ const FeedScreenRefactored = () => {
     return filtered;
   }, [snaps, mutedList]);
 
+  // Apply the same muted-list filter to blog posts
+  const filteredBlogPosts = useMemo(() => {
+    if (!mutedList || mutedList.length === 0) return blogPosts;
+    const mutedSet = new Set(mutedList);
+    return blogPosts.filter((post) => !mutedSet.has(post.author));
+  }, [blogPosts, mutedList]);
+
   const { medianPrice, rewardFund } = useHiveData();
 
   const {
@@ -964,7 +971,7 @@ const FeedScreenRefactored = () => {
             </View>
           ) : (
             <FlatList
-              data={blogPosts}
+              data={filteredBlogPosts}
               keyExtractor={(item) => `${item.author}-${item.permlink}`}
               renderItem={({ item }) => (
                 <BlogCard
