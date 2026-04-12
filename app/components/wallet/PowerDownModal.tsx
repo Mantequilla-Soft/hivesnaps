@@ -104,8 +104,7 @@ export const PowerDownModal: React.FC<PowerDownModalProps> = ({
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <KeyboardAvoidingView
                 style={styles.overlay}
-                behavior="padding"
-                enabled={Platform.OS === 'ios'}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                     <View style={[styles.content, { backgroundColor: colors.background }]}>
                         <Text style={[styles.title, { color: colors.text }]}>Power Down</Text>

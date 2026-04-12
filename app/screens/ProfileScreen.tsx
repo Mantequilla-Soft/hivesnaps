@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView as SafeAreaViewSA } from 'react-native-safe-area-context';
 import {
   View,
@@ -37,6 +37,7 @@ import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
+import { localAuthService } from '../../services/LocalAuthService';
 // useEdit removed - now using ComposeScreen for edit
 
 const ProfileScreen = () => {
@@ -58,6 +59,18 @@ const ProfileScreen = () => {
 
   // Define isOwnProfile early to avoid undefined issues
   const isOwnProfile = currentUsername === username;
+
+  // Wallet is accessible only when an active key is stored AND device auth is available.
+  // hasActiveKey alone isn't enough — if biometrics aren't set up the key can't be used.
+  const [walletAccessible, setWalletAccessible] = useState(false);
+  useEffect(() => {
+    if (!isOwnProfile || !hasActiveKey) { setWalletAccessible(false); return; }
+    let cancelled = false;
+    localAuthService.isAvailable()
+      .then((available) => { if (!cancelled) setWalletAccessible(available); })
+      .catch(() => { if (!cancelled) setWalletAccessible(false); });
+    return () => { cancelled = true; };
+  }, [isOwnProfile, hasActiveKey]);
   const {
     profile,
     loading,
@@ -353,9 +366,10 @@ const ProfileScreen = () => {
               handleClaimRewards={handleClaimRewards}
             />
 
-            {/* Wallet Section */}
+            {/* Wallet Section — only shown when active key stored AND device auth available */}
             <WalletSection
               isOwnProfile={isOwnProfile}
+              isWalletAccessible={walletAccessible}
               hive={profile?.hive}
               hbd={profile?.hbd}
               hivePower={profile?.hivePower}
