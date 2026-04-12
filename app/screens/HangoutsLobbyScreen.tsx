@@ -4,15 +4,14 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   Modal,
   TextInput,
   Alert,
-  Pressable,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,6 +23,8 @@ import { getTheme } from '../../constants/Colors';
 import { useHangoutsAuth } from '../../hooks/useHangoutsAuth';
 import { useHangoutsRoomList } from '../../hooks/useHangoutsRoomList';
 import { useHangoutsRoom } from '../../hooks/useHangoutsRoom';
+import IconButton from '../components/IconButton';
+import PrimaryButton from '../components/PrimaryButton';
 
 export default function HangoutsLobbyScreen() {
   const colorScheme = useColorScheme();
@@ -124,22 +125,20 @@ export default function HangoutsLobbyScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity
+        <IconButton
+          name='arrow-left'
+          size={20}
+          color={theme.text}
           onPress={() => router.back()}
-          style={styles.backBtn}
-          accessibilityRole='button'
           accessibilityLabel='Go back'
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <FontAwesome name='arrow-left' size={20} color={theme.text} />
-        </TouchableOpacity>
+          style={styles.backBtn}
+        />
         <Text style={[styles.headerTitle, { color: theme.text }]}>Hangouts</Text>
-        <TouchableOpacity
-          style={[styles.createBtn, { backgroundColor: theme.button }]}
-          accessibilityRole='button'
-          accessibilityLabel='Start a new hangout'
-          accessibilityHint='Opens room creation form'
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        <IconButton
+          name='plus'
+          size={14}
+          color={theme.buttonText}
+          backgroundColor={theme.button}
           onPress={() => {
             if (authLoading) return;
             if (!isAuthenticated) {
@@ -152,9 +151,9 @@ export default function HangoutsLobbyScreen() {
             }
           }}
           disabled={createLoading || authLoading}
-        >
-          <FontAwesome name='plus' size={14} color={theme.buttonText} />
-        </TouchableOpacity>
+          accessibilityLabel='Start a new hangout'
+          accessibilityHint='Opens room creation form'
+        />
       </View>
 
       {/* Auth banner */}
@@ -163,13 +162,18 @@ export default function HangoutsLobbyScreen() {
           <Text style={[styles.authBannerText, { color: theme.textSecondary }]}>
             Sign in to create or join rooms
           </Text>
-          <TouchableOpacity onPress={() => {
-            authenticate().then((ok) => {
-              if (!ok) Alert.alert('Sign in required', 'Could not authenticate with Hangouts server.');
-            });
-          }}>
-            <Text style={[styles.authBannerLink, { color: theme.button }]}>Connect</Text>
-          </TouchableOpacity>
+          <PrimaryButton
+            label='Connect'
+            variant='secondary'
+            labelColor={theme.button}
+            borderColor={theme.button}
+            onPress={() => {
+              authenticate().then((ok) => {
+                if (!ok) Alert.alert('Sign in required', 'Could not authenticate with Hangouts server.');
+              });
+            }}
+            style={styles.authBannerBtn}
+          />
         </View>
       )}
 
@@ -181,18 +185,28 @@ export default function HangoutsLobbyScreen() {
       ) : roomsError && rooms.length === 0 ? (
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>{roomsError}</Text>
-          <TouchableOpacity onPress={refresh} style={[styles.retryBtn, { borderColor: theme.border }]}>
-            <Text style={{ color: theme.button }}>Retry</Text>
-          </TouchableOpacity>
+          <PrimaryButton
+            label='Retry'
+            variant='secondary'
+            borderColor={theme.border}
+            labelColor={theme.button}
+            onPress={refresh}
+            style={styles.retryBtn}
+          />
         </View>
       ) : (
         <>
           {roomsError && (
             <View style={[styles.inlineError, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[styles.inlineErrorText, { color: theme.textSecondary }]}>{roomsError}</Text>
-              <TouchableOpacity onPress={refresh}>
-                <Text style={[styles.inlineErrorRetry, { color: theme.button }]}>Retry</Text>
-              </TouchableOpacity>
+              <PrimaryButton
+                label='Retry'
+                variant='secondary'
+                borderColor='transparent'
+                labelColor={theme.button}
+                onPress={refresh}
+                style={styles.inlineRetryBtn}
+              />
             </View>
           )}
           <FlatList
@@ -248,28 +262,23 @@ export default function HangoutsLobbyScreen() {
               />
 
               <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.border }]}
-                  accessibilityRole='button'
-                  accessibilityLabel='Cancel'
+                <PrimaryButton
+                  label='Cancel'
+                  variant='cancel'
+                  borderColor={theme.border}
+                  labelColor={theme.text}
                   onPress={closeCreateModal}
-                >
-                  <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalBtn, styles.modalBtnCreate, { backgroundColor: theme.button, opacity: roomTitle.trim() ? 1 : 0.5 }]}
-                  accessibilityRole='button'
-                  accessibilityLabel='Go Live'
-                  accessibilityHint='Creates the room and starts your hangout'
+                />
+                <PrimaryButton
+                  label='Go Live'
+                  variant='primary'
+                  backgroundColor={theme.button}
+                  textColor={theme.buttonText}
+                  loading={createLoading}
+                  disabled={!roomTitle.trim()}
                   onPress={handleCreateRoom}
-                  disabled={!roomTitle.trim() || createLoading}
-                >
-                  {createLoading ? (
-                    <ActivityIndicator size='small' color={theme.buttonText} />
-                  ) : (
-                    <Text style={[styles.modalBtnText, { color: theme.buttonText }]}>Go Live</Text>
-                  )}
-                </TouchableOpacity>
+                  accessibilityHint='Creates the room and starts your hangout'
+                />
               </View>
             </ScrollView>
           </View>
@@ -289,15 +298,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
-  backBtn: { width: 36, alignItems: 'flex-start' },
+  backBtn: { alignItems: 'flex-start' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', flex: 1, textAlign: 'center' },
-  createBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   authBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -308,12 +310,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  authBannerText: { fontSize: 13 },
-  authBannerLink: { fontSize: 13, fontWeight: '600' },
+  authBannerText: { fontSize: 13, flex: 1 },
+  authBannerBtn: { flex: 0, paddingVertical: 6, paddingHorizontal: 12 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
-  retryBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  retryBtn: { flex: 0, paddingHorizontal: 20, paddingVertical: 8 },
   inlineError: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -321,12 +323,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
   },
   inlineErrorText: { fontSize: 13, flex: 1 },
-  inlineErrorRetry: { fontSize: 13, fontWeight: '600', marginLeft: 12 },
+  inlineRetryBtn: { flex: 0, paddingVertical: 8, paddingHorizontal: 12 },
   listContent: { padding: 16, flexGrow: 1 },
   roomCard: {
     flexDirection: 'row',
@@ -366,8 +368,4 @@ const styles = StyleSheet.create({
   },
   modalInputMulti: { minHeight: 80, textAlignVertical: 'top' },
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
-  modalBtnCancel: { borderWidth: 1 },
-  modalBtnCreate: {},
-  modalBtnText: { fontSize: 16, fontWeight: '600' },
 });
