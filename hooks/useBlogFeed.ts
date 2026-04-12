@@ -114,17 +114,18 @@ export function useBlogFeed() {
 
     try {
       const client = getClient();
+      // bridge.get_ranked_posts does NOT include the cursor item in results,
+      // so no slice needed and limit stays PAGE_SIZE.
       const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
         sort: 'created',
         tag: SNAPIE_COMMUNITY,
-        limit: PAGE_SIZE + 1, // +1 because cursor item is included in results
+        limit: PAGE_SIZE,
         start_author: cursorRef.current.author,
         start_permlink: cursorRef.current.permlink,
         observer: '',
       });
 
-      // Drop the first item — it's the cursor (already shown)
-      const newRaw = (raw ?? []).slice(1);
+      const newRaw = raw ?? [];
       const parsed = parseRawPosts(newRaw);
       const enriched = await enrichWithAvatars(parsed);
       setPosts((prev) => [...prev, ...enriched]);
