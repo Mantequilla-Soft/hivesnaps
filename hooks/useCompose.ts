@@ -713,12 +713,15 @@ export function useCompose({
             const pollMeta = state.poll
                 ? {
                     content_type: 'poll',
+                    version: 0.8,
                     question: state.poll.question,
                     choices: state.poll.choices,
                     end_time: Math.floor((Date.now() + state.poll.durationDays * 86400000) / 1000),
                     max_choices_voted: state.poll.maxChoicesVoted,
                     allow_vote_changes: state.poll.allowVoteChanges,
                     ui_hide_res_until_voted: state.poll.hideResultsUntilVoted,
+                    preferred_interpretation: 'number_of_votes',
+                    filters: { account_age: 0 },
                 }
                 : {};
             const json_metadata = JSON.stringify({
