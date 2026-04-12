@@ -5,6 +5,19 @@ import { avatarService } from '../services/AvatarService';
 export const SNAPIE_COMMUNITY = 'hive-178315';
 const PAGE_SIZE = 20;
 
+interface RawBlogPost {
+  author: string;
+  permlink: string;
+  title?: string;
+  body?: string;
+  json_metadata?: string;
+  created: string;
+  pending_payout_value?: string;
+  total_payout_value?: string;
+  net_votes?: number;
+  children?: number;
+}
+
 export interface BlogPost {
   author: string;
   permlink: string;
@@ -55,7 +68,7 @@ export function useBlogFeed() {
     return enriched;
   }, []);
 
-  const parseRawPosts = useCallback((raw: any[]): BlogPost[] => {
+  const parseRawPosts = useCallback((raw: RawBlogPost[]): BlogPost[] => {
     return raw.map((item) => ({
       author: item.author,
       permlink: item.permlink,
@@ -84,12 +97,12 @@ export function useBlogFeed() {
       const client = getClient();
       // bridge.get_ranked_posts is the correct API for community posts — supports
       // cursor pagination with start_author/start_permlink without "Invalid parameters"
-      const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
+      const raw = await client.call('bridge', 'get_ranked_posts', {
         sort: 'created',
         tag: SNAPIE_COMMUNITY,
         limit: PAGE_SIZE,
         observer: '',
-      });
+      }) as RawBlogPost[];
 
       const parsed = parseRawPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
@@ -116,17 +129,16 @@ export function useBlogFeed() {
       const client = getClient();
       // bridge.get_ranked_posts does NOT include the cursor item in results,
       // so no slice needed and limit stays PAGE_SIZE.
-      const raw: any[] = await client.call('bridge', 'get_ranked_posts', {
+      const raw = await client.call('bridge', 'get_ranked_posts', {
         sort: 'created',
         tag: SNAPIE_COMMUNITY,
         limit: PAGE_SIZE,
         start_author: cursorRef.current.author,
         start_permlink: cursorRef.current.permlink,
         observer: '',
-      });
+      }) as RawBlogPost[];
 
-      const newRaw = raw ?? [];
-      const parsed = parseRawPosts(newRaw);
+      const parsed = parseRawPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
       setPosts((prev) => [...prev, ...enriched]);
       hasMoreRef.current = enriched.length === PAGE_SIZE;

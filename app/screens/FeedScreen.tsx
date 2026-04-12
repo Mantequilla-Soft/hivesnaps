@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -180,6 +180,12 @@ const FeedScreenRefactored = () => {
     refresh: refreshBlogPosts,
     loadMore: loadMoreBlogPosts,
   } = useBlogFeed();
+
+  const handleBlogEndReached = useCallback(() => {
+    if (!blogLoadingMore) {
+      loadMoreBlogPosts();
+    }
+  }, [blogLoadingMore, loadMoreBlogPosts]);
 
   // Cache management for follow/mute lists
   const { invalidateFollowingCache, invalidateMutedCache } = useFollowCacheManagement();
@@ -985,7 +991,7 @@ const FeedScreenRefactored = () => {
                 />
               )}
               contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
-              onEndReached={loadMoreBlogPosts}
+              onEndReached={handleBlogEndReached}
               onEndReachedThreshold={0.3}
               refreshing={globalRefreshing}
               onRefresh={handleGlobalRefresh}

@@ -37,7 +37,9 @@ function formatPayout(pendingPayout: string, totalPayout: string): string {
 }
 
 function formatTimeAgo(created: string): string {
+  if (!created) return '';
   const diff = Date.now() - new Date(created + 'Z').getTime();
+  if (isNaN(diff) || diff < 0) return '';
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
