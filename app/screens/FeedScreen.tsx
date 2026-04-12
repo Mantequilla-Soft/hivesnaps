@@ -1002,7 +1002,7 @@ const FeedScreenRefactored = () => {
                 <BlogCard
                   post={item}
                   onPress={() => router.push({
-                    pathname: '/screens/ConversationScreen',
+                    pathname: '/screens/HivePostScreen',
                     params: { author: item.author, permlink: item.permlink },
                   })}
                   onAuthorPress={(u) => router.push(`/screens/ProfileScreen?username=${u}` as any)}
