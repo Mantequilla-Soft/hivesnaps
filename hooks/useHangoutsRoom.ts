@@ -37,13 +37,16 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
       setLivekitToken(result.token);
       setRoomName(joinedName);
       setIsHost(result.isHost);
+      setRoomMeta(null); // clear stale metadata before the lookup resolves
       // Best-effort metadata using the server-normalized room name.
-      // Only commits if no newer join has started since.
+      // Only commits if no newer join/create/leave has invalidated the ref.
       client.getRoom(joinedName)
         .then((meta) => {
           if (latestJoinRef.current === joinedName) setRoomMeta(meta);
         })
-        .catch(() => {});
+        .catch(() => {
+          if (latestJoinRef.current === joinedName) setRoomMeta(null);
+        });
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
@@ -56,6 +59,7 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
   const create = useCallback(async (title: string, description?: string): Promise<Room> => {
     setIsLoading(true);
     setError(null);
+    latestJoinRef.current = null; // invalidate any in-flight join metadata lookup
     try {
       const { room, token }: CreateRoomResponse = await client.createRoom(title, description);
       setLivekitToken(token);
@@ -72,6 +76,7 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
   }, [client]);
 
   const leave = useCallback(() => {
+    latestJoinRef.current = null; // invalidate any in-flight metadata lookup
     setLivekitToken(null);
     setRoomName(null);
     setRoomMeta(null);

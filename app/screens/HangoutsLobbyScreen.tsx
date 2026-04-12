@@ -65,6 +65,9 @@ export default function HangoutsLobbyScreen() {
     <Pressable
       style={[styles.roomCard, { backgroundColor: theme.card, borderColor: theme.border }]}
       onPress={() => handleRoomPress(item)}
+      accessibilityRole='button'
+      accessibilityLabel={`${item.title} by @${item.host}`}
+      accessibilityHint={`${item.numParticipants ?? 0} listening. Tap to join`}
     >
       <ExpoImage
         source={{ uri: `https://images.hive.blog/u/${item.host}/avatar/sm` }}
