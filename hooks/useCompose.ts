@@ -715,7 +715,7 @@ export function useCompose({
                     content_type: 'poll',
                     question: state.poll.question,
                     choices: state.poll.choices,
-                    end_time: new Date(Date.now() + state.poll.durationDays * 86400000).toISOString(),
+                    end_time: Math.floor((Date.now() + state.poll.durationDays * 86400000) / 1000),
                     max_choices_voted: state.poll.maxChoicesVoted,
                     allow_vote_changes: state.poll.allowVoteChanges,
                     ui_hide_res_until_voted: state.poll.hideResultsUntilVoted,

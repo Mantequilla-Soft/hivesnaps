@@ -12,7 +12,7 @@ export interface PollDraft {
 export interface PollMetadata {
   question: string;
   choices: string[];
-  end_time: string;                  // ISO datetime
+  end_time: number;                  // Unix timestamp (seconds) — PeakD/Ecency standard
   max_choices_voted: number;
   allow_vote_changes: boolean;
   filters?: { account_age?: number };
@@ -45,15 +45,21 @@ export function extractPoll(jsonMetadata: string): PollMetadata | null {
     typeof question !== 'string' ||
     !Array.isArray(choices) ||
     choices.length < 2 ||
-    typeof end_time !== 'string'
+    (typeof end_time !== 'number' && typeof end_time !== 'string')
   ) {
     return null;
   }
 
+  // Normalize end_time to Unix seconds (PeakD uses seconds; ISO strings are converted)
+  const endTimeSeconds: number =
+    typeof end_time === 'number'
+      ? end_time
+      : Math.floor(new Date(end_time).getTime() / 1000);
+
   return {
     question,
     choices: choices as string[],
-    end_time,
+    end_time: endTimeSeconds,
     max_choices_voted: typeof max_choices_voted === 'number' ? max_choices_voted : 1,
     allow_vote_changes: typeof allow_vote_changes === 'boolean' ? allow_vote_changes : false,
     filters: filters ?? undefined,

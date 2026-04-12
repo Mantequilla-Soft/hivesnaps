@@ -27,8 +27,8 @@ interface PollWidgetProps {
   };
 }
 
-function formatTimeLeft(endTime: string): string {
-  const diff = new Date(endTime).getTime() - Date.now();
+function formatTimeLeft(endTimeSeconds: number): string {
+  const diff = endTimeSeconds * 1000 - Date.now();
   if (diff <= 0) return 'Poll ended';
   const days = Math.floor(diff / 86400000);
   const hours = Math.floor((diff % 86400000) / 3600000);
@@ -61,7 +61,7 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
 
   const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
   const isMultiChoice = poll.max_choices_voted > 1;
-  const isExpired = new Date(poll.end_time).getTime() <= Date.now();
+  const isExpired = poll.end_time * 1000 <= Date.now();
   const timeLabel = formatTimeLeft(poll.end_time);
 
   const showResults =
