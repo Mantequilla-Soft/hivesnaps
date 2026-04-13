@@ -59,14 +59,18 @@ class HangoutsAuthServiceImpl {
     try {
       const username = await accountStorageService.getCurrentAccountUsername();
       const postingKey = await accountStorageService.getCurrentPostingKey();
+      console.log('[HangoutsAuth] username:', username, 'hasKey:', !!postingKey);
       if (!username || !postingKey) {
         this.clearSession();
         return false;
       }
 
       const { challenge } = await this.client.requestChallenge(username);
+      console.log('[HangoutsAuth] challenge received, signing...');
       const signature = this.signChallenge(challenge, postingKey);
+      console.log('[HangoutsAuth] sending verify...');
       const session = await this.client.verifySignature(username, challenge, signature);
+      console.log('[HangoutsAuth] session token received:', !!session.token);
       this.sessionToken = session.token;
       this.client.setSessionToken(session.token);
       return true;
