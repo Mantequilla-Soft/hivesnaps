@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalParticipant } from '@livekit/react-native';
@@ -48,6 +48,34 @@ export default function RoomControls({
   const isMuted = !localParticipant?.isMicrophoneEnabled;
   const isListener = localParticipant?.permissions?.canPublish === false;
 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isRecording) {
+      setElapsedSeconds(0);
+      timerRef.current = setInterval(() => {
+        setElapsedSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setElapsedSeconds(0);
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isRecording]);
+
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  const elapsed = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
   return (
     <View
       style={[
@@ -82,7 +110,7 @@ export default function RoomControls({
       {isRecording && (
         <View style={styles.recBadge}>
           <View style={styles.recDot} />
-          <Text style={styles.recText}>REC</Text>
+          <Text style={styles.recText}>REC {elapsed}</Text>
         </View>
       )}
 
