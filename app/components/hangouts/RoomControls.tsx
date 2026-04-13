@@ -15,6 +15,7 @@ interface RoomControlsProps {
   isRecording: boolean;
   isUploading: boolean;
   onToggleRecording: () => void;
+  recordingStartedAt?: number;
   onLeave: () => void;
   onEndRoom: () => void;
   colors: {
@@ -39,6 +40,7 @@ export default function RoomControls({
   isRecording,
   isUploading,
   onToggleRecording,
+  recordingStartedAt,
   onLeave,
   onEndRoom,
   colors,
@@ -53,7 +55,11 @@ export default function RoomControls({
 
   useEffect(() => {
     if (isRecording) {
-      setElapsedSeconds(0);
+      // Seed from startedAt so non-hosts joining mid-recording show the correct elapsed time
+      const initialElapsed = recordingStartedAt
+        ? Math.floor((Date.now() - recordingStartedAt) / 1000)
+        : 0;
+      setElapsedSeconds(initialElapsed);
       timerRef.current = setInterval(() => {
         setElapsedSeconds((s) => s + 1);
       }, 1000);
@@ -70,7 +76,7 @@ export default function RoomControls({
         timerRef.current = null;
       }
     };
-  }, [isRecording]);
+  }, [isRecording, recordingStartedAt]);
 
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;

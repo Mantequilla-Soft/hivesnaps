@@ -104,14 +104,18 @@ function RoomScreenInner({
 
   // Non-host participants mirror the host's recording state via data channel
   const [broadcastRecording, setBroadcastRecording] = useState(false);
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number>(0);
   const visibleRecordingState = isHost ? isRecording : broadcastRecording;
 
   // Broadcast recording state so all participants see the REC indicator
   const { send: sendRecordingState } = useDataChannel('recording-state', useCallback((msg: { payload: Uint8Array }) => {
     try {
-      const data = JSON.parse(new TextDecoder().decode(msg.payload)) as { type: string; recording: boolean };
+      const data = JSON.parse(new TextDecoder().decode(msg.payload)) as { type: string; recording: boolean; startedAt?: number };
       if (data.type === 'recording_state') {
         setBroadcastRecording(data.recording);
+        if (data.recording && data.startedAt) {
+          setRecordingStartedAt(data.startedAt);
+        }
       }
     } catch {
       // malformed — ignore
@@ -124,13 +128,22 @@ function RoomScreenInner({
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
+  // Guard against double-tapping the record toggle while an async transition is in flight
+  const isTogglingRef = useRef(false);
+
+  // Keep a stable ref to recordingStartedAt so the participantConnected handler reads the latest value
+  const recordingStartedAtRef = useRef(recordingStartedAt);
+  useEffect(() => {
+    recordingStartedAtRef.current = recordingStartedAt;
+  }, [recordingStartedAt]);
+
   // Host re-broadcasts current recording state to late-joining participants
   useEffect(() => {
     if (!isHost) return;
     const onParticipantConnected = () => {
       if (!isRecordingRef.current) return;
       sendRecordingState(
-        new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: true })),
+        new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: true, startedAt: recordingStartedAtRef.current })),
         { reliable: true },
       ).catch(() => {});
     };
@@ -139,27 +152,35 @@ function RoomScreenInner({
   }, [isHost, room, sendRecordingState]);
 
   const handleToggleRecording = useCallback(async (): Promise<void> => {
-    if (isRecording) {
-      try {
-        await stopAndPost();
-        sendRecordingState(
-          new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: false })),
-          { reliable: true },
-        ).catch(() => {});
-        Alert.alert('Recording posted', 'The recording has been uploaded and posted as a snap.');
-      } catch (err) {
-        Alert.alert('Recording failed', err instanceof Error ? err.message : 'Could not stop recording');
+    if (isTogglingRef.current) return;
+    isTogglingRef.current = true;
+    try {
+      if (isRecording) {
+        try {
+          await stopAndPost();
+          sendRecordingState(
+            new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: false })),
+            { reliable: true },
+          ).catch(() => {});
+          Alert.alert('Recording posted', 'The recording has been uploaded and posted as a snap.');
+        } catch (err) {
+          Alert.alert('Recording failed', err instanceof Error ? err.message : 'Could not stop recording');
+        }
+      } else {
+        try {
+          await startRecording();
+          const startedAt = Date.now();
+          setRecordingStartedAt(startedAt);
+          sendRecordingState(
+            new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: true, startedAt })),
+            { reliable: true },
+          ).catch(() => {});
+        } catch (err) {
+          Alert.alert('Recording failed', err instanceof Error ? err.message : 'Could not start recording');
+        }
       }
-    } else {
-      try {
-        await startRecording();
-        sendRecordingState(
-          new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: true })),
-          { reliable: true },
-        ).catch(() => {});
-      } catch (err) {
-        Alert.alert('Recording failed', err instanceof Error ? err.message : 'Could not start recording');
-      }
+    } finally {
+      isTogglingRef.current = false;
     }
   }, [isRecording, startRecording, stopAndPost, sendRecordingState]);
 
@@ -259,12 +280,24 @@ function RoomScreenInner({
     ]);
   }, [client, roomName]);
 
+  // Best-effort stop: if host leaves or ends the room while recording, stop first
+  const handleLeaveWithCleanup = useCallback((): void => {
+    if (isHost && isRecordingRef.current) {
+      void stopAndPost().catch(() => {});
+    }
+    onLeave();
+  }, [isHost, stopAndPost, onLeave]);
+
   const handleEndRoom = useCallback((): void => {
     Alert.alert('End Room', 'This will end the hangout for everyone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'End Room', style: 'destructive',
         onPress: () => {
+          // Stop any active recording best-effort before tearing down the room
+          if (isRecordingRef.current) {
+            void stopAndPost().catch(() => {});
+          }
           // Navigate out first so the host doesn't see the ROOM_DELETED alert
           // that fires for all participants. deleteRoom runs best-effort in background.
           onLeave();
@@ -272,7 +305,7 @@ function RoomScreenInner({
         },
       },
     ]);
-  }, [client, roomName, onLeave]);
+  }, [client, roomName, onLeave, stopAndPost]);
 
   const colors = {
     text: theme.text,
@@ -298,7 +331,7 @@ function RoomScreenInner({
           name='arrow-left'
           size={20}
           color={theme.text}
-          onPress={onLeave}
+          onPress={handleLeaveWithCleanup}
           accessibilityLabel='Leave room'
           style={styles.backBtn}
         />
@@ -367,7 +400,8 @@ function RoomScreenInner({
         isRecording={visibleRecordingState}
         isUploading={isUploading}
         onToggleRecording={handleToggleRecording}
-        onLeave={onLeave}
+        recordingStartedAt={recordingStartedAt}
+        onLeave={handleLeaveWithCleanup}
         onEndRoom={handleEndRoom}
         colors={colors}
       />

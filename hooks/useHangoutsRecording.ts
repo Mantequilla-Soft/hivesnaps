@@ -21,6 +21,7 @@ export function useHangoutsRecording(
   const [isUploading, setIsUploading] = useState(false);
   const isMountedRef = useRef(true);
   const isStartingRef = useRef(false);
+  const isStoppingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -42,6 +43,8 @@ export function useHangoutsRecording(
   }, [roomName]);
 
   const stopAndPost = useCallback(async (): Promise<void> => {
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
     try {
       // Wait for stop to succeed before flipping UI — if it fails, recording is still active
       const stopResult = await hangoutsAuthService.getClient().stopRecording(roomName);
@@ -108,6 +111,7 @@ export function useHangoutsRecording(
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to stop and post recording');
     } finally {
+      isStoppingRef.current = false;
       if (isMountedRef.current) setIsUploading(false);
     }
   }, [roomName, roomTitle, roomDescription]);
