@@ -11,6 +11,7 @@ interface RoomControlsProps {
   onToggleMute: () => void;
   onToggleHand: () => void;
   onToggleChat: () => void;
+  hasUnreadChat: boolean;
   onLeave: () => void;
   onEndRoom: () => void;
   colors: {
@@ -31,6 +32,7 @@ export default function RoomControls({
   onToggleMute,
   onToggleHand,
   onToggleChat,
+  hasUnreadChat,
   onLeave,
   onEndRoom,
   colors,
@@ -71,13 +73,16 @@ export default function RoomControls({
       )}
 
       {/* Chat */}
-      <IconButton
-        name='comment-o'
-        size={22}
-        color={colors.icon}
-        onPress={onToggleChat}
-        accessibilityLabel='Toggle chat'
-      />
+      <View style={styles.chatBtnWrap}>
+        <IconButton
+          name='comment-o'
+          size={22}
+          color={hasUnreadChat ? colors.button : colors.icon}
+          onPress={onToggleChat}
+          accessibilityLabel={hasUnreadChat ? 'Toggle chat (unread messages)' : 'Toggle chat'}
+        />
+        {hasUnreadChat && <View style={styles.unreadDot} />}
+      </View>
 
       {/* Leave */}
       <IconButton
@@ -115,6 +120,18 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 24,
     borderTopWidth: 1,
+  },
+  chatBtnWrap: {
+    position: 'relative',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
   },
   leaveBtn: {
     transform: [{ rotate: '135deg' }],
