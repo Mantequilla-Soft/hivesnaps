@@ -51,6 +51,12 @@ export function userReducer(state: UserState, action: UserAction): UserState {
         currentUser: action.payload,
       };
 
+    case 'USER_SET_HAS_ACTIVE_KEY':
+      return {
+        ...state,
+        hasActiveKey: action.payload,
+      };
+
     case 'USER_SET_PROFILE':
       return {
         ...state,
@@ -170,6 +176,9 @@ export function userReducer(state: UserState, action: UserAction): UserState {
 export const userSelectors = {
   // Get current user
   getCurrentUser: (state: UserState): string | null => state.currentUser,
+
+  // Get whether the current account has an active (posting) key stored
+  getHasActiveKey: (state: UserState): boolean => state.hasActiveKey,
 
   // Get user profile with cache check
   getUserProfile: (state: UserState, username: string): UserProfile | null => {
