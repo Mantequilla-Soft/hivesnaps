@@ -1,5 +1,5 @@
 import React, { ComponentProps } from 'react';
-import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
 type FontAwesomeIconName = ComponentProps<typeof FontAwesome>['name'];
@@ -13,7 +13,7 @@ interface IconButtonProps {
   accessibilityLabel: string;
   accessibilityHint?: string;
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 /**
@@ -30,7 +30,7 @@ export default function IconButton({
   accessibilityHint,
   disabled = false,
   style,
-}: IconButtonProps) {
+}: IconButtonProps): React.ReactElement {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -44,6 +44,7 @@ export default function IconButton({
       accessibilityRole='button'
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled }}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
       <FontAwesome name={name} size={size} color={color} />

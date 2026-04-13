@@ -428,9 +428,20 @@ const Snap: React.FC<SnapProps> = ({
       .join('\n');
   }
 
-  // Remove hangout URLs from text body — rendered as preview cards instead
+  // Remove hangout URLs from text body — rendered as preview cards instead.
+  // Handle three forms to avoid leaving broken markup:
+  //   1. Markdown links: [label](url)
+  //   2. HTML anchors: <a href="url">...</a>
+  //   3. Bare standalone URLs (bounded by whitespace/line boundaries)
   if (hangoutRoomNames.length > 0) {
-    textBody = textBody.replace(/https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+/g, '').trim();
+    textBody = textBody
+      // Remove full markdown link tokens
+      .replace(/\[[^\]]*\]\(https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+\)/g, '')
+      // Remove full HTML anchor tokens
+      .replace(/<a\b[^>]*href=["']https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+["'][^>]*>.*?<\/a>/gi, '')
+      // Remove remaining bare URLs (standalone — preceded/followed by whitespace or line boundary)
+      .replace(/(^|[\s])https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+(\s|$)/gm, '$1$2')
+      .trim();
     textBody = textBody
       .replace(/\r\n/g, '\n')
       .split('\n')

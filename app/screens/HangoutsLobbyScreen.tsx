@@ -41,9 +41,27 @@ export default function HangoutsLobbyScreen() {
   const [roomTitle, setRoomTitle] = useState('');
   const [roomDescription, setRoomDescription] = useState('');
 
+  const runAuthenticate = async (interactive: boolean): Promise<boolean> => {
+    try {
+      const ok = await authenticate();
+      if (!ok && interactive) {
+        Alert.alert('Sign in required', 'Could not authenticate with Hangouts server.');
+      }
+      return ok;
+    } catch (err) {
+      if (interactive) {
+        Alert.alert(
+          'Sign in required',
+          err instanceof Error ? err.message : 'Could not authenticate with Hangouts server.',
+        );
+      }
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated && !authLoading) {
-      authenticate();
+      void runAuthenticate(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once auth check
   }, []);
@@ -142,9 +160,8 @@ export default function HangoutsLobbyScreen() {
           onPress={() => {
             if (authLoading) return;
             if (!isAuthenticated) {
-              authenticate().then((ok) => {
+              void runAuthenticate(true).then((ok) => {
                 if (ok) setCreateModalVisible(true);
-                else Alert.alert('Sign in required', 'Could not authenticate with Hangouts server.');
               });
             } else {
               setCreateModalVisible(true);
@@ -167,11 +184,7 @@ export default function HangoutsLobbyScreen() {
             variant='secondary'
             labelColor={theme.button}
             borderColor={theme.button}
-            onPress={() => {
-              authenticate().then((ok) => {
-                if (!ok) Alert.alert('Sign in required', 'Could not authenticate with Hangouts server.');
-              });
-            }}
+            onPress={() => { void runAuthenticate(true); }}
             style={styles.authBannerBtn}
           />
         </View>

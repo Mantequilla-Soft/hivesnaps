@@ -4,64 +4,66 @@ import {
   Text,
   ActivityIndicator,
   StyleSheet,
-  ViewStyle,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
-type Variant = 'primary' | 'secondary' | 'cancel';
-
-interface PrimaryButtonProps {
+interface BaseProps {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: Variant;
-  /** Required for primary variant */
-  backgroundColor?: string;
-  /** Required for primary variant */
-  textColor?: string;
-  /** Required for secondary/cancel variants */
-  borderColor?: string;
-  /** Text color for secondary/cancel variants */
-  labelColor?: string;
   accessibilityLabel?: string;
   accessibilityHint?: string;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
+
+interface FilledProps extends BaseProps {
+  variant?: 'primary';
+  backgroundColor: string;
+  textColor: string;
+  borderColor?: never;
+  labelColor?: never;
+}
+
+interface OutlinedProps extends BaseProps {
+  variant: 'secondary' | 'cancel';
+  borderColor: string;
+  labelColor: string;
+  backgroundColor?: never;
+  textColor?: never;
+}
+
+type PrimaryButtonProps = FilledProps | OutlinedProps;
 
 /**
  * Full-width labeled action button with loading state.
  * Use for modal actions: Go Live, Cancel, Retry, etc.
  *
  * Variants:
- *  - primary: filled background (pass backgroundColor + textColor)
- *  - secondary: outlined (pass borderColor + labelColor)
- *  - cancel: same as secondary
+ *  - primary (default): filled — requires backgroundColor + textColor
+ *  - secondary / cancel: outlined — requires borderColor + labelColor
  */
-export default function PrimaryButton({
-  label,
-  onPress,
-  disabled = false,
-  loading = false,
-  variant = 'primary',
-  backgroundColor,
-  textColor = '#fff',
-  borderColor,
-  labelColor,
-  accessibilityLabel,
-  accessibilityHint,
-  style,
-}: PrimaryButtonProps) {
-  const isOutlined = variant === 'secondary' || variant === 'cancel';
+export default function PrimaryButton(props: PrimaryButtonProps): React.ReactElement {
+  const { label, onPress, disabled = false, loading = false, accessibilityLabel, accessibilityHint, style } = props;
+  const isOutlined = props.variant === 'secondary' || props.variant === 'cancel';
+
+  const foreground = isOutlined
+    ? (props as OutlinedProps).labelColor
+    : (props as FilledProps).textColor;
+  const background = isOutlined ? undefined : (props as FilledProps).backgroundColor;
+  const border = isOutlined ? (props as OutlinedProps).borderColor : undefined;
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       style={[
         styles.button,
         isOutlined
-          ? [styles.outlined, borderColor ? { borderColor } : undefined]
-          : [styles.filled, backgroundColor ? { backgroundColor } : undefined],
+          ? [styles.outlined, border ? { borderColor: border } : undefined]
+          : [styles.filled, background ? { backgroundColor: background } : undefined],
         (disabled || loading) && styles.disabled,
         style,
       ]}
@@ -70,14 +72,9 @@ export default function PrimaryButton({
       accessibilityHint={accessibilityHint}
     >
       {loading ? (
-        <ActivityIndicator size='small' color={isOutlined ? labelColor : textColor} />
+        <ActivityIndicator size='small' color={foreground} />
       ) : (
-        <Text
-          style={[
-            styles.label,
-            { color: isOutlined ? (labelColor ?? '#000') : textColor },
-          ]}
-        >
+        <Text style={[styles.label, { color: foreground }]}>
           {label}
         </Text>
       )}
