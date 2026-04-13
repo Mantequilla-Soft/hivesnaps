@@ -38,6 +38,8 @@ import AudioEmbed from './AudioEmbed';
 import InstagramEmbed from './InstagramEmbed';
 import { extractBlogPostUrls } from '../../utils/extractHivePostInfo';
 import { OptimizedHivePostPreviewRenderer } from '../../components/OptimizedHivePostPreviewRenderer';
+import { extractHangoutRoomNames } from '../../utils/extractHangoutInfo';
+import HangoutPreviewCard from './HangoutPreviewCard';
 import { canBeResnapped } from '../../utils/postTypeDetector';
 import { getMarkdownStyles } from '../../styles/markdownStyles';
 import { linkStyles, useLinkTextStyle } from '../../styles/linkStyles';
@@ -213,6 +215,7 @@ const Snap: React.FC<SnapProps> = ({
   const embeddedContent = extractVideoInfo(body); // Renamed from videoInfo to be more accurate
   const mediaInfo = detectMediaInBody(body); // Detect audio and video media
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
+  const hangoutRoomNames = useMemo(() => [...new Set(extractHangoutRoomNames(body))], [body]);
   const router = useRouter(); // For navigation in reply mode
 
   // Calculate indentation and content width for replies
@@ -418,6 +421,27 @@ const Snap: React.FC<SnapProps> = ({
       textBody = textBody.replace(url, '').trim();
     });
     // Clean up horizontal double spaces only, preserving paragraph breaks
+    textBody = textBody
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map(l => l.replace(/[ \t]{2,}/g, ' ').replace(/ +$/, ''))
+      .join('\n');
+  }
+
+  // Remove hangout URLs from text body — rendered as preview cards instead.
+  // Handle three forms to avoid leaving broken markup:
+  //   1. Markdown links: [label](url)
+  //   2. HTML anchors: <a href="url">...</a>
+  //   3. Bare standalone URLs (bounded by whitespace/line boundaries)
+  if (hangoutRoomNames.length > 0) {
+    textBody = textBody
+      // Remove full markdown link tokens
+      .replace(/\[[^\]]*\]\(https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+\)/g, '')
+      // Remove full HTML anchor tokens
+      .replace(/<a\b[^>]*href=["']https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+["'][^>]*>.*?<\/a>/gi, '')
+      // Remove remaining bare URLs (standalone — preceded/followed by whitespace or line boundary)
+      .replace(/(^|[\s])https?:\/\/hangout\.3speak\.tv\/room\/[\w-]+(\s|$)/gm, '$1$2')
+      .trim();
     textBody = textBody
       .replace(/\r\n/g, '\n')
       .split('\n')
@@ -1131,6 +1155,26 @@ const Snap: React.FC<SnapProps> = ({
             />
           </View>
         )}
+        {/* Hangout Preview Cards */}
+        {hangoutRoomNames.length > 0 && (
+          <View style={{ marginTop: 8 }}>
+            {hangoutRoomNames.map((name) => (
+              <HangoutPreviewCard
+                key={name}
+                roomName={name}
+                colors={{
+                  text: colors.text,
+                  textSecondary: colors.textSecondary,
+                  border: colors.border,
+                  card: colors.card,
+                  background: colors.background,
+                  success: colors.success,
+                }}
+              />
+            ))}
+          </View>
+        )}
+
         {/* Three-dots Action Sheet */}
         <ActionSheet
           visible={moreMenuVisible}

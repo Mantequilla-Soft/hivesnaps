@@ -35,6 +35,7 @@ import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
 import { useResourceCredits } from '../../hooks/useResourceCredits';
 import { useUserProfile } from '../../hooks/useUserProfile';
@@ -132,6 +133,7 @@ const FeedScreenRefactored = () => {
     buttonInactive: theme.buttonInactive,
     icon: theme.icon,
     bubble: theme.bubble,
+    success: theme.success,
   };
 
   // Initialize styles
@@ -265,6 +267,7 @@ const FeedScreenRefactored = () => {
   } = useSearch();
 
   const { unreadCount, refresh: refreshNotifications } = useNotifications(username || null);
+  const hangoutsCount = useHangoutsCount();
 
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   const [vpInfoModalVisible, setVpInfoModalVisible] = useState(false);
@@ -894,6 +897,24 @@ const FeedScreenRefactored = () => {
             </Text>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.searchBtn, { marginRight: 12 }]}
+              onPress={() => router.push('/screens/HangoutsLobbyScreen')}
+              accessibilityLabel='Open Hangouts'
+              accessibilityRole='button'
+              accessibilityHint='Navigates to the Hangouts lobby'
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={{ position: 'relative' }}>
+                <FontAwesome name='microphone' size={22} color={colors.icon} />
+                <NotificationBadge
+                  count={hangoutsCount}
+                  size='small'
+                  color={colors.success}
+                  visible={hangoutsCount > 0}
+                />
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.searchBtn, { marginRight: 12 }]}
               onPress={() => setIsSearchModalVisible(true)}

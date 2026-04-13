@@ -38,3 +38,6 @@ export const THREESPEAK_IMAGE_API_KEY = process.env.EXPO_PUBLIC_THREESPEAK_IMAGE
 if (!THREESPEAK_IMAGE_API_KEY) {
   console.warn('⚠️  THREESPEAK_IMAGE_API_KEY is not set - fallback image upload to 3Speak will not work');
 }
+
+// Hive Hangouts API
+export const HANGOUTS_API_URL = process.env.EXPO_PUBLIC_HANGOUTS_API_URL || 'https://hangout-api.3speak.tv';
