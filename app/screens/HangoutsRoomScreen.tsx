@@ -264,11 +264,13 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   const colorScheme = useColorScheme();
   const theme = getTheme(colorScheme === 'dark' ? 'dark' : 'light');
   const router = useRouter();
-  const { roomName, livekitToken } = useLocalSearchParams<{
+  const { roomName, livekitToken, isHost: isHostParam } = useLocalSearchParams<{
     roomName: string;
     livekitToken: string;
+    isHost: string;
   }>();
-  const { roomMeta, isHost, leave: clearRoomState } = useHangoutsRoom();
+  const isHost = isHostParam === 'true';
+  const { roomMeta, leave: clearRoomState } = useHangoutsRoom();
 
   const [connectionState, setConnectionState] = useState<ConnectionState | 'idle'>('idle');
   // On Android we must resolve mic permission before LiveKitRoom mounts,
@@ -330,7 +332,7 @@ export default function HangoutsRoomScreen(): React.ReactElement {
         serverUrl={LIVEKIT_URL}
         token={livekitToken}
         connect={true}
-        audio={true}
+        audio={isHost}
         video={false}
         onConnected={() => setConnectionState('connected' as ConnectionState)}
         onDisconnected={() => {

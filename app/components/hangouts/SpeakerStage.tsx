@@ -23,8 +23,10 @@ export default function SpeakerStage({
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
 
-  // Speakers = host + those who can publish (have microphone track or canPublishSources includes mic)
-  const speakers = participants.filter((p) => p.permissions?.canPublish !== false);
+  // useParticipants() includes local — exclude it to avoid duplicates
+  const speakers = participants.filter(
+    (p) => p.permissions?.canPublish !== false && p.identity !== localParticipant?.identity
+  );
   const hasLocal = localParticipant?.permissions?.canPublish !== false;
 
   return (

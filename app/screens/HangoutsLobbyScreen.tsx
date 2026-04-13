@@ -80,7 +80,7 @@ export default function HangoutsLobbyScreen() {
       closeCreateModal();
       router.push({
         pathname: '/screens/HangoutsRoomScreen' as any,
-        params: { roomName: response.room.name, livekitToken: response.token },
+        params: { roomName: response.room.name, livekitToken: response.token, isHost: 'true' },
       });
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create room');
@@ -96,7 +96,7 @@ export default function HangoutsLobbyScreen() {
       const result = await join(room.name);
       router.push({
         pathname: '/screens/HangoutsRoomScreen' as any,
-        params: { roomName: result.roomName, livekitToken: result.token },
+        params: { roomName: result.roomName, livekitToken: result.token, isHost: 'false' },
       });
     } catch (err) {
       Alert.alert('Could not join', err instanceof Error ? err.message : 'Failed to join room');

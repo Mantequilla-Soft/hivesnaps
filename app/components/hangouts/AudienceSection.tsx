@@ -34,8 +34,11 @@ export default function AudienceSection({
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
 
-  // Audience = those who cannot publish (listeners)
-  const audience = participants.filter((p) => p.permissions?.canPublish === false);
+  // Audience = those who cannot publish (listeners). useParticipants() includes
+  // local participant, so exclude it to avoid duplicates with our manual entry.
+  const audience = participants.filter(
+    (p) => p.permissions?.canPublish === false && p.identity !== localParticipant?.identity
+  );
   const localIsAudience = localParticipant?.permissions?.canPublish === false;
 
   type AudienceEntry = { identity: string; isMicrophoneEnabled: boolean; isLocal: boolean };
