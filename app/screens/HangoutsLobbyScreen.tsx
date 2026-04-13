@@ -35,7 +35,7 @@ export default function HangoutsLobbyScreen() {
 
   const { isAuthenticated, isLoading: authLoading, authenticate } = useHangoutsAuth();
   const { rooms, isLoading: roomsLoading, error: roomsError, refresh } = useHangoutsRoomList();
-  const { create, isLoading: createLoading } = useHangoutsRoom();
+  const { create, join, isLoading: roomOpLoading } = useHangoutsRoom();
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [roomTitle, setRoomTitle] = useState('');
@@ -76,18 +76,32 @@ export default function HangoutsLobbyScreen() {
     const trimmed = roomTitle.trim();
     if (!trimmed) return;
     try {
-      await create(trimmed, roomDescription.trim() || undefined);
+      const response = await create(trimmed, roomDescription.trim() || undefined);
       closeCreateModal();
-      refresh();
-      Alert.alert('Room Created', 'Your hangout is live! Audio joining coming soon.');
+      router.push({
+        pathname: '/screens/HangoutsRoomScreen',
+        params: { roomName: response.room.name, livekitToken: response.token },
+      });
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create room');
     }
   };
 
-  const handleRoomPress = (_room: Room): void => {
-    Alert.alert('Coming Soon', 'Audio joining is coming in Phase 2!');
-  };
+  const handleRoomPress = useCallback(async (room: Room): Promise<void> => {
+    if (!isAuthenticated) {
+      const ok = await runAuthenticate(true);
+      if (!ok) return;
+    }
+    try {
+      const result = await join(room.name);
+      router.push({
+        pathname: '/screens/HangoutsRoomScreen',
+        params: { roomName: result.roomName, livekitToken: result.token },
+      });
+    } catch (err) {
+      Alert.alert('Could not join', err instanceof Error ? err.message : 'Failed to join room');
+    }
+  }, [isAuthenticated, runAuthenticate, join, router]);
 
   const renderRoomCard = ({ item }: { item: Room }): React.ReactElement => (
     <Pressable
@@ -167,7 +181,7 @@ export default function HangoutsLobbyScreen() {
               setCreateModalVisible(true);
             }
           }}
-          disabled={createLoading || authLoading}
+          disabled={roomOpLoading || authLoading}
           accessibilityLabel='Start a new hangout'
           accessibilityHint='Opens room creation form'
         />
@@ -287,7 +301,7 @@ export default function HangoutsLobbyScreen() {
                   variant='primary'
                   backgroundColor={theme.button}
                   textColor={theme.buttonText}
-                  loading={createLoading}
+                  loading={roomOpLoading}
                   disabled={!roomTitle.trim()}
                   onPress={handleCreateRoom}
                   accessibilityHint='Creates the room and starts your hangout'
