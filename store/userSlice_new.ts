@@ -23,6 +23,7 @@ function isCacheExpired<T>(item: CacheItem<T>): boolean {
 // Initial state
 export const initialUserState: UserState = {
   currentUser: null,
+  hasActiveKey: false,
   profiles: {},
   followingLists: {},
   followerLists: {},

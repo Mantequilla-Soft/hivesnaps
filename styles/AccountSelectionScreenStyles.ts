@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { getTheme } from '../constants/Colors';
 
-export const createAccountSelectionScreenStyles = (isDark: boolean): ReturnType<typeof StyleSheet.create> => {
+export const createAccountSelectionScreenStyles = (isDark: boolean) => {
   const theme = getTheme(isDark ? 'dark' : 'light');
 
   return StyleSheet.create({
