@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDataChannel, useLocalParticipant } from '@livekit/react-native';
+import { useLocalParticipant } from '@livekit/react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
 interface ChatMessage {
@@ -22,6 +22,8 @@ interface ChatMessage {
 
 interface ChatPanelProps {
   visible: boolean;
+  messages: ChatMessage[];
+  onSend: (text: string) => void;
   onClose: () => void;
   colors: {
     text: string;
@@ -34,53 +36,24 @@ interface ChatPanelProps {
   };
 }
 
-export default function ChatPanel({ visible, onClose, colors }: ChatPanelProps): React.ReactElement | null {
+export default function ChatPanel({ visible, messages, onSend, onClose, colors }: ChatPanelProps): React.ReactElement | null {
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const { localParticipant } = useLocalParticipant();
 
-  const { send } = useDataChannel('chat', useCallback((msg: { payload: Uint8Array; from?: { identity: string } }) => {
-    try {
-      const data = JSON.parse(new TextDecoder().decode(msg.payload)) as {
-        type: string;
-        identity: string;
-        text: string;
-        timestamp: number;
-      };
-      if (data.type === 'chat') {
-        setMessages((prev) => [...prev, { id: `${data.identity}-${data.timestamp}`, ...data }]);
-      }
-    } catch {
-      // malformed message — ignore
-    }
-  }, []));
-
   useEffect(() => {
-    if (messages.length > 0) {
+    if (visible && messages.length > 0) {
       listRef.current?.scrollToEnd({ animated: true });
     }
-  }, [messages]);
+  }, [messages, visible]);
 
-  const handleSend = useCallback((): void => {
+  const handleSend = (): void => {
     const trimmed = draft.trim();
-    if (!trimmed || !localParticipant) return;
-    const payload = {
-      type: 'chat',
-      identity: localParticipant.identity,
-      text: trimmed,
-      timestamp: Date.now(),
-    };
-    const bytes = new TextEncoder().encode(JSON.stringify(payload));
-    send(bytes, { reliable: true });
-    // Also add to local messages so sender sees their own message
-    setMessages((prev) => [
-      ...prev,
-      { id: `local-${payload.timestamp}`, ...payload },
-    ]);
+    if (!trimmed) return;
+    onSend(trimmed);
     setDraft('');
-  }, [draft, localParticipant, send]);
+  };
 
   if (!visible) return null;
 

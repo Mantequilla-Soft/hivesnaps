@@ -57,6 +57,7 @@ function RoomScreenInner({
   const [raisedHandIdentities, setRaisedHandIdentities] = useState<string[]>([]);
   const [hasRaisedHand, setHasRaisedHand] = useState(false);
   const [chatVisible, setChatVisible] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ id: string; identity: string; text: string; timestamp: number }[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState<string | null>(null);
 
   // Track active speakers
@@ -68,8 +69,8 @@ function RoomScreenInner({
     return () => { room.off('activeSpeakersChanged', onSpeakersChanged); };
   }, [room]);
 
-  // Receive hand-raise data messages
-  useDataChannel('hand-raise', useCallback((msg: { payload: Uint8Array }) => {
+  // Receive hand-raise data messages (always mounted — topic must match sender)
+  const { send: sendHandRaise } = useDataChannel('hand-raise', useCallback((msg: { payload: Uint8Array }) => {
     try {
       const data = JSON.parse(new TextDecoder().decode(msg.payload)) as {
         type: string;
@@ -86,24 +87,53 @@ function RoomScreenInner({
     }
   }, []));
 
+  // Receive and send chat messages at room level so they're captured even when ChatPanel is closed
+  const { send: sendChatData } = useDataChannel('chat', useCallback((msg: { payload: Uint8Array }) => {
+    try {
+      const data = JSON.parse(new TextDecoder().decode(msg.payload)) as {
+        type: string;
+        identity: string;
+        text: string;
+        timestamp: number;
+      };
+      if (data.type === 'chat') {
+        setChatMessages((prev) => [...prev, { id: `${data.identity}-${data.timestamp}`, ...data }]);
+      }
+    } catch {
+      // malformed — ignore
+    }
+  }, []));
+
+  const handleSendChat = useCallback((text: string): void => {
+    if (!localParticipant || !text.trim()) return;
+    const event = {
+      type: 'chat',
+      identity: localParticipant.identity,
+      text: text.trim(),
+      timestamp: Date.now(),
+    };
+    sendChatData(new TextEncoder().encode(JSON.stringify(event)), { reliable: true });
+    setChatMessages((prev) => [...prev, { id: `local-${event.timestamp}`, ...event }]);
+  }, [localParticipant, sendChatData]);
+
   const handleToggleMute = useCallback(async (): Promise<void> => {
     if (!localParticipant) return;
-    await localParticipant.setMicrophoneEnabled(localParticipant.isMicrophoneEnabled ? false : true);
+    await localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled);
   }, [localParticipant]);
 
-  const handleToggleHand = useCallback(async (): Promise<void> => {
+  // Use useDataChannel send so the topic header is attached — publishData sends without topic
+  const handleToggleHand = useCallback((): void => {
     if (!localParticipant) return;
     const raised = !hasRaisedHand;
-    const payload = {
+    const bytes = new TextEncoder().encode(JSON.stringify({
       type: 'hand_raise',
       raised,
       identity: localParticipant.identity,
       timestamp: Date.now(),
-    };
-    const bytes = new TextEncoder().encode(JSON.stringify(payload));
-    await localParticipant.publishData(bytes, { reliable: true });
+    }));
+    sendHandRaise(bytes, { reliable: true });
     setHasRaisedHand(raised);
-  }, [hasRaisedHand, localParticipant]);
+  }, [hasRaisedHand, localParticipant, sendHandRaise]);
 
   const handleApprove = useCallback(async (identity: string): Promise<void> => {
     try {
@@ -227,6 +257,8 @@ function RoomScreenInner({
       {/* Chat panel */}
       <ChatPanel
         visible={chatVisible}
+        messages={chatMessages}
+        onSend={handleSendChat}
         onClose={() => setChatVisible(false)}
         colors={colors}
       />
