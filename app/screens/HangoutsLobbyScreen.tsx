@@ -23,6 +23,7 @@ import { getTheme } from '../../constants/Colors';
 import { useHangoutsAuth } from '../../hooks/useHangoutsAuth';
 import { useHangoutsRoomList } from '../../hooks/useHangoutsRoomList';
 import { useHangoutsRoom, RoomOperationCancelledError } from '../../hooks/useHangoutsRoom';
+import { useHangoutsAnnouncement } from '../../hooks/useHangoutsAnnouncement';
 import IconButton from '../components/IconButton';
 import PrimaryButton from '../components/PrimaryButton';
 
@@ -36,6 +37,7 @@ export default function HangoutsLobbyScreen() {
   const { isAuthenticated, isLoading: authLoading, authenticate } = useHangoutsAuth();
   const { rooms, isLoading: roomsLoading, error: roomsError, refresh } = useHangoutsRoomList();
   const { create, join, isLoading: roomOpLoading } = useHangoutsRoom();
+  const { announce } = useHangoutsAnnouncement();
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [roomTitle, setRoomTitle] = useState('');
@@ -78,6 +80,7 @@ export default function HangoutsLobbyScreen() {
     try {
       const response = await create(trimmed, roomDescription.trim() || undefined);
       closeCreateModal();
+      void announce(response.room.name, response.room.title ?? trimmed, roomDescription.trim() || undefined);
       router.push({
         pathname: '/screens/HangoutsRoomScreen',
         params: {

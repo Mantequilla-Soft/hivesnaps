@@ -15,11 +15,12 @@ interface PostSnapOptions {
   jsonMetadata: string;
   hasVideo: boolean; // Determines if beneficiaries should be added
   hasAudio?: boolean; // Determines if beneficiaries should be added for audio
+  hasHangout?: boolean; // Adds 3% beneficiary to @snapie for hangout announcements
 }
 
 /**
  * Posts a snap to the Hive blockchain
- * If the snap contains a video or audio, adds a 10% beneficiary to @snapie
+ * Adds a beneficiary to @snapie when applicable: 10% for video/audio, 3% for hangout announcements
  *
  * @param client - Hive blockchain client
  * @param options - Posting options
@@ -31,7 +32,7 @@ export async function postSnapWithBeneficiaries(
   options: PostSnapOptions,
   postingKey: PrivateKey
 ): Promise<string> {
-  const { parentAuthor, parentPermlink, author, permlink, title, body, jsonMetadata, hasVideo, hasAudio } =
+  const { parentAuthor, parentPermlink, author, permlink, title, body, jsonMetadata, hasVideo, hasAudio, hasHangout } =
     options;
 
   // Base comment operation
@@ -48,8 +49,8 @@ export async function postSnapWithBeneficiaries(
     },
   ];
 
-  // If no video or audio, just broadcast the comment
-  if (!hasVideo && !hasAudio) {
+  // If no video, audio, or hangout, just broadcast the comment
+  if (!hasVideo && !hasAudio && !hasHangout) {
     const result = await client.broadcast.comment(
       {
         parent_author: parentAuthor,
@@ -65,11 +66,12 @@ export async function postSnapWithBeneficiaries(
     return result.id || 'unknown';
   }
 
-  // If there's a video or audio, add comment_options with beneficiaries
+  // video/audio → 10%, hangout → 3%
+  const weight = hasVideo || hasAudio ? 1000 : 300;
   const beneficiaries = [
     {
       account: 'snapie',
-      weight: 1000, // 10% (1000 = 10% of 10000)
+      weight,
     },
   ];
 
