@@ -71,24 +71,6 @@ function RoomScreenInner({
     return () => { room.off('activeSpeakersChanged', onSpeakersChanged); };
   }, [room]);
 
-  // Handle server-initiated disconnects with a user-friendly message
-  useEffect(() => {
-    const onDisconnected = (reason?: DisconnectReason) => {
-      if (reason === DisconnectReason.ROOM_DELETED) {
-        Alert.alert('Hangout ended', 'The host has ended this hangout.', [
-          { text: 'OK', onPress: onLeave },
-        ]);
-      } else if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
-        Alert.alert('Removed', 'You were removed from this hangout.', [
-          { text: 'OK', onPress: onLeave },
-        ]);
-      }
-      // CLIENT_INITIATED: user pressed Leave — onLeave already called, do nothing
-    };
-    room.on('disconnected', onDisconnected);
-    return () => { room.off('disconnected', onDisconnected); };
-  }, [room, onLeave]);
-
   // Receive hand-raise data messages (always mounted — topic must match sender)
   const { send: sendHandRaise } = useDataChannel('hand-raise', useCallback((msg: { payload: Uint8Array }) => {
     try {
@@ -396,13 +378,26 @@ export default function HangoutsRoomScreen(): React.ReactElement {
         audio={isHost}
         video={false}
         onConnected={() => setConnectionState('connected' as ConnectionState)}
-        onDisconnected={() => {
-          setConnectionState('disconnected' as ConnectionState);
-          // RoomScreenInner handles ROOM_DELETED / PARTICIPANT_REMOVED with an Alert.
-          // For any other reason (CLIENT_INITIATED handled by Leave button, unknown reasons),
-          // fall back to leaving silently if we haven't already.
-          handleLeave();
-        }}
+        onDisconnected={
+          // LiveKit's implementation calls onDisconnected(reason) even though the
+          // TS type declares () => void — cast so we can read the reason.
+          ((reason?: DisconnectReason) => {
+            setConnectionState('disconnected' as ConnectionState);
+            if (reason === DisconnectReason.ROOM_DELETED) {
+              Alert.alert('Hangout ended', 'The host has ended this hangout.', [
+                { text: 'OK', onPress: handleLeave },
+              ]);
+            } else if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
+              Alert.alert('Removed', 'You were removed from this hangout.', [
+                { text: 'OK', onPress: handleLeave },
+              ]);
+            } else {
+              // CLIENT_INITIATED (user pressed Leave — handleLeave idempotent via ref),
+              // UNKNOWN_REASON, SERVER_SHUTDOWN, etc. — leave silently.
+              handleLeave();
+            }
+          }) as () => void
+        }
         onError={(err) => {
           setConnectionState('disconnected' as ConnectionState);
           Alert.alert('Connection error', err.message, [{ text: 'Leave', onPress: handleLeave }]);
