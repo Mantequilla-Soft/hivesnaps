@@ -51,7 +51,7 @@ describe('makeAuthenticatedRequest', () => {
     it('attaches Authorization header and returns response', async () => {
         mockMakeRequest.mockResolvedValue(successResponse);
 
-        const result = await makeAuthenticatedRequest({ url: '/api/feed', method: 'GET' });
+        const result = await makeAuthenticatedRequest({ path: '/api/feed', method: 'GET' });
 
         expect(mockMakeRequest).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -66,7 +66,7 @@ describe('makeAuthenticatedRequest', () => {
         mockMakeRequest.mockResolvedValue(successResponse);
 
         const result = await makeAuthenticatedRequest({
-            url: '/api/public',
+            path: '/api/public',
             method: 'GET',
             requireAuth: false,
         });
@@ -81,7 +81,7 @@ describe('makeAuthenticatedRequest', () => {
         mockGetToken.mockReturnValue(null);
 
         await expect(
-            makeAuthenticatedRequest({ url: '/api/protected', method: 'GET' })
+            makeAuthenticatedRequest({ path: '/api/protected', method: 'GET' })
         ).rejects.toThrow('Authentication required but no token available');
 
         expect(mockMakeRequest).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe('makeAuthenticatedRequest', () => {
             .mockResolvedValueOnce(successResponse);
         mockRefresh.mockResolvedValue('new-jwt-token');
 
-        const result = await makeAuthenticatedRequest({ url: '/api/feed', method: 'GET' });
+        const result = await makeAuthenticatedRequest({ path: '/api/feed', method: 'GET' });
 
         expect(mockRefresh).toHaveBeenCalledTimes(1);
         expect(mockMakeRequest).toHaveBeenCalledTimes(2);
@@ -116,7 +116,7 @@ describe('makeAuthenticatedRequest', () => {
         mockClearAccount.mockResolvedValue(undefined);
 
         await expect(
-            makeAuthenticatedRequest({ url: '/api/feed', method: 'GET' })
+            makeAuthenticatedRequest({ path: '/api/feed', method: 'GET' })
         ).rejects.toThrow('Authentication expired. Please log in again.');
 
         expect(mockLogout).toHaveBeenCalledTimes(1);
@@ -129,7 +129,7 @@ describe('makeAuthenticatedRequest', () => {
         mockClearAccount.mockRejectedValue(new Error('Storage error'));
 
         await expect(
-            makeAuthenticatedRequest({ url: '/api/feed', method: 'GET' })
+            makeAuthenticatedRequest({ path: '/api/feed', method: 'GET' })
         ).rejects.toThrow('Authentication expired. Please log in again.');
 
         expect(mockLogout).toHaveBeenCalledTimes(1);
@@ -141,7 +141,7 @@ describe('makeAuthenticatedRequest', () => {
         mockMakeRequest.mockRejectedValueOnce(new Error('HTTP 401: {"error":"unauthorized"}'));
 
         await expect(
-            makeAuthenticatedRequest({ url: '/api/feed', method: 'GET' })
+            makeAuthenticatedRequest({ path: '/api/feed', method: 'GET' })
         ).rejects.toThrow('HTTP 401');
 
         expect(mockRefresh).not.toHaveBeenCalled();
@@ -154,7 +154,7 @@ describe('makeAuthenticatedRequest', () => {
         mockMakeRequest.mockRejectedValueOnce(otherError);
 
         await expect(
-            makeAuthenticatedRequest({ url: '/api/feed', method: 'GET' })
+            makeAuthenticatedRequest({ path: '/api/feed', method: 'GET' })
         ).rejects.toThrow('HTTP 403');
 
         expect(mockRefresh).not.toHaveBeenCalled();

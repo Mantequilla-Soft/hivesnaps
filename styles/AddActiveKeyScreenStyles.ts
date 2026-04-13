@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { getTheme, palette } from '../constants/Colors';
 
-export const createAddActiveKeyScreenStyles = (isDark: boolean): ReturnType<typeof StyleSheet.create> => {
+export const createAddActiveKeyScreenStyles = (isDark: boolean) => {
     const theme = getTheme(isDark ? 'dark' : 'light');
 
     return StyleSheet.create({

@@ -168,7 +168,7 @@ class AccountStorageServiceImpl {
             if (existingAccountsJson) {
                 const existingAccounts: { username?: unknown }[] = JSON.parse(existingAccountsJson);
                 for (const acc of existingAccounts) {
-                    if (acc?.username) {
+                    if (typeof acc?.username === 'string' && acc.username.trim().length > 0) {
                         await this.migrateColonKeys(acc.username);
                     }
                 }
