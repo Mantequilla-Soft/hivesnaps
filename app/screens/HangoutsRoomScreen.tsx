@@ -7,6 +7,7 @@ import {
   Alert,
   Platform,
   PermissionsAndroid,
+  KeyboardAvoidingView,
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -203,7 +204,11 @@ function RoomScreenInner({
   };
 
   return (
-    <View style={styles.inner}>
+    <KeyboardAvoidingView
+      style={styles.inner}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <IconButton
@@ -286,7 +291,7 @@ function RoomScreenInner({
           colors={colors}
         />
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

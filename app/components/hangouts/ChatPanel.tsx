@@ -1,12 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,11 +40,13 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const { localParticipant } = useLocalParticipant();
 
+  // Scroll to latest when new messages arrive or panel opens
   useEffect(() => {
     if (visible && messages.length > 0) {
-      listRef.current?.scrollToEnd({ animated: true });
+      // Small delay lets the FlatList finish layout before scrolling
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 50);
     }
-  }, [messages, visible]);
+  }, [messages.length, visible]);
 
   const handleSend = (): void => {
     const trimmed = draft.trim();
@@ -58,10 +58,7 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
   if (!visible) return null;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: colors.card, borderTopColor: colors.border }]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Chat</Text>
@@ -116,7 +113,7 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
           <FontAwesome name='send' size={14} color={colors.buttonText} />
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -16,6 +16,8 @@ class HangoutsAuthServiceImpl {
   private client: HangoutsApiClient;
   private sessionToken: string | null = null;
   private ec = new EC('secp256k1');
+  // Deduplicate concurrent auth calls — if one is in-flight, return the same promise
+  private authInFlight: Promise<boolean> | null = null;
 
   constructor() {
     this.client = new HangoutsApiClient({ baseUrl: HANGOUTS_API_URL });
@@ -56,6 +58,12 @@ class HangoutsAuthServiceImpl {
    * Non-fatal — hangouts features degrade gracefully on failure.
    */
   async authenticate(): Promise<boolean> {
+    if (this.authInFlight) return this.authInFlight;
+    this.authInFlight = this._doAuthenticate().finally(() => { this.authInFlight = null; });
+    return this.authInFlight;
+  }
+
+  private async _doAuthenticate(): Promise<boolean> {
     try {
       const username = await accountStorageService.getCurrentAccountUsername();
       const postingKey = await accountStorageService.getCurrentPostingKey();
