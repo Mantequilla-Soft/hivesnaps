@@ -118,6 +118,26 @@ function RoomScreenInner({
     }
   }, []));
 
+  // Keep a ref so the participantConnected handler always reads the latest value
+  const isRecordingRef = useRef(isRecording);
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  // Host re-broadcasts current recording state to late-joining participants
+  useEffect(() => {
+    if (!isHost) return;
+    const onParticipantConnected = () => {
+      if (!isRecordingRef.current) return;
+      sendRecordingState(
+        new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: true })),
+        { reliable: true },
+      ).catch(() => {});
+    };
+    room.on('participantConnected', onParticipantConnected);
+    return () => { room.off('participantConnected', onParticipantConnected); };
+  }, [isHost, room, sendRecordingState]);
+
   const handleToggleRecording = useCallback(async (): Promise<void> => {
     if (isRecording) {
       try {

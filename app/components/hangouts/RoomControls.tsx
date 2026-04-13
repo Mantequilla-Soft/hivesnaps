@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   recDot: {
     width: 7,
     height: 7,
-    borderRadius: 4,
+    borderRadius: 3.5,
     backgroundColor: '#EF4444',
   },
   recText: {

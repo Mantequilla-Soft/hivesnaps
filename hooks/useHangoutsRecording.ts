@@ -20,6 +20,7 @@ export function useHangoutsRecording(
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const isMountedRef = useRef(true);
+  const isStartingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -28,11 +29,15 @@ export function useHangoutsRecording(
   }, []);
 
   const startRecording = useCallback(async (): Promise<void> => {
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
     try {
       await hangoutsAuthService.getClient().startRecording(roomName);
       if (isMountedRef.current) setIsRecording(true);
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to start recording');
+    } finally {
+      isStartingRef.current = false;
     }
   }, [roomName]);
 
