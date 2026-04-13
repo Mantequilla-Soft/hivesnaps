@@ -325,7 +325,9 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   // Request Android mic permission — gate LiveKitRoom until resolved
   useEffect(() => {
     if (Platform.OS !== 'android') return;
+    let cancelled = false;
     void PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO).then((result) => {
+      if (cancelled) return;
       if (result !== PermissionsAndroid.RESULTS.GRANTED) {
         Alert.alert(
           'Microphone required',
@@ -336,6 +338,7 @@ export default function HangoutsRoomScreen(): React.ReactElement {
         setPermissionReady(true);
       }
     });
+    return () => { cancelled = true; };
   }, [router]);
 
   // Configure audio session
