@@ -1,3 +1,14 @@
+// Polyfill DOMException for LiveKit (not available in Hermes/React Native)
+if (typeof global.DOMException === 'undefined') {
+  // @ts-expect-error — global polyfill
+  global.DOMException = class DOMException extends Error {
+    constructor(message?: string, name?: string) {
+      super(message);
+      this.name = name ?? 'DOMException';
+    }
+  };
+}
+
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import {
   DarkTheme,
