@@ -79,7 +79,7 @@ export default function HangoutsLobbyScreen() {
       const response = await create(trimmed, roomDescription.trim() || undefined);
       closeCreateModal();
       router.push({
-        pathname: '/screens/HangoutsRoomScreen',
+        pathname: '/screens/HangoutsRoomScreen' as any,
         params: { roomName: response.room.name, livekitToken: response.token },
       });
     } catch (err) {
@@ -95,7 +95,7 @@ export default function HangoutsLobbyScreen() {
     try {
       const result = await join(room.name);
       router.push({
-        pathname: '/screens/HangoutsRoomScreen',
+        pathname: '/screens/HangoutsRoomScreen' as any,
         params: { roomName: result.roomName, livekitToken: result.token },
       });
     } catch (err) {
