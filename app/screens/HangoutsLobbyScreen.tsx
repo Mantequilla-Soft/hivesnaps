@@ -35,7 +35,7 @@ export default function HangoutsLobbyScreen() {
 
   const { isAuthenticated, isLoading: authLoading, authenticate } = useHangoutsAuth();
   const { rooms, isLoading: roomsLoading, error: roomsError, refresh } = useHangoutsRoomList();
-  const { create, isLoading: createLoading, error: createError } = useHangoutsRoom();
+  const { create, isLoading: createLoading } = useHangoutsRoom();
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [roomTitle, setRoomTitle] = useState('');
@@ -66,13 +66,13 @@ export default function HangoutsLobbyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once auth check
   }, []);
 
-  const closeCreateModal = () => {
+  const closeCreateModal = (): void => {
     setCreateModalVisible(false);
     setRoomTitle('');
     setRoomDescription('');
   };
 
-  const handleCreateRoom = async () => {
+  const handleCreateRoom = async (): Promise<void> => {
     const trimmed = roomTitle.trim();
     if (!trimmed) return;
     try {
@@ -85,11 +85,11 @@ export default function HangoutsLobbyScreen() {
     }
   };
 
-  const handleRoomPress = (_room: Room) => {
+  const handleRoomPress = (_room: Room): void => {
     Alert.alert('Coming Soon', 'Audio joining is coming in Phase 2!');
   };
 
-  const renderRoomCard = ({ item }: { item: Room }) => (
+  const renderRoomCard = ({ item }: { item: Room }): React.ReactElement => (
     <Pressable
       style={[styles.roomCard, { backgroundColor: theme.card, borderColor: theme.border }]}
       onPress={() => handleRoomPress(item)}
@@ -124,7 +124,7 @@ export default function HangoutsLobbyScreen() {
     </Pressable>
   );
 
-  const renderEmpty = () => {
+  const renderEmpty = (): React.ReactElement | null => {
     if (roomsLoading || authLoading) return null;
     return (
       <View style={styles.emptyContainer}>
