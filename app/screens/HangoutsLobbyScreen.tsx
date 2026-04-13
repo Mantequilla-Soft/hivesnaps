@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -41,7 +41,7 @@ export default function HangoutsLobbyScreen() {
   const [roomTitle, setRoomTitle] = useState('');
   const [roomDescription, setRoomDescription] = useState('');
 
-  const runAuthenticate = async (interactive: boolean): Promise<boolean> => {
+  const runAuthenticate = useCallback(async (interactive: boolean): Promise<boolean> => {
     try {
       const ok = await authenticate();
       if (!ok && interactive) {
@@ -57,7 +57,7 @@ export default function HangoutsLobbyScreen() {
       }
       return false;
     }
-  };
+  }, [authenticate]);
 
   useEffect(() => {
     if (!isAuthenticated && !authLoading) {

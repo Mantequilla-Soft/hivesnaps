@@ -46,13 +46,24 @@ type PrimaryButtonProps = FilledProps | OutlinedProps;
  */
 export default function PrimaryButton(props: PrimaryButtonProps): React.ReactElement {
   const { label, onPress, disabled = false, loading = false, accessibilityLabel, accessibilityHint, style } = props;
-  const isOutlined = props.variant === 'secondary' || props.variant === 'cancel';
 
-  const foreground = isOutlined
-    ? (props as OutlinedProps).labelColor
-    : (props as FilledProps).textColor;
-  const background = isOutlined ? undefined : (props as FilledProps).backgroundColor;
-  const border = isOutlined ? (props as OutlinedProps).borderColor : undefined;
+  let foreground: string;
+  let background: string | undefined;
+  let border: string | undefined;
+
+  if (props.variant === 'secondary' || props.variant === 'cancel') {
+    foreground = props.labelColor;
+    border = props.borderColor;
+    background = undefined;
+  } else {
+    // variant is 'primary' | undefined — both resolve to FilledProps
+    const filled = props as FilledProps;
+    foreground = filled.textColor;
+    background = filled.backgroundColor;
+    border = undefined;
+  }
+
+  const isOutlined = props.variant === 'secondary' || props.variant === 'cancel';
 
   return (
     <TouchableOpacity
