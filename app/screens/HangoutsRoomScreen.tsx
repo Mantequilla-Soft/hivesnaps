@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   AudioSession,
 } from '@livekit/react-native';
 import type { ConnectionState, Participant } from 'livekit-client';
+import { DisconnectReason } from '@livekit/protocol';
 import { FontAwesome } from '@expo/vector-icons';
 import { getTheme } from '../../constants/Colors';
 import { LIVEKIT_URL } from '../config/env';
@@ -69,6 +70,24 @@ function RoomScreenInner({
     room.on('activeSpeakersChanged', onSpeakersChanged);
     return () => { room.off('activeSpeakersChanged', onSpeakersChanged); };
   }, [room]);
+
+  // Handle server-initiated disconnects with a user-friendly message
+  useEffect(() => {
+    const onDisconnected = (reason?: DisconnectReason) => {
+      if (reason === DisconnectReason.ROOM_DELETED) {
+        Alert.alert('Hangout ended', 'The host has ended this hangout.', [
+          { text: 'OK', onPress: onLeave },
+        ]);
+      } else if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
+        Alert.alert('Removed', 'You were removed from this hangout.', [
+          { text: 'OK', onPress: onLeave },
+        ]);
+      }
+      // CLIENT_INITIATED: user pressed Leave — onLeave already called, do nothing
+    };
+    room.on('disconnected', onDisconnected);
+    return () => { room.off('disconnected', onDisconnected); };
+  }, [room, onLeave]);
 
   // Receive hand-raise data messages (always mounted — topic must match sender)
   const { send: sendHandRaise } = useDataChannel('hand-raise', useCallback((msg: { payload: Uint8Array }) => {
@@ -310,6 +329,9 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   const { roomMeta, leave: clearRoomState } = useHangoutsRoom();
 
   const [connectionState, setConnectionState] = useState<ConnectionState | 'idle'>('idle');
+  // Prevent double-navigation: RoomScreenInner handles server-initiated disconnects;
+  // onDisconnected fallback fires after, but only navigates if we haven't left yet.
+  const hasLeftRef = useRef(false);
   // On Android we must resolve mic permission before LiveKitRoom mounts,
   // otherwise LiveKit tries to open the mic while the dialog is still pending.
   const [permissionReady, setPermissionReady] = useState(Platform.OS !== 'android');
@@ -337,6 +359,8 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   }, []);
 
   const handleLeave = useCallback((): void => {
+    if (hasLeftRef.current) return;
+    hasLeftRef.current = true;
     clearRoomState();
     router.back();
   }, [clearRoomState, router]);
@@ -374,6 +398,9 @@ export default function HangoutsRoomScreen(): React.ReactElement {
         onConnected={() => setConnectionState('connected' as ConnectionState)}
         onDisconnected={() => {
           setConnectionState('disconnected' as ConnectionState);
+          // RoomScreenInner handles ROOM_DELETED / PARTICIPANT_REMOVED with an Alert.
+          // For any other reason (CLIENT_INITIATED handled by Leave button, unknown reasons),
+          // fall back to leaving silently if we haven't already.
           handleLeave();
         }}
         onError={(err) => {
