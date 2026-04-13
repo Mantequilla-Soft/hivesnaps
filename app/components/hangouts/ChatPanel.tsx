@@ -99,6 +99,8 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
           onSubmitEditing={handleSend}
           returnKeyType='send'
           maxLength={500}
+          accessibilityLabel='Chat message'
+          accessibilityHint='Type a message and press Send or Return to send it'
         />
         <Pressable
           style={[styles.sendBtn, { backgroundColor: colors.button, opacity: draft.trim() ? 1 : 0.4 }]}

@@ -60,7 +60,8 @@ function RootLayoutNav() {
   const navigation = useNavigation();
 
   useEffect(() => {
-    // Log navigation state and attempted route
+    if (!__DEV__) return;
+    // Log navigation state and attempted route (dev only)
     if (navigation && navigation.getState) {
       const state = navigation.getState();
       console.log('[Navigation State]', state);
@@ -69,7 +70,9 @@ function RootLayoutNav() {
         console.log('[Attempted Route]', lastRoute);
       }
     }
-    console.log('[Router Params]', params);
+    // Redact auth tokens before logging
+    const { livekitToken: _lkt, ...safeParams } = params as Record<string, string | string[]>;
+    console.log('[Router Params]', safeParams);
   }, [navigation, params]);
 
   return (

@@ -42,3 +42,6 @@ if (!THREESPEAK_IMAGE_API_KEY) {
 // Hive Hangouts API
 export const HANGOUTS_API_URL = process.env.EXPO_PUBLIC_HANGOUTS_API_URL || 'https://hangout-api.3speak.tv';
 export const LIVEKIT_URL = process.env.EXPO_PUBLIC_LIVEKIT_URL || 'wss://livekit.3speak.tv';
+if (__DEV__ && !process.env.EXPO_PUBLIC_LIVEKIT_URL) {
+  console.warn('LIVEKIT_URL is not set — defaulting to wss://livekit.3speak.tv');
+}

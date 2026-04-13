@@ -2,6 +2,14 @@ import { useState, useCallback, useRef } from 'react';
 import type { Room, JoinRoomResponse, CreateRoomResponse } from '@snapie/hangouts-core';
 import { hangoutsAuthService } from '../services/HangoutsAuthService';
 
+/** Thrown when a join/create operation is superseded by a subsequent leave() call. */
+export class RoomOperationCancelledError extends Error {
+  constructor() {
+    super('Room operation was cancelled');
+    this.name = 'RoomOperationCancelledError';
+  }
+}
+
 interface UseHangoutsRoomResult {
   livekitToken: string | null;
   roomName: string | null;
@@ -37,7 +45,7 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
     setError(null);
     try {
       const result = await client.joinRoom(name);
-      if (activeOpRef.current !== op) return result; // superseded by leave/create
+      if (activeOpRef.current !== op) throw new RoomOperationCancelledError();
       const joinedName = result.roomName;
       latestJoinRef.current = joinedName;
       setLivekitToken(result.token);
@@ -71,7 +79,7 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
     try {
       const response: CreateRoomResponse = await client.createRoom(title, description);
       const { room, token } = response;
-      if (activeOpRef.current !== op) return response; // superseded by leave
+      if (activeOpRef.current !== op) throw new RoomOperationCancelledError();
       setLivekitToken(token);
       setRoomName(room.name);
       setRoomMeta(room);

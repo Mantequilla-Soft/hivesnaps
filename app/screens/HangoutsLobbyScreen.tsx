@@ -22,7 +22,7 @@ import type { Room } from '@snapie/hangouts-core';
 import { getTheme } from '../../constants/Colors';
 import { useHangoutsAuth } from '../../hooks/useHangoutsAuth';
 import { useHangoutsRoomList } from '../../hooks/useHangoutsRoomList';
-import { useHangoutsRoom } from '../../hooks/useHangoutsRoom';
+import { useHangoutsRoom, RoomOperationCancelledError } from '../../hooks/useHangoutsRoom';
 import IconButton from '../components/IconButton';
 import PrimaryButton from '../components/PrimaryButton';
 
@@ -79,15 +79,24 @@ export default function HangoutsLobbyScreen() {
       const response = await create(trimmed, roomDescription.trim() || undefined);
       closeCreateModal();
       router.push({
-        pathname: '/screens/HangoutsRoomScreen' as any,
-        params: { roomName: response.room.name, livekitToken: response.token, isHost: 'true' },
-      });
+        pathname: '/screens/HangoutsRoomScreen',
+        params: {
+          roomName: response.room.name,
+          livekitToken: response.token,
+          isHost: 'true',
+          roomTitle: response.room.title ?? trimmed,
+          roomHost: response.room.host ?? '',
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
     } catch (err) {
+      if (err instanceof RoomOperationCancelledError) return;
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create room');
     }
   };
 
   const handleRoomPress = useCallback(async (room: Room): Promise<void> => {
+    if (roomOpLoading) return;
     if (!isAuthenticated) {
       const ok = await runAuthenticate(true);
       if (!ok) return;
@@ -95,13 +104,21 @@ export default function HangoutsLobbyScreen() {
     try {
       const result = await join(room.name);
       router.push({
-        pathname: '/screens/HangoutsRoomScreen' as any,
-        params: { roomName: result.roomName, livekitToken: result.token, isHost: 'false' },
-      });
+        pathname: '/screens/HangoutsRoomScreen',
+        params: {
+          roomName: result.roomName,
+          livekitToken: result.token,
+          isHost: String(result.isHost),
+          roomTitle: room.title,
+          roomHost: room.host,
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
     } catch (err) {
+      if (err instanceof RoomOperationCancelledError) return;
       Alert.alert('Could not join', err instanceof Error ? err.message : 'Failed to join room');
     }
-  }, [isAuthenticated, runAuthenticate, join, router]);
+  }, [isAuthenticated, roomOpLoading, runAuthenticate, join, router]);
 
   const renderRoomCard = ({ item }: { item: Room }): React.ReactElement => (
     <Pressable

@@ -80,7 +80,8 @@ class HangoutsAuthServiceImpl {
       return true;
     } catch (error) {
       this.clearSession();
-      console.error('[HangoutsAuth] Authentication failed:', error);
+      // Log message only — never log the full error object (may contain key material in stack traces)
+      console.warn('[HangoutsAuth] Authentication failed:', error instanceof Error ? error.message : 'Unknown error');
       return false;
     }
   }

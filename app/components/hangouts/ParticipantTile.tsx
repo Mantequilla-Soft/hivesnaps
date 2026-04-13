@@ -34,8 +34,19 @@ export default function ParticipantTile({
     opacity: withSpring(isSpeaking ? 1 : 0, { damping: 10 }),
   }));
 
+  const a11yLabel = [
+    `@${identity}`,
+    isSpeaking ? 'speaking' : null,
+    isMuted ? 'muted' : null,
+    hasRaisedHand ? 'hand raised' : null,
+  ].filter(Boolean).join(', ');
+
   return (
-    <View style={[styles.container, size === 'small' && styles.containerSmall]}>
+    <View
+      style={[styles.container, size === 'small' && styles.containerSmall]}
+      accessible={true}
+      accessibilityLabel={a11yLabel}
+    >
       <View style={styles.avatarWrap}>
         {/* Speaking ring */}
         <Animated.View

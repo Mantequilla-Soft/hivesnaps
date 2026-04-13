@@ -25,7 +25,6 @@ import { DisconnectReason } from '@livekit/protocol';
 import { getTheme } from '../../constants/Colors';
 import { LIVEKIT_URL } from '../config/env';
 import { hangoutsAuthService } from '../../services/HangoutsAuthService';
-import { useHangoutsRoom } from '../../hooks/useHangoutsRoom';
 import IconButton from '../components/IconButton';
 import SpeakerStage from '../components/hangouts/SpeakerStage';
 import AudienceSection from '../components/hangouts/AudienceSection';
@@ -147,7 +146,15 @@ function RoomScreenInner({
 
   const handleDeny = useCallback((identity: string): void => {
     setRaisedHandIdentities((prev) => prev.filter((id) => id !== identity));
-  }, []);
+    // Broadcast hand-lower so the requester's local raised-hand state resets
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      type: 'hand_raise',
+      raised: false,
+      identity,
+      timestamp: Date.now(),
+    }));
+    sendHandRaise(bytes, { reliable: true }).catch(() => {});
+  }, [sendHandRaise]);
 
   const handleMuteParticipant = useCallback(async (identity: string): Promise<void> => {
     try {
@@ -298,13 +305,14 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   const colorScheme = useColorScheme();
   const theme = getTheme(colorScheme === 'dark' ? 'dark' : 'light');
   const router = useRouter();
-  const { roomName, livekitToken, isHost: isHostParam } = useLocalSearchParams<{
+  const { roomName, livekitToken, isHost: isHostParam, roomTitle: titleParam, roomHost: hostParam } = useLocalSearchParams<{
     roomName: string;
     livekitToken: string;
     isHost: string;
+    roomTitle: string;
+    roomHost: string;
   }>();
   const isHost = isHostParam === 'true';
-  const { roomMeta, leave: clearRoomState } = useHangoutsRoom();
 
   const [connectionState, setConnectionState] = useState<ConnectionState | 'idle'>('idle');
   // Prevent double-navigation: RoomScreenInner handles server-initiated disconnects;
@@ -339,9 +347,8 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   const handleLeave = useCallback((): void => {
     if (hasLeftRef.current) return;
     hasLeftRef.current = true;
-    clearRoomState();
     router.back();
-  }, [clearRoomState, router]);
+  }, [router]);
 
   if (!livekitToken || !roomName) {
     return (
@@ -351,8 +358,8 @@ export default function HangoutsRoomScreen(): React.ReactElement {
     );
   }
 
-  const displayTitle = roomMeta?.title ?? roomName;
-  const displayHost = roomMeta?.host ?? '';
+  const displayTitle = titleParam || roomName;
+  const displayHost = hostParam || '';
 
   if (!permissionReady) {
     return (
