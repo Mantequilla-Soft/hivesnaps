@@ -58,7 +58,14 @@ function RoomScreenInner({
   const [hasRaisedHand, setHasRaisedHand] = useState(false);
   const [chatVisible, setChatVisible] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ id: string; identity: string; text: string; timestamp: number }[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const chatVisibleRef = useRef(false);
   const [selectedParticipant, setSelectedParticipant] = useState<string | null>(null);
+
+  // Keep ref in sync so the stable data-channel callback can read current chat visibility
+  useEffect(() => {
+    chatVisibleRef.current = chatVisible;
+  }, [chatVisible]);
 
   // Track active speakers
   useEffect(() => {
@@ -98,6 +105,9 @@ function RoomScreenInner({
       };
       if (data.type === 'chat') {
         setChatMessages((prev) => [...prev, { id: `${data.identity}-${data.timestamp}`, ...data }]);
+        if (!chatVisibleRef.current) {
+          setUnreadChatCount((n) => n + 1);
+        }
       }
     } catch {
       // malformed — ignore
@@ -278,7 +288,13 @@ function RoomScreenInner({
         hasRaisedHand={hasRaisedHand}
         onToggleMute={handleToggleMute}
         onToggleHand={handleToggleHand}
-        onToggleChat={() => setChatVisible((v) => !v)}
+        onToggleChat={() => {
+          setChatVisible((v) => {
+            if (!v) setUnreadChatCount(0);
+            return !v;
+          });
+        }}
+        hasUnreadChat={unreadChatCount > 0}
         onLeave={onLeave}
         onEndRoom={handleEndRoom}
         colors={colors}
