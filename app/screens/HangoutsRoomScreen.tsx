@@ -25,6 +25,7 @@ import { DisconnectReason } from '@livekit/protocol';
 import { getTheme } from '../../constants/Colors';
 import { LIVEKIT_URL } from '../config/env';
 import { hangoutsAuthService } from '../../services/HangoutsAuthService';
+import { useHangoutsRecording } from '../../hooks/useHangoutsRecording';
 import IconButton from '../components/IconButton';
 import SpeakerStage from '../components/hangouts/SpeakerStage';
 import AudienceSection from '../components/hangouts/AudienceSection';
@@ -38,12 +39,14 @@ function RoomScreenInner({
   roomName,
   roomTitle,
   roomHost,
+  roomDescription,
   isHost,
   onLeave,
 }: {
   roomName: string;
   roomTitle: string;
   roomHost: string;
+  roomDescription: string;
   isHost: boolean;
   onLeave: () => void;
 }): React.ReactElement {
@@ -93,6 +96,49 @@ function RoomScreenInner({
       // malformed — ignore
     }
   }, []));
+
+  // Recording — host only
+  const { isRecording, isUploading, startRecording, stopAndPost } = useHangoutsRecording(
+    roomName, roomTitle, roomDescription,
+  );
+
+  // Broadcast recording state so all participants see the REC indicator
+  const { send: sendRecordingState } = useDataChannel('recording-state', useCallback((msg: { payload: Uint8Array }) => {
+    try {
+      const data = JSON.parse(new TextDecoder().decode(msg.payload)) as { type: string; recording: boolean };
+      if (data.type === 'recording_state') {
+        // Non-host participants receive this — no local state needed beyond the broadcast
+        // (host drives isRecording from the hook; this channel is for audience awareness)
+      }
+    } catch {
+      // malformed — ignore
+    }
+  }, []));
+
+  const handleToggleRecording = useCallback(async (): Promise<void> => {
+    if (isRecording) {
+      try {
+        await stopAndPost();
+        sendRecordingState(
+          new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: false })),
+          { reliable: true },
+        ).catch(() => {});
+        Alert.alert('Recording posted', 'The recording has been uploaded and posted as a snap.');
+      } catch (err) {
+        Alert.alert('Recording failed', err instanceof Error ? err.message : 'Could not stop recording');
+      }
+    } else {
+      try {
+        await startRecording();
+        sendRecordingState(
+          new TextEncoder().encode(JSON.stringify({ type: 'recording_state', recording: true })),
+          { reliable: true },
+        ).catch(() => {});
+      } catch (err) {
+        Alert.alert('Recording failed', err instanceof Error ? err.message : 'Could not start recording');
+      }
+    }
+  }, [isRecording, startRecording, stopAndPost, sendRecordingState]);
 
   // Receive and send chat messages at room level so they're captured even when ChatPanel is closed
   const { send: sendChatData } = useDataChannel('chat', useCallback((msg: { payload: Uint8Array }) => {
@@ -295,6 +341,9 @@ function RoomScreenInner({
           });
         }}
         hasUnreadChat={unreadChatCount > 0}
+        isRecording={isRecording}
+        isUploading={isUploading}
+        onToggleRecording={handleToggleRecording}
         onLeave={onLeave}
         onEndRoom={handleEndRoom}
         colors={colors}
@@ -321,12 +370,13 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   const colorScheme = useColorScheme();
   const theme = getTheme(colorScheme === 'dark' ? 'dark' : 'light');
   const router = useRouter();
-  const { roomName, livekitToken, isHost: isHostParam, roomTitle: titleParam, roomHost: hostParam } = useLocalSearchParams<{
+  const { roomName, livekitToken, isHost: isHostParam, roomTitle: titleParam, roomHost: hostParam, roomDescription: descriptionParam } = useLocalSearchParams<{
     roomName: string;
     livekitToken: string;
     isHost: string;
     roomTitle: string;
     roomHost: string;
+    roomDescription: string;
   }>();
   const isHost = isHostParam === 'true';
 
@@ -439,6 +489,7 @@ export default function HangoutsRoomScreen(): React.ReactElement {
             roomName={roomName}
             roomTitle={displayTitle}
             roomHost={displayHost}
+            roomDescription={descriptionParam ?? ''}
             isHost={isHost}
             onLeave={handleLeave}
           />

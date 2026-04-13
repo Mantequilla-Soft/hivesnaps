@@ -89,6 +89,7 @@ export default function HangoutsLobbyScreen() {
           isHost: 'true',
           roomTitle: response.room.title ?? trimmed,
           roomHost: response.room.host ?? '',
+          roomDescription: roomDescription.trim(),
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);

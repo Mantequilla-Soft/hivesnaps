@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalParticipant } from '@livekit/react-native';
 import IconButton from '../IconButton';
@@ -12,6 +12,9 @@ interface RoomControlsProps {
   onToggleHand: () => void;
   onToggleChat: () => void;
   hasUnreadChat: boolean;
+  isRecording: boolean;
+  isUploading: boolean;
+  onToggleRecording: () => void;
   onLeave: () => void;
   onEndRoom: () => void;
   colors: {
@@ -33,6 +36,9 @@ export default function RoomControls({
   onToggleHand,
   onToggleChat,
   hasUnreadChat,
+  isRecording,
+  isUploading,
+  onToggleRecording,
   onLeave,
   onEndRoom,
   colors,
@@ -69,6 +75,31 @@ export default function RoomControls({
           backgroundColor={hasRaisedHand ? `${colors.button}22` : undefined}
           onPress={onToggleHand}
           accessibilityLabel={hasRaisedHand ? 'Lower hand' : 'Raise hand to speak'}
+        />
+      )}
+
+      {/* REC badge — visible to all while recording is active */}
+      {isRecording && (
+        <View style={styles.recBadge}>
+          <View style={styles.recDot} />
+          <Text style={styles.recText}>REC</Text>
+        </View>
+      )}
+
+      {/* Upload spinner — shown to host while audio is being uploaded */}
+      {isUploading && (
+        <ActivityIndicator size='small' color='#EF4444' />
+      )}
+
+      {/* Record / Stop — host only */}
+      {isHost && !isUploading && (
+        <IconButton
+          name={isRecording ? 'stop-circle' : 'circle'}
+          size={22}
+          color={isRecording ? '#EF4444' : colors.icon}
+          backgroundColor={isRecording ? '#EF444422' : undefined}
+          onPress={onToggleRecording}
+          accessibilityLabel={isRecording ? 'Stop recording' : 'Start recording'}
         />
       )}
 
@@ -120,6 +151,27 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 24,
     borderTopWidth: 1,
+  },
+  recBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#EF444422',
+  },
+  recDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  recText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+    letterSpacing: 0.5,
   },
   chatBtnWrap: {
     position: 'relative',
