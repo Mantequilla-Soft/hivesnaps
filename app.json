@@ -25,9 +25,10 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app uses the camera to take photos and record videos for your posts.",
-        "NSMicrophoneUsageDescription": "This app needs access to the microphone to record audio for your videos.",
+        "NSMicrophoneUsageDescription": "This app needs access to the microphone to record audio for your videos and hangouts.",
         "NSPhotoLibraryUsageDescription": "This app uses the photo library to select photos and videos to share in your posts.",
-        "NSFaceIDUsageDescription": "This app uses Face ID to verify your identity."
+        "NSFaceIDUsageDescription": "This app uses Face ID to verify your identity.",
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {

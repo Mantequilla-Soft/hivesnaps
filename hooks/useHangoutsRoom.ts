@@ -2,6 +2,14 @@ import { useState, useCallback, useRef } from 'react';
 import type { Room, JoinRoomResponse, CreateRoomResponse } from '@snapie/hangouts-core';
 import { hangoutsAuthService } from '../services/HangoutsAuthService';
 
+/** Thrown when a join/create operation is superseded by a subsequent leave() call. */
+export class RoomOperationCancelledError extends Error {
+  constructor() {
+    super('Room operation was cancelled');
+    this.name = 'RoomOperationCancelledError';
+  }
+}
+
 interface UseHangoutsRoomResult {
   livekitToken: string | null;
   roomName: string | null;
@@ -10,7 +18,7 @@ interface UseHangoutsRoomResult {
   isLoading: boolean;
   error: string | null;
   join: (name: string) => Promise<JoinRoomResponse>;
-  create: (title: string, description?: string) => Promise<Room>;
+  create: (title: string, description?: string) => Promise<CreateRoomResponse>;
   leave: () => void;
 }
 
@@ -37,7 +45,7 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
     setError(null);
     try {
       const result = await client.joinRoom(name);
-      if (activeOpRef.current !== op) return result; // superseded by leave/create
+      if (activeOpRef.current !== op) throw new RoomOperationCancelledError();
       const joinedName = result.roomName;
       latestJoinRef.current = joinedName;
       setLivekitToken(result.token);
@@ -63,19 +71,20 @@ export function useHangoutsRoom(): UseHangoutsRoomResult {
     }
   }, [client]);
 
-  const create = useCallback(async (title: string, description?: string): Promise<Room> => {
+  const create = useCallback(async (title: string, description?: string): Promise<CreateRoomResponse> => {
     const op = ++activeOpRef.current;
     latestJoinRef.current = null; // invalidate any in-flight join metadata lookup
     setIsLoading(true);
     setError(null);
     try {
-      const { room, token }: CreateRoomResponse = await client.createRoom(title, description);
-      if (activeOpRef.current !== op) return room; // superseded by leave
+      const response: CreateRoomResponse = await client.createRoom(title, description);
+      const { room, token } = response;
+      if (activeOpRef.current !== op) throw new RoomOperationCancelledError();
       setLivekitToken(token);
       setRoomName(room.name);
       setRoomMeta(room);
       setIsHost(true);
-      return room;
+      return response;
     } catch (err) {
       if (activeOpRef.current === op) {
         setError(err instanceof Error ? err.message : 'Failed to create room');

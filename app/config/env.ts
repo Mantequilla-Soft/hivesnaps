@@ -41,3 +41,10 @@ if (!THREESPEAK_IMAGE_API_KEY) {
 
 // Hive Hangouts API
 export const HANGOUTS_API_URL = process.env.EXPO_PUBLIC_HANGOUTS_API_URL || 'https://hangout-api.3speak.tv';
+// No hardcoded fallback: a missing LIVEKIT_URL means the token minted by the
+// Hangouts API may target a different cluster, so we fail loudly instead of
+// silently connecting to the wrong (production) server.
+export const LIVEKIT_URL = process.env.EXPO_PUBLIC_LIVEKIT_URL || '';
+if (!LIVEKIT_URL) {
+  console.warn('LIVEKIT_URL is not set in .env - hangouts rooms will not work');
+}
