@@ -271,8 +271,11 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   const { roomMeta, isHost, leave: clearRoomState } = useHangoutsRoom();
 
   const [connectionState, setConnectionState] = useState<ConnectionState | 'idle'>('idle');
+  // On Android we must resolve mic permission before LiveKitRoom mounts,
+  // otherwise LiveKit tries to open the mic while the dialog is still pending.
+  const [permissionReady, setPermissionReady] = useState(Platform.OS !== 'android');
 
-  // Request Android mic permission before connecting
+  // Request Android mic permission — gate LiveKitRoom until resolved
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     void PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO).then((result) => {
@@ -282,6 +285,8 @@ export default function HangoutsRoomScreen(): React.ReactElement {
           'Please grant microphone access to join audio rooms.',
           [{ text: 'OK', onPress: () => router.back() }]
         );
+      } else {
+        setPermissionReady(true);
       }
     });
   }, [router]);
@@ -307,6 +312,17 @@ export default function HangoutsRoomScreen(): React.ReactElement {
 
   const displayTitle = roomMeta?.title ?? roomName;
   const displayHost = roomMeta?.host ?? '';
+
+  if (!permissionReady) {
+    return (
+      <SafeAreaView style={[styles.center, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size='large' color={theme.button} />
+        <Text style={[styles.connectingText, { color: theme.textSecondary }]}>
+          Requesting microphone access...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
