@@ -20,7 +20,7 @@ interface PostSnapOptions {
 
 /**
  * Posts a snap to the Hive blockchain
- * If the snap contains a video or audio, adds a 10% beneficiary to @snapie
+ * Adds a beneficiary to @snapie when applicable: 10% for video/audio, 3% for hangout announcements
  *
  * @param client - Hive blockchain client
  * @param options - Posting options

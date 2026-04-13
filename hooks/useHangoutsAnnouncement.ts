@@ -12,28 +12,28 @@ export function useHangoutsAnnouncement() {
     roomTitle: string,
     description?: string,
   ): Promise<void> => {
+    const username = await accountStorageService.getCurrentAccountUsername();
+    const postingKeyStr = await accountStorageService.getCurrentPostingKey();
+    if (!username || !postingKeyStr) return;
+
+    const client = getClient();
+    const discussions = await client.database.call('get_discussions_by_blog', [
+      { tag: 'peak.snaps', limit: 1 },
+    ]);
+    if (!discussions || discussions.length === 0) return;
+    const container = discussions[0];
+
+    const roomUrl = `https://hangout.3speak.tv/room/${roomName}`;
+    const body = description ? `${description}\n\n${roomUrl}` : roomUrl;
+
+    const permlink = `snap-${Date.now()}`;
+    const json_metadata = JSON.stringify({
+      app: 'hivesnaps/1.0',
+      tags: ['hive-178315', 'snaps', 'hangouts'],
+    });
+
     setIsPosting(true);
     try {
-      const username = await accountStorageService.getCurrentAccountUsername();
-      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
-      if (!username || !postingKeyStr) return;
-
-      const client = getClient();
-      const discussions = await client.database.call('get_discussions_by_blog', [
-        { tag: 'peak.snaps', limit: 1 },
-      ]);
-      if (!discussions || discussions.length === 0) return;
-      const container = discussions[0];
-
-      const roomUrl = `https://hangout.3speak.tv/room/${roomName}`;
-      const body = description ? `${description}\n\n${roomUrl}` : roomUrl;
-
-      const permlink = `snap-${Date.now()}`;
-      const json_metadata = JSON.stringify({
-        app: 'hivesnaps/1.0',
-        tags: ['hive-178315', 'snaps', 'hangouts'],
-      });
-
       const postingKey = PrivateKey.fromString(postingKeyStr);
       await postSnapWithBeneficiaries(
         client,
