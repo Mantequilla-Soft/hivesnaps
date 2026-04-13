@@ -22,7 +22,6 @@ import {
 } from '@livekit/react-native';
 import type { ConnectionState, Participant } from 'livekit-client';
 import { DisconnectReason } from '@livekit/protocol';
-import { FontAwesome } from '@expo/vector-icons';
 import { getTheme } from '../../constants/Colors';
 import { LIVEKIT_URL } from '../config/env';
 import { hangoutsAuthService } from '../../services/HangoutsAuthService';
@@ -179,13 +178,11 @@ function RoomScreenInner({
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'End Room', style: 'destructive',
-        onPress: async () => {
-          try {
-            await client.deleteRoom(roomName);
-          } catch {
-            // best-effort — leave regardless
-          }
+        onPress: () => {
+          // Navigate out first so the host doesn't see the ROOM_DELETED alert
+          // that fires for all participants. deleteRoom runs best-effort in background.
           onLeave();
+          client.deleteRoom(roomName).catch(() => {});
         },
       },
     ]);
@@ -208,7 +205,6 @@ function RoomScreenInner({
     <KeyboardAvoidingView
       style={styles.inner}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
@@ -383,6 +379,9 @@ export default function HangoutsRoomScreen(): React.ReactElement {
           // TS type declares () => void — cast so we can read the reason.
           ((reason?: DisconnectReason) => {
             setConnectionState('disconnected' as ConnectionState);
+            // If we already navigated away (e.g. host ended the room, user pressed Leave),
+            // don't show a redundant alert or navigate twice.
+            if (hasLeftRef.current) return;
             if (reason === DisconnectReason.ROOM_DELETED) {
               Alert.alert('Hangout ended', 'The host has ended this hangout.', [
                 { text: 'OK', onPress: handleLeave },
@@ -392,8 +391,7 @@ export default function HangoutsRoomScreen(): React.ReactElement {
                 { text: 'OK', onPress: handleLeave },
               ]);
             } else {
-              // CLIENT_INITIATED (user pressed Leave — handleLeave idempotent via ref),
-              // UNKNOWN_REASON, SERVER_SHUTDOWN, etc. — leave silently.
+              // CLIENT_INITIATED, UNKNOWN_REASON, SERVER_SHUTDOWN — leave silently.
               handleLeave();
             }
           }) as () => void
