@@ -9,6 +9,9 @@ if (typeof global.DOMException === 'undefined') {
   };
 }
 
+import { registerGlobals } from '@livekit/react-native';
+registerGlobals();
+
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import {
   DarkTheme,
