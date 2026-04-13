@@ -113,13 +113,13 @@ function RoomScreenInner({
       text: text.trim(),
       timestamp: Date.now(),
     };
-    sendChatData(new TextEncoder().encode(JSON.stringify(event)), { reliable: true });
+    sendChatData(new TextEncoder().encode(JSON.stringify(event)), { reliable: true }).catch(() => {});
     setChatMessages((prev) => [...prev, { id: `local-${event.timestamp}`, ...event }]);
   }, [localParticipant, sendChatData]);
 
-  const handleToggleMute = useCallback(async (): Promise<void> => {
+  const handleToggleMute = useCallback((): void => {
     if (!localParticipant) return;
-    await localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled);
+    localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled).catch(() => {});
   }, [localParticipant]);
 
   // Use useDataChannel send so the topic header is attached — publishData sends without topic
@@ -132,7 +132,7 @@ function RoomScreenInner({
       identity: localParticipant.identity,
       timestamp: Date.now(),
     }));
-    sendHandRaise(bytes, { reliable: true });
+    sendHandRaise(bytes, { reliable: true }).catch(() => {});
     setHasRaisedHand(raised);
   }, [hasRaisedHand, localParticipant, sendHandRaise]);
 

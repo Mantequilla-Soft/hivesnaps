@@ -34,17 +34,16 @@ interface ChatPanelProps {
   };
 }
 
-export default function ChatPanel({ visible, messages, onSend, onClose, colors }: ChatPanelProps): React.ReactElement | null {
+export default function ChatPanel({ visible, messages, onSend, onClose, colors }: ChatPanelProps): React.ReactElement {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const { localParticipant } = useLocalParticipant();
 
-  // Scroll to latest when new messages arrive or panel opens
+  // Scroll to latest when new messages arrive or panel becomes visible
   useEffect(() => {
     if (visible && messages.length > 0) {
-      // Small delay lets the FlatList finish layout before scrolling
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 50);
+      listRef.current?.scrollToEnd({ animated: false });
     }
   }, [messages.length, visible]);
 
@@ -55,10 +54,8 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
     setDraft('');
   };
 
-  if (!visible) return null;
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderTopColor: colors.border }, !visible && styles.hidden]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Chat</Text>
@@ -118,8 +115,9 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
 }
 
 const styles = StyleSheet.create({
+  hidden: { display: 'none' },
   container: {
-    maxHeight: '50%',
+    height: '45%',
     borderTopWidth: 1,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
