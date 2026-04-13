@@ -5,7 +5,18 @@ import { accountStorageService } from '../services/AccountStorageService';
 import { hangoutsAuthService } from '../services/HangoutsAuthService';
 import { postSnapWithBeneficiaries } from '../services/snapPostingService';
 
-export function useHangoutsRecording(roomName: string, roomTitle: string, roomDescription: string) {
+interface UseHangoutsRecordingResult {
+  isRecording: boolean;
+  isUploading: boolean;
+  startRecording: () => Promise<void>;
+  stopAndPost: () => Promise<void>;
+}
+
+export function useHangoutsRecording(
+  roomName: string,
+  roomTitle: string,
+  roomDescription: string,
+): UseHangoutsRecordingResult {
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const isMountedRef = useRef(true);
@@ -27,11 +38,13 @@ export function useHangoutsRecording(roomName: string, roomTitle: string, roomDe
 
   const stopAndPost = useCallback(async (): Promise<void> => {
     try {
-      if (isMountedRef.current) setIsRecording(false);
-
+      // Wait for stop to succeed before flipping UI — if it fails, recording is still active
       const stopResult = await hangoutsAuthService.getClient().stopRecording(roomName);
 
-      if (isMountedRef.current) setIsUploading(true);
+      if (isMountedRef.current) {
+        setIsRecording(false);
+        setIsUploading(true);
+      }
 
       const uploadResult = await hangoutsAuthService.getClient().uploadRecording(
         roomName,
@@ -44,13 +57,17 @@ export function useHangoutsRecording(roomName: string, roomTitle: string, roomDe
       // Post the audio snap to Hive with 10% beneficiary to @snapie
       const username = await accountStorageService.getCurrentAccountUsername();
       const postingKeyStr = await accountStorageService.getCurrentPostingKey();
-      if (!username || !postingKeyStr) return;
+      if (!username || !postingKeyStr) {
+        throw new Error('No active Hive account available to post the recording.');
+      }
 
       const hiveClient = getClient();
       const discussions = await hiveClient.database.call('get_discussions_by_blog', [
         { tag: 'peak.snaps', limit: 1 },
       ]);
-      if (!discussions || discussions.length === 0) return;
+      if (!discussions || discussions.length === 0) {
+        throw new Error('Could not resolve the snap container for the recording post.');
+      }
       const container = discussions[0];
 
       const body = roomDescription

@@ -102,13 +102,16 @@ function RoomScreenInner({
     roomName, roomTitle, roomDescription,
   );
 
+  // Non-host participants mirror the host's recording state via data channel
+  const [broadcastRecording, setBroadcastRecording] = useState(false);
+  const visibleRecordingState = isHost ? isRecording : broadcastRecording;
+
   // Broadcast recording state so all participants see the REC indicator
   const { send: sendRecordingState } = useDataChannel('recording-state', useCallback((msg: { payload: Uint8Array }) => {
     try {
       const data = JSON.parse(new TextDecoder().decode(msg.payload)) as { type: string; recording: boolean };
       if (data.type === 'recording_state') {
-        // Non-host participants receive this — no local state needed beyond the broadcast
-        // (host drives isRecording from the hook; this channel is for audience awareness)
+        setBroadcastRecording(data.recording);
       }
     } catch {
       // malformed — ignore
@@ -341,7 +344,7 @@ function RoomScreenInner({
           });
         }}
         hasUnreadChat={unreadChatCount > 0}
-        isRecording={isRecording}
+        isRecording={visibleRecordingState}
         isUploading={isUploading}
         onToggleRecording={handleToggleRecording}
         onLeave={onLeave}
