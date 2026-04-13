@@ -72,8 +72,7 @@ class HangoutsAuthServiceImpl {
       return true;
     } catch (error) {
       this.clearSession();
-      const name = error instanceof Error ? error.name : 'UnknownError';
-      console.error(`[HangoutsAuth] Authentication failed: ${name}`);
+      console.error('[HangoutsAuth] Authentication failed:', error);
       return false;
     }
   }
