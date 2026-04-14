@@ -247,9 +247,9 @@ const Snap: React.FC<SnapProps> = ({
           key={uniqueKey}
           onPress={() => {
             if (onImagePress) {
-              onImagePress(src, body);
+              onImagePress(proxyImageUrl(src), body);
             } else {
-              setModalImageUrl(src);
+              setModalImageUrl(proxyImageUrl(src));
               setModalVisible(true);
             }
           }}

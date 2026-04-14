@@ -1268,7 +1268,7 @@ const ConversationScreenRefactored = () => {
           swipeToCloseEnabled={true}
           doubleTapToZoomEnabled={true}
           presentationStyle='fullScreen'
-          HeaderComponent={() => (
+          HeaderComponent={({ imageIndex }) => (
             <View style={{
               position: 'absolute',
               top: 50,
@@ -1292,7 +1292,7 @@ const ConversationScreenRefactored = () => {
                     fontSize: 14,
                     fontWeight: '600',
                   }}>
-                    {modalImageIndex + 1} / {modalImages.length}
+                    {imageIndex + 1} / {modalImages.length}
                   </Text>
                 </View>
               )}

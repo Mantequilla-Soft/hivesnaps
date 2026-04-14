@@ -35,8 +35,7 @@ export function buildImageGalleryFromSnap(body: string): ImageGalleryItem[] {
       return url && 
              !url.startsWith('hashtag://') && 
              !url.startsWith('profile://') &&
-             (url.includes('image') || 
-              /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i.test(url) ||
+             (/\.((jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?)$/i.test(url) ||
               url.startsWith('data:image/'));
     })
     .map(url => ({
