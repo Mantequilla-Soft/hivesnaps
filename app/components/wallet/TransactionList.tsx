@@ -109,7 +109,7 @@ const TransactionRow = ({
 export const TransactionList = ({ transactions, loading, error, colors }: Props): React.JSX.Element => {
     if (loading) {
         return (
-            <View style={styles.center}>
+            <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={colors.icon} />
             </View>
         );
@@ -161,6 +161,11 @@ const styles = StyleSheet.create({
         borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    loadingContainer: {
+        paddingVertical: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     center: {
         flex: 1,

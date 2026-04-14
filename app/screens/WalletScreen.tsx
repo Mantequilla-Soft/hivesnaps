@@ -153,7 +153,7 @@ const WalletScreen = (): React.JSX.Element => {
         checkStoredKeyAvailable,
     } = useWalletOperations(currentUsername, async () => {
         await fetchWalletData(true);
-        fetchHistory();
+        await fetchHistory();
     });
 
     useEffect(() => {

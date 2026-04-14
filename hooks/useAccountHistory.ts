@@ -99,7 +99,14 @@ const parseHistoryEntry = (
     }
 };
 
-export const useAccountHistory = (username: string | null, limit = 10) => {
+interface UseAccountHistoryReturn {
+    transactions: TransactionItem[];
+    loading: boolean;
+    error: string | null;
+    fetchHistory: () => Promise<void>;
+}
+
+export const useAccountHistory = (username: string | null, limit = 10): UseAccountHistoryReturn => {
     const [transactions, setTransactions] = useState<TransactionItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -108,6 +115,8 @@ export const useAccountHistory = (username: string | null, limit = 10) => {
     const fetchHistory = useCallback(async (): Promise<void> => {
         if (!username) {
             setTransactions([]);
+            setLoading(false);
+            setError(null);
             return;
         }
         const seq = ++fetchSeq.current;
