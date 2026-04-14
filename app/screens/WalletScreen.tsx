@@ -16,9 +16,11 @@ import { useAuth } from '../../store/context';
 import { createWalletScreenStyles } from '../../styles/WalletScreenStyles';
 import { vestsToHp } from '../../utils/hiveCalculations';
 import { useWalletOperations } from '../../hooks/useWalletOperations';
+import { useAccountHistory } from '../../hooks/useAccountHistory';
 import { TransferModal } from '../components/wallet/TransferModal';
 import { PowerUpModal } from '../components/wallet/PowerUpModal';
 import { PowerDownModal } from '../components/wallet/PowerDownModal';
+import { TransactionList } from '../components/wallet/TransactionList';
 import { AuthCancelledError } from '../../services/LocalAuthService';
 
 const client = getClient();
@@ -53,6 +55,7 @@ const WalletScreen = (): React.JSX.Element => {
         infoBoxBackground: theme.infoBoxBackground,
         warningBoxBackground: theme.warningBoxBackground,
         error: theme.error,
+        success: theme.success,
     };
 
     // Wallet data state
@@ -71,6 +74,13 @@ const WalletScreen = (): React.JSX.Element => {
     const [storedKeyAvailable, setStoredKeyAvailable] = useState(false);
 
     const fetchSeq = useRef(0);
+
+    const {
+        transactions,
+        loading: historyLoading,
+        error: historyError,
+        fetchHistory,
+    } = useAccountHistory(currentUsername, 10);
 
     // Define fetchWalletData before passing it to the hook as onRefresh
     const fetchWalletData = useCallback(async (silent = false): Promise<void> => {
@@ -141,11 +151,15 @@ const WalletScreen = (): React.JSX.Element => {
         transfer, powerUp, powerDown, cancelPowerDown,
         resetOperationSuccess,
         checkStoredKeyAvailable,
-    } = useWalletOperations(currentUsername, () => fetchWalletData(true));
+    } = useWalletOperations(currentUsername, async () => {
+        await fetchWalletData(true);
+        fetchHistory();
+    });
 
     useEffect(() => {
         fetchWalletData();
-    }, [fetchWalletData]);
+        fetchHistory();
+    }, [fetchWalletData, fetchHistory]);
 
     useEffect(() => {
         let cancelled = false;
@@ -320,6 +334,15 @@ const WalletScreen = (): React.JSX.Element => {
                             </TouchableOpacity>
                         ))}
                     </View>
+
+                    {/* Recent transactions */}
+                    <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                    <TransactionList
+                        transactions={transactions}
+                        loading={historyLoading}
+                        error={historyError}
+                        colors={colors}
+                    />
                 </ScrollView>
             )}
 
