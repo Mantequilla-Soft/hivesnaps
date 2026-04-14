@@ -64,7 +64,7 @@ interface SnapProps {
   onSpeechBubblePress?: () => void; // NEW: handler for speech bubble
   onUserPress?: (username: string) => void; // NEW: handler for username/avatar press
   onContentPress?: () => void; // NEW: handler for content/text press
-  onImagePress?: (imageUrl: string) => void; // NEW: handler for image press
+  onImagePress?: (imageUrl: string, snapBody?: string) => void; // NEW: handler for image press
   showAuthor?: boolean; // Optional: show author info in Snap bubble
   onHashtagPress?: (hashtag: string) => void; // Optional: handle hashtag press
   onReplyPress?: (author: string, permlink: string) => void; // NEW: handler for reply button
@@ -247,7 +247,7 @@ const Snap: React.FC<SnapProps> = ({
           key={uniqueKey}
           onPress={() => {
             if (onImagePress) {
-              onImagePress(src);
+              onImagePress(src, body);
             } else {
               setModalImageUrl(src);
               setModalVisible(true);
@@ -739,7 +739,7 @@ const Snap: React.FC<SnapProps> = ({
                 key={url + idx}
                 onPress={() => {
                   if (onImagePress) {
-                    onImagePress(proxyImageUrl(url));
+                    onImagePress(proxyImageUrl(url), body);
                   } else {
                     setModalImageUrl(proxyImageUrl(url));
                     setModalVisible(true);
@@ -763,7 +763,7 @@ const Snap: React.FC<SnapProps> = ({
                 key={url + idx}
                 onPress={() => {
                   if (onImagePress) {
-                    onImagePress(proxyImageUrl(url));
+                    onImagePress(proxyImageUrl(url), body);
                   } else {
                     setModalImageUrl(proxyImageUrl(url));
                     setModalVisible(true);

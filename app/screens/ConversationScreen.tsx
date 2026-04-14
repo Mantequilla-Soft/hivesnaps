@@ -40,6 +40,7 @@ import {
   extractRawImageUrls as extractRawImageUrlsUtil,
   removeRawImageUrls as removeRawImageUrlsUtil,
 } from '../../utils/rawImageUrls';
+import { buildImageGalleryFromSnap, findImageIndexInGallery } from '../../utils/imageGallery';
 import ImageView from 'react-native-image-viewing';
 import genericAvatar from '../../assets/images/generic-avatar.png';
 import { extractBlogPostUrls } from '../../utils/extractHivePostInfo';
@@ -377,9 +378,29 @@ const ConversationScreenRefactored = () => {
     }
   };
 
-  const handleImagePress = (imageUrl: string) => {
-    setModalImages([{ uri: imageUrl }]);
-    setModalImageIndex(0);
+  const handleImagePress = (imageUrl: string, snapBody?: string) => {
+    if (!snapBody) {
+      // Fallback to single image if no body provided
+      setModalImages([{ uri: imageUrl }]);
+      setModalImageIndex(0);
+      setImageModalVisible(true);
+      return;
+    }
+    
+    // Build full gallery from snap body
+    const gallery = buildImageGalleryFromSnap(snapBody);
+    
+    if (gallery.length === 0) {
+      // If gallery extraction fails, fall back to single image
+      setModalImages([{ uri: imageUrl }]);
+      setModalImageIndex(0);
+    } else {
+      // Find the index of the tapped image
+      const index = findImageIndexInGallery(gallery, imageUrl);
+      setModalImages(gallery);
+      setModalImageIndex(index);
+    }
+    
     setImageModalVisible(true);
   };
 
@@ -1248,13 +1269,41 @@ const ConversationScreenRefactored = () => {
           doubleTapToZoomEnabled={true}
           presentationStyle='fullScreen'
           HeaderComponent={() => (
-            <TouchableOpacity
-              style={ConversationScreenStyles.modalHeader}
-              onPress={() => setImageModalVisible(false)}
-              accessibilityLabel='Close image'
-            >
-              <FontAwesome name='close' size={20} color='#fff' />
-            </TouchableOpacity>
+            <View style={{
+              position: 'absolute',
+              top: 50,
+              left: 0,
+              right: 0,
+              zIndex: 1000,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              paddingHorizontal: 20,
+            }}>
+              {modalImages.length > 1 && (
+                <View style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                }}>
+                  <Text style={{
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: '600',
+                  }}>
+                    {modalImageIndex + 1} / {modalImages.length}
+                  </Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={ConversationScreenStyles.modalHeader}
+                onPress={() => setImageModalVisible(false)}
+                accessibilityLabel='Close image'
+              >
+                <FontAwesome name='close' size={20} color='#fff' />
+              </TouchableOpacity>
+            </View>
           )}
         />
 
