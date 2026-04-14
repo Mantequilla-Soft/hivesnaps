@@ -26,6 +26,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import ImageView from 'react-native-image-viewing';
 import { createFeedScreenStyles } from '../../styles/FeedScreenStyles';
+import { buildImageGalleryFromSnap, findImageIndexInGallery } from '../../utils/imageGallery';
 
 // Custom hooks for business logic
 import { useAuth } from '../../store/context';
@@ -482,10 +483,30 @@ const FeedScreenRefactored = () => {
     }
   };
 
-  // Handle image press
-  const handleImagePress = (imageUrl: string) => {
-    setModalImages([{ uri: imageUrl }]);
-    setModalImageIndex(0);
+  // Handle image press - opens full gallery with all images from snap
+  const handleImagePress = (imageUrl: string, snapBody?: string) => {
+    if (!snapBody) {
+      // Fallback to single image if no body provided
+      setModalImages([{ uri: imageUrl }]);
+      setModalImageIndex(0);
+      setImageModalVisible(true);
+      return;
+    }
+    
+    // Build full gallery from snap body
+    const gallery = buildImageGalleryFromSnap(snapBody);
+    
+    if (gallery.length === 0) {
+      // If gallery extraction fails, fall back to single image
+      setModalImages([{ uri: imageUrl }]);
+      setModalImageIndex(0);
+    } else {
+      // Find the index of the tapped image
+      const index = findImageIndexInGallery(gallery, imageUrl);
+      setModalImages(gallery);
+      setModalImageIndex(index);
+    }
+    
     setImageModalVisible(true);
   };
 
@@ -1227,25 +1248,49 @@ const FeedScreenRefactored = () => {
         swipeToCloseEnabled={true}
         doubleTapToZoomEnabled={true}
         presentationStyle='fullScreen'
-        HeaderComponent={() => (
-          <TouchableOpacity
-            style={{
-              position: 'absolute',
-              top: 50,
-              right: 20,
-              zIndex: 1000,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              borderRadius: 20,
-              width: 40,
-              height: 40,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-            onPress={() => setImageModalVisible(false)}
-            accessibilityLabel='Close image'
-          >
-            <FontAwesome name='close' size={20} color='#fff' />
-          </TouchableOpacity>
+        HeaderComponent={({ imageIndex }) => (
+          <View style={{
+            position: 'absolute',
+            top: 50,
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            paddingHorizontal: 20,
+          }}>
+            {modalImages.length > 1 && (
+              <View style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+              }}>
+                <Text style={{
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: '600',
+                }}>
+                  {imageIndex + 1} / {modalImages.length}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                borderRadius: 20,
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => setImageModalVisible(false)}
+              accessibilityLabel='Close image'
+            >
+              <FontAwesome name='close' size={20} color='#fff' />
+            </TouchableOpacity>
+          </View>
         )}
       />
 
