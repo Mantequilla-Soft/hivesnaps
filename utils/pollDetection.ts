@@ -19,12 +19,21 @@ export interface PollMetadata {
   ui_hide_res_until_voted?: boolean;
 }
 
-function tryParse(val: unknown): any {
+interface JsonObject {
+  [key: string]: unknown;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function tryParse(val: unknown): JsonObject | null {
   if (!val) return null;
-  if (typeof val === 'object') return val as any;
+  if (isJsonObject(val)) return val;
   if (typeof val !== 'string') return null;
   try {
-    return JSON.parse(val);
+    const parsed: unknown = JSON.parse(val);
+    return isJsonObject(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -41,12 +50,18 @@ export function extractPoll(jsonMetadata: string): PollMetadata | null {
 
   const { question, choices, end_time, max_choices_voted, allow_vote_changes, filters, ui_hide_res_until_voted } = meta;
 
-  if (
-    typeof question !== 'string' ||
-    !Array.isArray(choices) ||
-    choices.length < 2 ||
-    (typeof end_time !== 'number' && typeof end_time !== 'string')
-  ) {
+  // Validate choices: must be an array of 2+ non-empty strings
+  const hasValidChoices =
+    Array.isArray(choices) &&
+    choices.length >= 2 &&
+    choices.every((c): c is string => typeof c === 'string' && c.trim().length > 0);
+
+  // Validate end_time: number (Unix seconds) or parseable ISO string
+  const hasValidEndTime =
+    typeof end_time === 'number' ||
+    (typeof end_time === 'string' && !Number.isNaN(Date.parse(end_time)));
+
+  if (typeof question !== 'string' || !hasValidChoices || !hasValidEndTime) {
     return null;
   }
 
@@ -54,15 +69,25 @@ export function extractPoll(jsonMetadata: string): PollMetadata | null {
   const endTimeSeconds: number =
     typeof end_time === 'number'
       ? end_time
-      : Math.floor(new Date(end_time).getTime() / 1000);
+      : Math.floor(new Date(end_time as string).getTime() / 1000);
+
+  const validatedChoices = choices as string[];
+
+  // Clamp max_choices_voted to [1, choices.length]
+  const normalizedMaxChoices =
+    typeof max_choices_voted === 'number' &&
+    Number.isInteger(max_choices_voted) &&
+    max_choices_voted >= 1
+      ? Math.min(max_choices_voted, validatedChoices.length)
+      : 1;
 
   return {
     question,
-    choices: choices as string[],
+    choices: validatedChoices,
     end_time: endTimeSeconds,
-    max_choices_voted: typeof max_choices_voted === 'number' ? max_choices_voted : 1,
+    max_choices_voted: normalizedMaxChoices,
     allow_vote_changes: typeof allow_vote_changes === 'boolean' ? allow_vote_changes : false,
-    filters: filters ?? undefined,
+    filters: isJsonObject(filters) ? (filters as { account_age?: number }) : undefined,
     ui_hide_res_until_voted: typeof ui_hide_res_until_voted === 'boolean' ? ui_hide_res_until_voted : false,
   };
 }

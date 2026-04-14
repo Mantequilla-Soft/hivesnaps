@@ -64,10 +64,13 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
   const isExpired = poll.end_time * 1000 <= Date.now();
   const timeLabel = formatTimeLeft(poll.end_time);
 
-  const showResults =
+  // showPercentages: display result bars and % alongside choices (public polls show this immediately)
+  // controlsEnabled: whether the user can still select choices and vote
+  const showPercentages =
     isExpired ||
     voted ||
     (!poll.ui_hide_res_until_voted && results !== null);
+  const controlsEnabled = !isExpired && !voted;
 
   // Total votes: prefer poll_stats, fall back to voters length
   const totalVotes =
@@ -81,7 +84,8 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
     return apiChoice?.votes?.total_votes ?? 0;
   };
 
-  const toggleChoice = (index: number) => {
+  const toggleChoice = (index: number): void => {
+    if (keyInputVisible) return; // Lock selection once key entry is shown
     const choiceNum = index + 1; // convert to 1-based for Hive
     if (isMultiChoice) {
       setSelectedChoices((prev) =>
@@ -96,7 +100,7 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
     }
   };
 
-  const handleVote = async () => {
+  const handleVote = async (): Promise<void> => {
     if (keyInputVisible) {
       await vote([]);
     } else if (selectedChoices.length > 0) {
@@ -121,8 +125,10 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
           const votes = getVotesForChoice(index);
           const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
           const isSelected = selectedChoices.includes(choiceNum) || userChoices.includes(choiceNum);
+          const isUserVote = userChoices.includes(choiceNum);
 
-          if (showResults) {
+          if (!controlsEnabled) {
+            // Expired or already voted: show results-only view (no interactive controls)
             return (
               <View key={index} style={[styles.resultRow, { borderColor: colors.border }]}>
                 <View
@@ -130,14 +136,12 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
                     styles.resultBar,
                     {
                       width: `${pct}%`,
-                      backgroundColor: userChoices.includes(choiceNum)
-                        ? colors.button + '33'
-                        : colors.border,
+                      backgroundColor: isUserVote ? colors.button + '33' : colors.border,
                     },
                   ]}
                 />
                 <Text style={[styles.choiceLabel, { color: colors.text }]} numberOfLines={1}>
-                  {userChoices.includes(choiceNum) ? '✓ ' : ''}{choice}
+                  {isUserVote ? '✓ ' : ''}{choice}
                 </Text>
                 <Text style={[styles.pctLabel, { color: colors.textSecondary }]}>
                   {pct}%
@@ -146,6 +150,7 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
             );
           }
 
+          // Active poll: show selectable rows, optionally with percentage overlay
           return (
             <TouchableOpacity
               key={index}
@@ -157,10 +162,26 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
                 },
               ]}
               onPress={() => toggleChoice(index)}
-              disabled={voting}
+              disabled={voting || keyInputVisible}
             >
+              {showPercentages && (
+                <View
+                  style={[
+                    styles.resultBar,
+                    {
+                      width: `${pct}%`,
+                      backgroundColor: colors.border,
+                    },
+                  ]}
+                />
+              )}
               <Text style={[styles.choiceLabel, { color: colors.text }]}>{choice}</Text>
-              {isSelected && (
+              {showPercentages && (
+                <Text style={[styles.pctLabel, { color: colors.textSecondary }]}>
+                  {pct}%
+                </Text>
+              )}
+              {isSelected && !showPercentages && (
                 <Text style={[styles.checkmark, { color: colors.button }]}>✓</Text>
               )}
             </TouchableOpacity>
@@ -195,7 +216,7 @@ export const PollWidget: React.FC<PollWidgetProps> = ({
       {/* Vote button / loading / stats */}
       {loading && !results ? (
         <ActivityIndicator size="small" color={colors.button} style={{ marginTop: 8 }} />
-      ) : !isExpired && !voted && currentUsername ? (
+      ) : controlsEnabled && currentUsername ? (
         <TouchableOpacity
           style={[
             styles.voteButton,

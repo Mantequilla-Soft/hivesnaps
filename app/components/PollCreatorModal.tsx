@@ -122,7 +122,7 @@ export const PollCreatorModal: React.FC<PollCreatorModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: colors.background, borderColor: colors.inputBorder }]}>
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: colors.inputBorder }]}>
             <Text style={[styles.title, { color: colors.text }]}>Create Poll</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <FontAwesome name="times" size={20} color={colors.textSecondary} />
@@ -240,7 +240,7 @@ export const PollCreatorModal: React.FC<PollCreatorModalProps> = ({
                 value={allowVoteChanges}
                 onValueChange={setAllowVoteChanges}
                 trackColor={{ true: colors.button, false: colors.inputBorder }}
-                thumbColor="#fff"
+                thumbColor={colors.buttonText}
               />
             </View>
 
@@ -250,7 +250,7 @@ export const PollCreatorModal: React.FC<PollCreatorModalProps> = ({
                 value={hideResultsUntilVoted}
                 onValueChange={setHideResultsUntilVoted}
                 trackColor={{ true: colors.button, false: colors.inputBorder }}
-                thumbColor="#fff"
+                thumbColor={colors.buttonText}
               />
             </View>
 
@@ -291,7 +291,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
   },
   title: {
     fontSize: 17,

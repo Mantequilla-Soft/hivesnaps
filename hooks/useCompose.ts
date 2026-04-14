@@ -530,7 +530,7 @@ export function useCompose({
         dispatch({ type: 'CLEAR_AUDIO' });
     }, []);
 
-    const setPoll = useCallback((poll: PollDraft | null) => {
+    const setPoll = useCallback((poll: PollDraft | null): void => {
         dispatch({ type: 'SET_POLL', payload: poll });
     }, []);
 
@@ -542,9 +542,10 @@ export function useCompose({
             state.images.length > 0 ||
             state.gifs.length > 0 ||
             video.videoEmbedUrl ||
-            state.audioEmbedUrl
+            state.audioEmbedUrl ||
+            state.poll
         );
-    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl]);
+    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl, state.poll]);
 
     const hasDraftContent = useMemo(() => {
         return Boolean(
@@ -553,9 +554,10 @@ export function useCompose({
             state.gifs.length > 0 ||
             video.hasVideo ||
             state.audioEmbedUrl ||
-            state.audioUploading
+            state.audioUploading ||
+            state.poll
         );
-    }, [state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
+    }, [state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading, state.poll]);
 
     const isSubmitting = useMemo(() => {
         return state.posting || reply.posting || edit.editing || video.uploading || state.audioUploading;

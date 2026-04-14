@@ -31,6 +31,7 @@ export function usePoll(
   const [keyInput, setKeyInput] = useState('');
   const pendingChoicesRef = useRef<number[] | null>(null);
   const isMountedRef = useRef(true);
+  const loadRequestIdRef = useRef(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -39,17 +40,18 @@ export function usePoll(
 
   const loadResults = useCallback(async () => {
     if (!isMountedRef.current) return;
+    const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const data = await fetchPollResults(author, permlink);
-      if (isMountedRef.current) setResults(data);
+      if (isMountedRef.current && loadRequestIdRef.current === requestId) setResults(data);
     } catch (err) {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && loadRequestIdRef.current === requestId) {
         setError(err instanceof Error ? err.message : 'Failed to load poll results');
       }
     } finally {
-      if (isMountedRef.current) setLoading(false);
+      if (isMountedRef.current && loadRequestIdRef.current === requestId) setLoading(false);
     }
   }, [author, permlink]);
 
@@ -86,6 +88,7 @@ export function usePoll(
     } catch (err) {
       if (isMountedRef.current) {
         setVoteError(err instanceof Error ? err.message : 'Vote failed');
+        setKeyInput(''); // Clear key from memory on error
       }
     } finally {
       if (isMountedRef.current) setVoting(false);
@@ -118,16 +121,11 @@ export function usePoll(
   }, [currentUsername, castVote]);
 
   // Called from PollWidget when user submits inline key
-  const voteWithInlineKey = useCallback(async () => {
+  const voteWithInlineKey = useCallback(async (): Promise<void> => {
     const choices = pendingChoicesRef.current;
     if (!choices || !keyInput.trim()) return;
     await castVote(choices, keyInput);
   }, [keyInput, castVote]);
-
-  // Override setKeyInput to also handle submission trigger
-  const handleSetKeyInput = useCallback((val: string) => {
-    setKeyInput(val);
-  }, []);
 
   return {
     results,
@@ -139,8 +137,8 @@ export function usePoll(
     voteError,
     keyInputVisible,
     keyInput,
-    setKeyInput: handleSetKeyInput,
-    vote: async (choices) => {
+    setKeyInput,
+    vote: async (choices: number[]): Promise<void> => {
       // If key input visible, treat as submission with current keyInput
       if (keyInputVisible) {
         await voteWithInlineKey();
