@@ -6,6 +6,7 @@ const client = getClient();
 const RELEVANT_OPS = new Set([
     'transfer',
     'transfer_to_vesting',
+    'withdraw_vesting',
     'fill_vesting_withdraw',
     'claim_reward_balance',
 ]);
@@ -13,6 +14,7 @@ const RELEVANT_OPS = new Set([
 export type TxOpType =
     | 'transfer'
     | 'transfer_to_vesting'
+    | 'withdraw_vesting'
     | 'fill_vesting_withdraw'
     | 'claim_reward_balance';
 
@@ -27,8 +29,10 @@ export interface TransactionItem {
     memo?: string;
 }
 
+type RawHistoryEntry = [number, { trx_id: string; timestamp: string; op: [string, Record<string, unknown>] }];
+
 const parseHistoryEntry = (
-    entry: [number, { trx_id: string; timestamp: string; op: [string, Record<string, unknown>] }],
+    entry: RawHistoryEntry,
     username: string
 ): TransactionItem | null => {
     const [index, data] = entry;
@@ -59,12 +63,21 @@ const parseHistoryEntry = (
             const amount = opData.amount as string;
             const from = opData.from as string;
             const to = opData.to as string;
-            const isOut = from === username && to === username;
+            const isSelf = from === username && to === username;
+            const isOut = from === username && to !== username;
+            const isIn = to === username && from !== username;
             return {
                 id, type, timestamp,
+                direction: isOut ? 'out' : isIn ? 'in' : undefined,
                 amount,
-                // if powering up for someone else, note that
-                counterparty: !isOut ? to : undefined,
+                counterparty: isSelf ? undefined : isOut ? to : isIn ? from : undefined,
+            };
+        }
+        case 'withdraw_vesting': {
+            const vesting_shares = opData.vesting_shares as string;
+            return {
+                id, type, timestamp,
+                amount: vesting_shares,
             };
         }
         case 'fill_vesting_withdraw': {
@@ -114,6 +127,7 @@ export const useAccountHistory = (username: string | null, limit = 10): UseAccou
 
     const fetchHistory = useCallback(async (): Promise<void> => {
         if (!username) {
+            fetchSeq.current++;
             setTransactions([]);
             setLoading(false);
             setError(null);
@@ -123,19 +137,28 @@ export const useAccountHistory = (username: string | null, limit = 10): UseAccou
         setLoading(true);
         setError(null);
         try {
-            // Fetch enough raw ops so filtering yields `limit` results.
-            // 50 gives comfortable headroom without hammering the node.
-            const raw: [number, { trx_id: string; timestamp: string; op: [string, Record<string, unknown>] }][] =
-                await client.database.call('get_account_history', [username, -1, 50]);
-
-            if (seq !== fetchSeq.current) return;
-
             const parsed: TransactionItem[] = [];
-            // History is returned oldest-first; iterate in reverse for newest first
-            for (let i = raw.length - 1; i >= 0 && parsed.length < limit; i--) {
-                const item = parseHistoryEntry(raw[i], username);
-                if (item) parsed.push(item);
+            let start = -1;
+            const batchSize = 50;
+
+            while (parsed.length < limit) {
+                const raw: RawHistoryEntry[] =
+                    await client.database.call('get_account_history', [username, start, batchSize]);
+
+                if (seq !== fetchSeq.current) return;
+                if (raw.length === 0) break;
+
+                // History is returned oldest-first; iterate in reverse for newest first
+                for (let i = raw.length - 1; i >= 0 && parsed.length < limit; i--) {
+                    const item = parseHistoryEntry(raw[i], username);
+                    if (item) parsed.push(item);
+                }
+
+                if (raw.length < batchSize) break;
+                start = raw[0][0] - 1;
+                if (start < 0) break;
             }
+
             setTransactions(parsed);
         } catch (err) {
             if (seq !== fetchSeq.current) return;

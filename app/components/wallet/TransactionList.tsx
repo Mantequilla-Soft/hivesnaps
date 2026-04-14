@@ -40,17 +40,17 @@ const OP_META: Record<
 > = {
     transfer:             { label: 'Transfer',    icon: 'exchange' },
     transfer_to_vesting:  { label: 'Power Up',    icon: 'arrow-circle-up' },
-    fill_vesting_withdraw:{ label: 'Power Down',  icon: 'arrow-circle-down' },
+    withdraw_vesting:     { label: 'Power Down',  icon: 'arrow-circle-down' },
+    fill_vesting_withdraw:{ label: 'PD Payout',   icon: 'arrow-circle-down' },
     claim_reward_balance: { label: 'Rewards',     icon: 'star' },
 };
 
-const TransactionRow = ({
-    tx,
-    colors,
-}: {
+interface TransactionRowProps {
     tx: TransactionItem;
     colors: Colors;
-}) => {
+}
+
+const TransactionRow = ({ tx, colors }: TransactionRowProps): React.JSX.Element => {
     const meta = OP_META[tx.type] ?? { label: tx.type, icon: 'circle' as const };
     const isIn = tx.direction === 'in';
     const isOut = tx.direction === 'out';
