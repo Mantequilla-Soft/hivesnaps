@@ -499,7 +499,7 @@ export default function HangoutsRoomScreen(): React.ReactElement {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <LiveKitRoom
         serverUrl={LIVEKIT_URL}
         token={livekitToken}

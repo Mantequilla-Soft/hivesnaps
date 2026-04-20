@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalParticipant } from '@livekit/react-native';
 import IconButton from '../IconButton';
 import PrimaryButton from '../PrimaryButton';
@@ -45,7 +44,6 @@ export default function RoomControls({
   onEndRoom,
   colors,
 }: RoomControlsProps): React.ReactElement {
-  const insets = useSafeAreaInsets();
   const { localParticipant } = useLocalParticipant();
   const isMuted = !localParticipant?.isMicrophoneEnabled;
   const isListener = localParticipant?.permissions?.canPublish === false;
@@ -86,7 +84,7 @@ export default function RoomControls({
     <View
       style={[
         styles.bar,
-        { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 },
+        { backgroundColor: colors.card, borderTopColor: colors.border },
       ]}
     >
       {/* Mute/unmute — only for speakers and host */}
@@ -182,7 +180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 20,
-    paddingTop: 14,
+    paddingTop: 10,
     paddingHorizontal: 24,
     borderTopWidth: 1,
   },
