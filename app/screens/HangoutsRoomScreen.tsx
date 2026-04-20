@@ -324,6 +324,7 @@ function RoomScreenInner({
     <KeyboardAvoidingView
       style={styles.inner}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      enabled={Platform.OS === 'ios'}
     >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
