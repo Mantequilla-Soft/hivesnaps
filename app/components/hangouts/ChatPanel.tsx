@@ -73,7 +73,7 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
         renderItem={({ item }) => {
           const isMe = item.identity === localParticipant?.identity;
           return (
-            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther, { backgroundColor: isMe ? colors.border : colors.card }]}>
+            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther, { backgroundColor: isMe ? colors.border : colors.background }]}>
               {isMe ? (
                 <Text style={[styles.bubbleText, { color: colors.text }]}>{item.text}</Text>
               ) : (
