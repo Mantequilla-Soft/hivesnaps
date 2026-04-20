@@ -75,7 +75,7 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
         renderItem={({ item }) => {
           const isMe = item.identity === localParticipant?.identity;
           return (
-            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
+            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther, { backgroundColor: isMe ? colors.border : colors.card }]}>
               {isMe ? (
                 <Text style={[styles.bubbleText, { color: colors.text }]}>{item.text}</Text>
               ) : (
@@ -145,14 +145,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  bubbleMe: {
-    alignSelf: 'flex-end',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  bubbleOther: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
+  bubbleMe: { alignSelf: 'flex-end' },
+  bubbleOther: { alignSelf: 'flex-start' },
   bubbleAuthor: { fontSize: 12, fontWeight: '700' },
   bubbleText: { fontSize: 13 },
   emptyText: { textAlign: 'center', fontSize: 13, paddingVertical: 24 },
