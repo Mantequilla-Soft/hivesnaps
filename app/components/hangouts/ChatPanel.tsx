@@ -75,11 +75,15 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
         renderItem={({ item }) => {
           const isMe = item.identity === localParticipant?.identity;
           return (
-            <View style={[styles.bubble, isMe && styles.bubbleMe]}>
-              {!isMe && (
-                <Text style={[styles.bubbleAuthor, { color: colors.button }]}>@{item.identity}</Text>
+            <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
+              {isMe ? (
+                <Text style={[styles.bubbleText, { color: colors.text }]}>{item.text}</Text>
+              ) : (
+                <Text style={[styles.bubbleText, { color: colors.text }]}>
+                  <Text style={[styles.bubbleAuthor, { color: colors.button }]}>@{item.identity} </Text>
+                  {item.text}
+                </Text>
               )}
-              <Text style={[styles.bubbleText, { color: colors.text }]}>{item.text}</Text>
             </View>
           );
         }}
@@ -129,19 +133,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 16, fontWeight: '600' },
   list: { flex: 1 },
-  listContent: { padding: 12, gap: 8 },
+  listContent: { padding: 10, gap: 6 },
   bubble: {
-    alignSelf: 'flex-start',
-    maxWidth: '80%',
+    maxWidth: '82%',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  bubbleMe: { alignSelf: 'flex-end' },
-  bubbleAuthor: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
-  bubbleText: { fontSize: 14 },
+  bubbleMe: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  bubbleOther: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  bubbleAuthor: { fontSize: 12, fontWeight: '700' },
+  bubbleText: { fontSize: 13 },
   emptyText: { textAlign: 'center', fontSize: 13, paddingVertical: 24 },
   inputRow: {
     flexDirection: 'row',
@@ -157,7 +170,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    fontSize: 15,
+    fontSize: 14,
   },
   sendBtn: {
     width: 36,
