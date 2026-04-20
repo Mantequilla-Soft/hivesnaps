@@ -86,7 +86,7 @@ export default function RoomControls({
     <View
       style={[
         styles.bar,
-        { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 },
+        { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 4 },
       ]}
     >
       {/* Mute/unmute — only for speakers and host */}
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 20,
-    paddingTop: 14,
+    paddingTop: 10,
     paddingHorizontal: 24,
     borderTopWidth: 1,
   },
