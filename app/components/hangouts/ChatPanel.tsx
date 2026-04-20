@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalParticipant } from '@livekit/react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
@@ -35,7 +34,6 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ visible, messages, onSend, onClose, colors }: ChatPanelProps): React.ReactElement {
-  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const { localParticipant } = useLocalParticipant();
@@ -93,7 +91,7 @@ export default function ChatPanel({ visible, messages, onSend, onClose, colors }
       />
 
       {/* Input */}
-      <View style={[styles.inputRow, { borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
+      <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
         <TextInput
           style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
           placeholder='Say something...'
@@ -138,7 +136,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 16, fontWeight: '600' },
   list: { flex: 1 },
-  listContent: { padding: 10, gap: 6 },
+  listContent: { flexGrow: 1, justifyContent: 'flex-end', padding: 10, gap: 6 },
   bubble: {
     maxWidth: '82%',
     borderRadius: 12,
