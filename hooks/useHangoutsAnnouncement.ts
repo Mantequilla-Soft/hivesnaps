@@ -55,7 +55,6 @@ export function useHangoutsAnnouncement() {
             jsonMetadata: json_metadata,
             hasVideo: false,
             hasAudio: false,
-            hasHangout: true,
           },
           postingKey,
         );
