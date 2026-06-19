@@ -37,6 +37,10 @@ yarn-error.*
 # Windows
 Thumbs.db
 
+# Android build artifacts
+*.apk
+*.aab
+
 # local env files
 .env*.local
 .env
