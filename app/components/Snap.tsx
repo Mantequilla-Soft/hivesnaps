@@ -11,6 +11,9 @@ import {
   Dimensions,
   Alert,
   Share,
+  ScrollView,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome } from '@expo/vector-icons';
@@ -45,6 +48,7 @@ import { getMarkdownStyles } from '../../styles/markdownStyles';
 import { linkStyles, useLinkTextStyle } from '../../styles/linkStyles';
 import { extractRawImageUrls as extractRawImageUrlsUtil, removeRawImageUrls as removeRawImageUrlsUtil } from '../../utils/rawImageUrls';
 import { proxyImageUrl } from '../../utils/proxyImageUrl';
+import { buildImageGalleryFromSnap } from '../../utils/imageGallery';
 import ModerationRequestModal, { ModerationReason, ModerationRequestPayload } from './moderation/ModerationRequestModal';
 import { formatRelativeShort } from '../../utils/time';
 import ActionSheet from './common/ActionSheet';
@@ -212,6 +216,9 @@ const Snap: React.FC<SnapProps> = ({
   const upvoteColor = hasUpvoted ? '#8e44ad' : colors.icon; // purple if upvoted
   const imageUrls = extractImageUrls(body);
   const rawImageUrls = extractRawImageUrlsUtil(body);
+  // Combined, deduped, pre-proxied image list driving the inline carousel below —
+  // same util the full-screen viewer uses, so tap-to-index always lines up.
+  const galleryImages = useMemo(() => buildImageGalleryFromSnap(body), [body]);
   const embeddedContent = extractVideoInfo(body); // Renamed from videoInfo to be more accurate
   const mediaInfo = detectMediaInBody(body); // Detect audio and video media
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
@@ -466,6 +473,23 @@ const Snap: React.FC<SnapProps> = ({
   const cleanTextBody = markdownBody;
   const [modalVisible, setModalVisible] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
+
+  // Inline image carousel (collapsed in-card preview)
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselScrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    setCarouselIndex(0);
+  }, [body]);
+  const handleCarouselScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>
+  ) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / contentWidth);
+    setCarouselIndex(idx);
+  };
+  const goToCarouselPage = (idx: number) => {
+    carouselScrollRef.current?.scrollTo({ x: idx * contentWidth, animated: true });
+    setCarouselIndex(idx);
+  };
 
   // Moderation modal visibility
   const [moderationVisible, setModerationVisible] = useState(false);
@@ -731,52 +755,72 @@ const Snap: React.FC<SnapProps> = ({
           </View>
         )}
 
-        {/* Images from markdown/html */}
-        {imageUrls.length > 0 && (
-          <View style={{ marginBottom: 8 }}>
-            {imageUrls.map((url, idx) => (
-              <Pressable
-                key={url + idx}
-                onPress={() => {
-                  if (onImagePress) {
-                    onImagePress(proxyImageUrl(url), body);
-                  } else {
-                    setModalImageUrl(proxyImageUrl(url));
-                    setModalVisible(true);
-                  }
-                }}
+        {/* Inline image carousel (collapsed in-card preview) */}
+        {galleryImages.length > 0 && (
+          <View style={{ marginBottom: 8, position: 'relative' }}>
+            <ScrollView
+              ref={carouselScrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={handleCarouselScrollEnd}
+            >
+              {galleryImages.map((item, idx) => (
+                <Pressable
+                  key={item.uri + idx}
+                  style={{ width: contentWidth }}
+                  onPress={() => {
+                    if (onImagePress) {
+                      onImagePress(item.uri, body);
+                    } else {
+                      setModalImageUrl(item.uri);
+                      setModalVisible(true);
+                    }
+                  }}
+                >
+                  <ExpoImage
+                    source={{ uri: item.uri }}
+                    style={styles.feedImage}
+                    contentFit='cover'
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {galleryImages.length > 1 && carouselIndex > 0 && (
+              <TouchableOpacity
+                style={[styles.carouselArrow, styles.carouselArrowLeft]}
+                onPress={() => goToCarouselPage(carouselIndex - 1)}
+                hitSlop={HIT_SLOP_SM}
+                accessibilityRole='button'
+                accessibilityLabel='Previous image'
               >
-                <ExpoImage
-                  source={{ uri: proxyImageUrl(url) }}
-                  style={styles.feedImage}
-                  contentFit='cover'
-                />
-              </Pressable>
-            ))}
-          </View>
-        )}
-        {/* Images from raw URLs */}
-        {rawImageUrls.length > 0 && (
-          <View style={{ marginBottom: 8 }}>
-            {rawImageUrls.map((url, idx) => (
-              <Pressable
-                key={url + idx}
-                onPress={() => {
-                  if (onImagePress) {
-                    onImagePress(proxyImageUrl(url), body);
-                  } else {
-                    setModalImageUrl(proxyImageUrl(url));
-                    setModalVisible(true);
-                  }
-                }}
-              >
-                <ExpoImage
-                  source={{ uri: proxyImageUrl(url) }}
-                  style={styles.feedImage}
-                  contentFit='cover'
-                />
-              </Pressable>
-            ))}
+                <FontAwesome name='chevron-left' size={18} color='#fff' />
+              </TouchableOpacity>
+            )}
+            {galleryImages.length > 1 &&
+              carouselIndex < galleryImages.length - 1 && (
+                <TouchableOpacity
+                  style={[styles.carouselArrow, styles.carouselArrowRight]}
+                  onPress={() => goToCarouselPage(carouselIndex + 1)}
+                  hitSlop={HIT_SLOP_SM}
+                  accessibilityRole='button'
+                  accessibilityLabel='Next image'
+                >
+                  <FontAwesome name='chevron-right' size={18} color='#fff' />
+                </TouchableOpacity>
+              )}
+
+            {galleryImages.length > 1 && (
+              <View style={styles.carouselIndicatorWrapper}>
+                <View style={styles.carouselIndicator}>
+                  <Text style={styles.carouselIndicatorText}>
+                    {carouselIndex + 1} / {galleryImages.length}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -1334,6 +1378,39 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 6,
     backgroundColor: '#eee',
+  },
+  carouselArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -16,
+    zIndex: 2,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  carouselArrowLeft: {
+    left: 8,
+  },
+  carouselArrowRight: {
+    right: 8,
+  },
+  carouselIndicatorWrapper: {
+    position: 'absolute',
+    bottom: 14,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  carouselIndicator: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  carouselIndicatorText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
