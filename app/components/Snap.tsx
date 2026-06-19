@@ -479,11 +479,13 @@ const Snap: React.FC<SnapProps> = ({
   const carouselScrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     setCarouselIndex(0);
+    carouselScrollRef.current?.scrollTo({ x: 0, animated: false });
   }, [body]);
   const handleCarouselScrollEnd = (
     e: NativeSyntheticEvent<NativeScrollEvent>
   ) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / contentWidth);
+    const rawIdx = Math.round(e.nativeEvent.contentOffset.x / contentWidth);
+    const idx = Math.max(0, Math.min(rawIdx, galleryImages.length - 1));
     setCarouselIndex(idx);
   };
   const goToCarouselPage = (idx: number) => {
