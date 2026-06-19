@@ -48,8 +48,7 @@ const IPFSVideoPlayer: React.FC<IPFSVideoPlayerProps> = ({
           javaScriptEnabled
           domStorageEnabled
           onLoad={handleVideoLoad}
-          // For IPFS videos, we'll let them autoplay once user clicks
-          mediaPlaybackRequiresUserAction={false}
+          mediaPlaybackRequiresUserAction={true}
           allowsInlineMediaPlayback={true}
         />
         {/* Loading indicator */}
