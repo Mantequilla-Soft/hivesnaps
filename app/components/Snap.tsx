@@ -603,13 +603,24 @@ const Snap: React.FC<SnapProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (compactMode || isReply || !permlink) return;
-    if (body.trim().length < 20) return;
-    detectLanguage(permlink, body.slice(0, 300)).then(lang => {
-      if (lang && lang !== deviceLang) setDetectedLang(lang);
-    }).catch(() => {});
-  }, [permlink]);
 
-  const handleTranslate = async () => {
+    // Reset stale translation state whenever the snap body changes.
+    setDetectedLang(null);
+    setTranslatedBody(null);
+    setShowingTranslation(false);
+    setTranslationState('idle');
+
+    if (body.trim().length < 20) return;
+
+    let cancelled = false;
+    detectLanguage(permlink, body.slice(0, 300)).then(lang => {
+      if (!cancelled && lang && lang !== deviceLang) setDetectedLang(lang);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [permlink, body]);
+
+  const handleTranslate = async (): Promise<void> => {
     if (!permlink) return;
     if (translatedBody) {
       setShowingTranslation(true);
@@ -621,8 +632,12 @@ const Snap: React.FC<SnapProps> = ({
       setTranslatedBody(result);
       setShowingTranslation(true);
       setTranslationState('done');
-    } catch (err: any) {
-      const is503 = err?.message?.includes('503') || err?.code === 503;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      const code = typeof err === 'object' && err !== null && 'code' in err
+        ? (err as { code: unknown }).code
+        : undefined;
+      const is503 = msg.includes('503') || code === 503;
       Alert.alert(
         'Translation',
         is503 ? 'Translation unavailable right now.' : 'Translation failed. Please try again.',
