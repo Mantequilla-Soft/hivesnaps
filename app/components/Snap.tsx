@@ -63,6 +63,7 @@ import { renderHiveToHtml } from '../../utils/renderHive';
 import { linkifyMentions } from '../../utils/linkifyMentions';
 import { linkifyUrls } from '../../utils/linkifyUrls';
 import { detectLanguage, translateText, getLanguageName } from '../../services/translationService';
+import { getPatronTier, PatronTier } from '../../services/patronService';
 
 interface SnapProps {
   snap: SnapData;
@@ -133,6 +134,22 @@ const renderMp4Video = (uri: string, key?: string | number) => (
     />
   </View>
 );
+
+const PATRON_TIER_CONFIG: Record<PatronTier, { bg: string; border: string; color: string; label: string }> = {
+  'snap-master': { bg: 'rgba(245,158,11,0.15)', border: '#F59E0B', color: '#F59E0B', label: 'SNAP MASTER' },
+  'snapian':     { bg: 'rgba(96,165,250,0.15)',  border: '#60A5FA', color: '#60A5FA', label: 'SNAPIAN' },
+  'snaperino':   { bg: 'rgba(148,163,184,0.15)', border: '#94A3B8', color: '#94A3B8', label: 'SNAPERINO' },
+};
+
+const PatronBadge: React.FC<{ tier: PatronTier }> = ({ tier }) => {
+  const { bg, border, color, label } = PATRON_TIER_CONFIG[tier];
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 }}>
+      <FontAwesome name='star' size={9} color={color} style={{ marginRight: 3 }} />
+      <Text style={{ color, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{label}</Text>
+    </View>
+  );
+};
 
 // Custom markdown rules for mp4 and video support
 
@@ -600,6 +617,13 @@ const Snap: React.FC<SnapProps> = ({
   const [translatedBody, setTranslatedBody] = useState<string | null>(null);
   const [showingTranslation, setShowingTranslation] = useState(false);
 
+  // Patron badge
+  const [patronTier, setPatronTier] = useState<PatronTier | null>(null);
+  useEffect(() => {
+    if (!showAuthor && !isReply) return;
+    getPatronTier(author).then(tier => setPatronTier(tier)).catch(() => {});
+  }, [author, showAuthor, isReply]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (compactMode || isReply || !permlink) return;
@@ -759,6 +783,7 @@ const Snap: React.FC<SnapProps> = ({
                 {author}
               </Text>
             </Pressable>
+            {patronTier && <PatronBadge tier={patronTier} />}
             <View style={styles.topRightCluster}>
               {viaHiveSnaps && (
                 <ExpoImage
