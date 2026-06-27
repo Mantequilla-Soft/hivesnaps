@@ -631,7 +631,7 @@ const Snap: React.FC<SnapProps> = ({
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (compactMode || isReply || !permlink) return;
+    if (!permlink) return;
 
     // Reset stale translation state whenever the snap body changes.
     setDetectedLang(null);
@@ -1116,6 +1116,22 @@ const Snap: React.FC<SnapProps> = ({
             <Text style={[styles.payout, { color: colors.payout, marginLeft: 12, fontSize: 14 }]}>
               ${payout.toFixed(2)}
             </Text>
+
+            {detectedLang !== null && !showingTranslation && translationState !== 'loading' && (
+              <TouchableOpacity
+                onPress={handleTranslate}
+                style={{ marginLeft: 10, padding: 4 }}
+                accessibilityRole='button'
+                accessibilityLabel='Translate this snap'
+              >
+                <FontAwesome name='globe' size={14} color={colors.icon} />
+              </TouchableOpacity>
+            )}
+            {translationState === 'loading' && (
+              <View style={{ marginLeft: 10, padding: 4 }}>
+                <ActivityIndicator size='small' color={colors.icon} />
+              </View>
+            )}
 
             <View style={{ flex: 1 }} />
 
