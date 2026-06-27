@@ -621,7 +621,12 @@ const Snap: React.FC<SnapProps> = ({
   const [patronTier, setPatronTier] = useState<PatronTier | null>(null);
   useEffect(() => {
     if (!showAuthor && !isReply) return;
-    getPatronTier(author).then(tier => setPatronTier(tier)).catch(() => {});
+    setPatronTier(null);
+    let cancelled = false;
+    getPatronTier(author).then(tier => {
+      if (!cancelled) setPatronTier(tier);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [author, showAuthor, isReply]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
