@@ -8,6 +8,7 @@ import {
   Pressable,
   Modal,
   TouchableOpacity,
+  ActivityIndicator,
   Dimensions,
   Alert,
   Share,
@@ -61,6 +62,7 @@ import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
 import { renderHiveToHtml } from '../../utils/renderHive';
 import { linkifyMentions } from '../../utils/linkifyMentions';
 import { linkifyUrls } from '../../utils/linkifyUrls';
+import { detectLanguage, translateText, getLanguageName } from '../../services/translationService';
 
 interface SnapProps {
   snap: SnapData;
@@ -585,6 +587,65 @@ const Snap: React.FC<SnapProps> = ({
   // Overflow (three-dots) menu
   const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 
+  // Translation
+  const deviceLang = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().locale.split('-')[0] ?? 'en';
+    } catch {
+      return 'en';
+    }
+  }, []);
+  const [detectedLang, setDetectedLang] = useState<string | null>(null);
+  const [translationState, setTranslationState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [translatedBody, setTranslatedBody] = useState<string | null>(null);
+  const [showingTranslation, setShowingTranslation] = useState(false);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (compactMode || isReply || !permlink) return;
+
+    // Reset stale translation state whenever the snap body changes.
+    setDetectedLang(null);
+    setTranslatedBody(null);
+    setShowingTranslation(false);
+    setTranslationState('idle');
+
+    if (body.trim().length < 20) return;
+
+    let cancelled = false;
+    detectLanguage(permlink, body.slice(0, 300)).then(lang => {
+      if (!cancelled && lang && lang !== deviceLang) setDetectedLang(lang);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [permlink, body]);
+
+  const handleTranslate = async (): Promise<void> => {
+    if (!permlink) return;
+    if (translatedBody) {
+      setShowingTranslation(true);
+      return;
+    }
+    setTranslationState('loading');
+    try {
+      const result = await translateText(permlink, body.slice(0, 8000), deviceLang);
+      setTranslatedBody(result);
+      setShowingTranslation(true);
+      setTranslationState('done');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      const code = typeof err === 'object' && err !== null && 'code' in err
+        ? (err as { code: unknown }).code
+        : undefined;
+      const is503 = msg.includes('503') || code === 503;
+      Alert.alert(
+        'Translation',
+        is503 ? 'Translation unavailable right now.' : 'Translation failed. Please try again.',
+      );
+      setTranslationState('idle');
+    }
+  };
+
   // Remove global side-effects previously used for handlers
   // (globalThis references deleted)
 
@@ -836,6 +897,23 @@ const Snap: React.FC<SnapProps> = ({
         {/* Body */}
         {cleanTextBody.length > 0 &&
           (() => {
+            if (showingTranslation && translatedBody) {
+              const translatedContent = (
+                <Text style={{ color: colors.text, fontSize: isReply ? 14 : 15, marginBottom: 8, lineHeight: isReply ? 20 : 22 }}>
+                  {translatedBody}
+                </Text>
+              );
+              return onContentPress ? (
+                <Pressable
+                  onPress={onContentPress}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+                  accessibilityRole='button'
+                  accessibilityLabel='View conversation'
+                >
+                  {translatedContent}
+                </Pressable>
+              ) : translatedContent;
+            }
             if (onContentPress) {
               return (
                 <Pressable
@@ -951,6 +1029,21 @@ const Snap: React.FC<SnapProps> = ({
               );
             }
           })()}
+        {/* Translation attribution footer */}
+        {showingTranslation && detectedLang && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, marginTop: -4 }}>
+            <FontAwesome name='globe' size={11} color={colors.icon} style={{ opacity: 0.6, marginRight: 4 }} />
+            <Text style={{ color: colors.icon, fontSize: 12, opacity: 0.6 }}>
+              {'Translated from ' + getLanguageName(detectedLang) + ' · '}
+            </Text>
+            <Text
+              onPress={() => setShowingTranslation(false)}
+              style={{ color: colors.icon, fontSize: 12, opacity: 0.8, textDecorationLine: 'underline' }}
+            >
+              Original
+            </Text>
+          </View>
+        )}
         {/* VoteReplyBar - different layouts for compact mode (replies) vs normal mode */}
         {compactMode || isReply ? (
           // Compact mode for replies
@@ -1114,6 +1207,22 @@ const Snap: React.FC<SnapProps> = ({
               >
                 <FontAwesome name='retweet' size={18} color={colors.icon} />
               </Pressable>
+            )}
+            {/* Translate button - only when content is in a different language */}
+            {detectedLang !== null && !showingTranslation && translationState !== 'loading' && (
+              <TouchableOpacity
+                onPress={handleTranslate}
+                style={{ marginLeft: 12, padding: 4 }}
+                accessibilityRole='button'
+                accessibilityLabel='Translate this snap'
+              >
+                <FontAwesome name='globe' size={18} color={colors.icon} />
+              </TouchableOpacity>
+            )}
+            {translationState === 'loading' && (
+              <View style={{ marginLeft: 12, padding: 4 }}>
+                <ActivityIndicator size='small' color={colors.icon} />
+              </View>
             )}
             <View style={{ flex: 1 }} />
             <Text style={[styles.payout, { color: colors.payout }]}>
