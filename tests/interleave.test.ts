@@ -1,4 +1,4 @@
-import { interleave, promoteToTop } from '../utils/interleave';
+import { interleave, promoteToTop, promoteToTopOrMerge } from '../utils/interleave';
 
 interface Item {
   author: string;
@@ -117,5 +117,98 @@ describe('promoteToTop', () => {
     promoteToTop(b, e, { count: 2 });
     expect(b).toEqual(bCopy);
     expect(e).toEqual(eCopy);
+  });
+});
+
+describe('promoteToTopOrMerge', () => {
+  interface Tagged extends Item {
+    badge?: string;
+  }
+  interface Candidate extends Item {
+    reason: string;
+  }
+
+  const mergeInto = (item: Tagged, extra: Candidate): Tagged => ({ ...item, badge: extra.reason });
+
+  const candidate = (permlink: string, reason = 'trending'): Candidate => ({ author: `c-${permlink}`, permlink, reason });
+
+  it('returns the base list unchanged when there are no extras', () => {
+    const result = promoteToTopOrMerge(base(3), [], { count: 5 }, mergeInto);
+    expect(result).toEqual(base(3));
+  });
+
+  it('promotes extras with no match in base to the front', () => {
+    const result = promoteToTopOrMerge(base(3), [candidate('new-1')], { count: 5 }, mergeInto);
+    expect(result.map(i => i.permlink)).toEqual(['new-1', 'base-0', 'base-1', 'base-2']);
+  });
+
+  it('badges a base item in place instead of promoting or duplicating a matching extra', () => {
+    const b = base(3);
+    const result = promoteToTopOrMerge(b, [candidate('base-1', 'resurrected')], { count: 5 }, mergeInto) as Tagged[];
+
+    expect(result.map(i => i.permlink)).toEqual(['base-0', 'base-1', 'base-2']); // unchanged order, no duplicate
+    expect(result[1].badge).toBe('resurrected');
+    expect(result[0].badge).toBeUndefined();
+  });
+
+  it('handles a mix of matched (merged in place) and unmatched (promoted) extras', () => {
+    const b = base(3);
+    const result = promoteToTopOrMerge(
+      b,
+      [candidate('new-1'), candidate('base-1', 'resurrected')],
+      { count: 5 },
+      mergeInto
+    ) as Tagged[];
+
+    expect(result.map(i => i.permlink)).toEqual(['new-1', 'base-0', 'base-1', 'base-2']);
+    expect(result.find(i => i.permlink === 'base-1')?.badge).toBe('resurrected');
+  });
+
+  it('caps only the promoted (unmatched) extras at count — merges are never capped', () => {
+    const b = base(2);
+    const result = promoteToTopOrMerge(
+      b,
+      [candidate('new-1'), candidate('new-2'), candidate('base-0', 'resurrected'), candidate('base-1', 'resurrected')],
+      { count: 1 },
+      mergeInto
+    ) as Tagged[];
+
+    expect(result.map(i => i.permlink)).toEqual(['new-1', 'base-0', 'base-1']);
+    expect(result.find(i => i.permlink === 'base-0')?.badge).toBe('resurrected');
+    expect(result.find(i => i.permlink === 'base-1')?.badge).toBe('resurrected');
+  });
+
+  it('dedupes extras that repeat a permlink among themselves, keeping the first', () => {
+    const result = promoteToTopOrMerge(
+      base(2),
+      [candidate('new-1', 'trending'), candidate('new-1', 'resurrected')],
+      { count: 5 },
+      mergeInto
+    );
+    expect(result.filter(i => i.permlink === 'new-1')).toHaveLength(1);
+    expect((result[0] as Candidate).reason).toBe('trending');
+  });
+
+  it('still merges matched extras even when count is 0', () => {
+    const b = base(2);
+    const result = promoteToTopOrMerge(
+      b,
+      [candidate('new-1'), candidate('base-0', 'resurrected')],
+      { count: 0 },
+      mergeInto
+    ) as Tagged[];
+
+    expect(result.map(i => i.permlink)).toEqual(['base-0', 'base-1']); // new-1 not promoted, count is 0
+    expect(result.find(i => i.permlink === 'base-0')?.badge).toBe('resurrected');
+  });
+
+  it('does not mutate the input arrays', () => {
+    const b = base(3);
+    const c = [candidate('new-1'), candidate('base-1', 'resurrected')];
+    const bCopy = [...b];
+    const cCopy = [...c];
+    promoteToTopOrMerge(b, c, { count: 5 }, mergeInto);
+    expect(b).toEqual(bCopy);
+    expect(c).toEqual(cCopy);
   });
 });

@@ -34,7 +34,7 @@ import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
 import { useBlogFeed } from '../../hooks/useBlogFeed';
 import { useWavesFeed } from '../../hooks/useWavesFeed';
 import { useTrendingFeed } from '../../hooks/useTrendingFeed';
-import { interleave, promoteToTop } from '../../utils/interleave';
+import { interleave, promoteToTopOrMerge } from '../../utils/interleave';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
@@ -255,7 +255,15 @@ const FeedScreenRefactored = () => {
     if (activeFeed !== 'snaps' || currentFilter !== 'newest' || trending.length === 0) return filteredSnaps;
     const eligibleTrending = trending.filter(t => !mutedList || !mutedList.includes(t.author));
     if (eligibleTrending.length === 0) return filteredSnaps;
-    return promoteToTop(filteredSnaps, eligibleTrending, { count: TRENDING_PROMOTE_COUNT }) as typeof filteredSnaps;
+    // A trending snap is real recent content — it may already be organically visible
+    // in filteredSnaps. promoteToTopOrMerge badges it in place instead of dropping the
+    // flag when it's a duplicate; only genuinely new-to-this-page items get promoted.
+    return promoteToTopOrMerge(
+      filteredSnaps,
+      eligibleTrending,
+      { count: TRENDING_PROMOTE_COUNT },
+      (snap, extra) => ({ ...snap, isDiscovery: true, discoveryReason: extra.discoveryReason })
+    ) as typeof filteredSnaps;
   }, [filteredSnaps, trending, activeFeed, currentFilter, mutedList]);
 
   // Splice waves into the (now trending-promoted) snaps feed. Independent
