@@ -29,7 +29,7 @@ HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScri
 ### 🎨 Rich Media Support
 
 - **Image Uploads** - Camera capture or gallery selection with Hive blockchain hosting
-- **GIF Integration** - Powered by Tenor API with search functionality
+- **GIF Integration** - Powered by Giphy API with search functionality
 - **Video Embedding** - YouTube, 3Speak, and IPFS video support
 - **Instagram Embeds** - Native Instagram post rendering in feed
 - **Twitter/X Embeds** - Native tweet rendering in posts
@@ -81,7 +81,7 @@ HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScri
 ### Media & Storage
 
 - **Hive Images** for zero-cost blockchain image hosting (images.hive.blog)
-- **Tenor API** for GIF search and integration
+- **Giphy API** for GIF search and integration
 - **Expo Image Picker** for camera/gallery access
 - **AsyncStorage** for local data persistence
 
@@ -120,7 +120,7 @@ HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScri
    Create a `.env` file with your API keys:
 
    ```env
-   TENOR_API_KEY=your_tenor_key
+   EXPO_PUBLIC_GIPHY_API_KEY=your_giphy_key
    EXPO_PUBLIC_3SPEAK_API_KEY=your_3speak_api_key
    EXPO_PUBLIC_IPFS_UPLOAD_ENDPOINT=https://ipfs.3speak.tv/api/v0/add
    EXPO_PUBLIC_IPFS_GATEWAY_URL=https://ipfs.3speak.tv/ipfs

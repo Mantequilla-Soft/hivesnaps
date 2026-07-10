@@ -13,7 +13,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import Modal from 'react-native-modal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TenorGif, getBestGifUrl, getGifPreviewUrl } from '../utils/tenorApi';
+import { GiphyGif, getBestGifUrl, getGifPreviewUrl } from '../utils/giphyApi';
 
 /**
  * Color theme interface for the modal
@@ -49,7 +49,7 @@ export interface GifPickerModalProps {
   readonly onSearchSubmit: (query: string) => void;
   
   /** Array of GIF results */
-  readonly gifResults: TenorGif[];
+  readonly gifResults: GiphyGif[];
   
   /** Whether currently loading */
   readonly loading: boolean;
@@ -121,8 +121,8 @@ export const GifPickerModal: React.FC<GifPickerModalProps> = ({
   /**
    * Renders individual GIF item
    */
-  const renderGifItem = ({ item, index }: { item: TenorGif; index: number }) => {
-    // Use the helper functions from tenorApi for best URL selection
+  const renderGifItem = ({ item, index }: { item: GiphyGif; index: number }) => {
+    // Use the helper functions from giphyApi for best URL selection
     const gifUrl = getBestGifUrl(item);
     const previewUrl = getGifPreviewUrl(item);
 
@@ -145,7 +145,7 @@ export const GifPickerModal: React.FC<GifPickerModalProps> = ({
           },
         ]}
         accessibilityRole="button"
-        accessibilityLabel={`Select GIF: ${item.title || item.content_description || 'Untitled'}`}
+        accessibilityLabel={`Select GIF: ${item.title || 'Untitled'}`}
       >
         <Image
           source={{ uri: previewUrl || gifUrl }}
