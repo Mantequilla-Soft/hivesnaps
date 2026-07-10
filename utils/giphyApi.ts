@@ -3,6 +3,7 @@
 
 const GIPHY_API_KEY = process.env.EXPO_PUBLIC_GIPHY_API_KEY;
 const GIPHY_BASE_URL = 'https://api.giphy.com/v1/gifs';
+const FETCH_TIMEOUT_MS = 10_000;
 
 interface GiphyImage {
   url: string;
@@ -15,13 +16,26 @@ export interface GiphyGif {
   id: string;
   title: string;
   images: {
-    original: GiphyImage;
-    fixed_width: GiphyImage;
-    fixed_width_small: GiphyImage;
-    preview_gif: GiphyImage;
-    downsized: GiphyImage;
+    original?: GiphyImage;
+    fixed_width?: GiphyImage;
+    fixed_width_small?: GiphyImage;
+    preview_gif?: GiphyImage;
+    downsized?: GiphyImage;
   };
 }
+
+// Giphy doesn't guarantee every image format is present for every GIF, and RN's
+// fetch has no default timeout — an unresponsive API would otherwise spin the
+// picker's loading state forever and leak the pending request past modal close.
+const fetchWithTimeout = async (url: string): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 export interface GiphySearchResponse {
   data: GiphyGif[];
@@ -52,7 +66,7 @@ export const searchGifs = async (
   });
 
   try {
-    const response = await fetch(`${GIPHY_BASE_URL}/search?${params.toString()}`);
+    const response = await fetchWithTimeout(`${GIPHY_BASE_URL}/search?${params.toString()}`);
 
     if (!response.ok) {
       throw new Error(
@@ -83,7 +97,7 @@ export const getTrendingGifs = async (
   });
 
   try {
-    const response = await fetch(`${GIPHY_BASE_URL}/trending?${params.toString()}`);
+    const response = await fetchWithTimeout(`${GIPHY_BASE_URL}/trending?${params.toString()}`);
 
     if (!response.ok) {
       throw new Error(
