@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { fetchWaveItems, WaveItem } from '../services/wavesFeedService';
 import { avatarService } from '../services/AvatarService';
 import { SnapData } from './useConversationData';
+import { normalizeToUtcTimestamp } from '../utils/time';
 
 export interface WaveSnap extends SnapData {
   isWave: true;
@@ -16,12 +17,6 @@ export interface UseWavesFeedResult {
   hasMore: boolean;
   fetchWaves: () => Promise<void>;
   loadMore: () => Promise<void>;
-}
-
-// created timestamps from the sidecar are already UTC but don't always carry
-// the trailing Z — normalize so age math downstream doesn't read them as local time.
-function normalizeCreated(created: string): string {
-  return created.endsWith('Z') ? created : `${created}Z`;
 }
 
 export function useWavesFeed(username: string | null): UseWavesFeedResult {
@@ -58,7 +53,7 @@ export function useWavesFeed(username: string | null): UseWavesFeedResult {
           author: item.author,
           avatarUrl,
           body: item.body ?? '',
-          created: normalizeCreated(item.created),
+          created: normalizeToUtcTimestamp(item.created),
           voteCount: item.active_votes?.length ?? 0,
           replyCount: item.children ?? 0,
           payout: 0,

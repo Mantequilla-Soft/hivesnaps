@@ -29,6 +29,9 @@ export interface SnapData {
   community?: string;
   // True for content spliced in from snapie.io's Waves (Ecency short-form), not a native Hive snap
   isWave?: boolean;
+  // True for content promoted from snapie.io's discovery engine (trending/resurrected)
+  isDiscovery?: boolean;
+  discoveryReason?: 'trending' | 'resurrected';
 }
 
 export interface ReplyData extends SnapData {

@@ -33,7 +33,8 @@ import { useAuth } from '../../store/context';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
 import { useBlogFeed } from '../../hooks/useBlogFeed';
 import { useWavesFeed } from '../../hooks/useWavesFeed';
-import { interleave } from '../../utils/interleave';
+import { useTrendingFeed } from '../../hooks/useTrendingFeed';
+import { interleave, promoteToTop } from '../../utils/interleave';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
@@ -211,6 +212,14 @@ const FeedScreenRefactored = () => {
     loadMore: loadMoreWaves,
   } = useWavesFeed(username);
 
+  // Trending/resurrected snaps (snapie.io discovery engine) — fetched once per
+  // session (not paginated) and promoted to the top of the Newest feed; see
+  // splice step below.
+  const {
+    trending,
+    fetchTrending,
+  } = useTrendingFeed(username);
+
   // Cache management for follow/mute lists
   const { invalidateFollowingCache, invalidateMutedCache } = useFollowCacheManagement();
 
@@ -237,20 +246,33 @@ const FeedScreenRefactored = () => {
     return filtered;
   }, [snaps, mutedList]);
 
-  // Splice waves into the snaps feed. Independent fetch/failure from the
-  // Hive-native path above — if snapie.io is unreachable, `waves` is just
-  // empty and this collapses back to `filteredSnaps` unchanged.
+  // Promote trending/resurrected snaps to the top of the Newest feed — a fixed
+  // "what's hot right now" shelf, not spread through the scroll like waves.
+  // Newest tab only: Following has its own curated scope, and the existing
+  // 'trending' FeedFilter tab is a separate, unrelated payout-based Hive sort.
+  const TRENDING_PROMOTE_COUNT = 5;
+  const feedWithTrending = useMemo(() => {
+    if (activeFeed !== 'snaps' || currentFilter !== 'newest' || trending.length === 0) return filteredSnaps;
+    const eligibleTrending = trending.filter(t => !mutedList || !mutedList.includes(t.author));
+    if (eligibleTrending.length === 0) return filteredSnaps;
+    return promoteToTop(filteredSnaps, eligibleTrending, { count: TRENDING_PROMOTE_COUNT }) as typeof filteredSnaps;
+  }, [filteredSnaps, trending, activeFeed, currentFilter, mutedList]);
+
+  // Splice waves into the (now trending-promoted) snaps feed. Independent
+  // fetch/failure from the Hive-native path above — if snapie.io is
+  // unreachable, `waves` is just empty and this collapses back to
+  // `feedWithTrending` unchanged.
   const WAVES_SPLICE_CADENCE = 8;
   const snapsWithWaves = useMemo(() => {
-    if (activeFeed !== 'snaps' || waves.length === 0) return filteredSnaps;
+    if (activeFeed !== 'snaps' || waves.length === 0) return feedWithTrending;
     // On the Following tab, only splice in waves from authors the user actually follows —
     // otherwise "Following" stops meaning following.
     const eligibleWaves = currentFilter === 'following'
       ? waves.filter(w => followingList?.includes(w.author))
       : waves;
-    if (eligibleWaves.length === 0) return filteredSnaps;
-    return interleave(filteredSnaps, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
-  }, [filteredSnaps, waves, activeFeed, currentFilter, followingList]);
+    if (eligibleWaves.length === 0) return feedWithTrending;
+    return interleave(feedWithTrending, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
+  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList]);
 
   // Apply the same muted-list filter to blog posts
   const filteredBlogPosts = useMemo(() => {
@@ -313,6 +335,7 @@ const FeedScreenRefactored = () => {
   const hasInitialFetch = useRef(false);
   const hasOpenedBlogsRef = useRef(false);
   const hasFetchedWavesRef = useRef(false);
+  const hasFetchedTrendingRef = useRef(false);
 
   // Load recent searches on mount
   useEffect(() => {
@@ -327,6 +350,14 @@ const FeedScreenRefactored = () => {
       void fetchWaves();
     }
   }, [fetchWaves]);
+
+  // Initial trending fetch on mount — one-time, no pagination (see useTrendingFeed).
+  useEffect(() => {
+    if (!hasFetchedTrendingRef.current) {
+      hasFetchedTrendingRef.current = true;
+      void fetchTrending();
+    }
+  }, [fetchTrending]);
 
   // Initial data fetch on mount - only once
   useEffect(() => {
@@ -1199,6 +1230,8 @@ const FeedScreenRefactored = () => {
                 json_metadata: item.json_metadata,
                 posting_json_metadata: item.posting_json_metadata,
                 isWave: (item as any).isWave === true,
+                isDiscovery: (item as any).isDiscovery === true,
+                discoveryReason: (item as any).discoveryReason,
               };
 
               return (
