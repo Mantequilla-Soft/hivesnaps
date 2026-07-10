@@ -32,6 +32,8 @@ import { buildImageGalleryFromSnap, findImageIndexInGallery } from '../../utils/
 import { useAuth } from '../../store/context';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
 import { useBlogFeed } from '../../hooks/useBlogFeed';
+import { useWavesFeed } from '../../hooks/useWavesFeed';
+import { interleave } from '../../utils/interleave';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
@@ -199,6 +201,16 @@ const FeedScreenRefactored = () => {
     }
   }, [blogLoadingMore, loadMoreBlogPosts]);
 
+  // Waves (snapie.io short-form Ecency content) — fetched independently of the
+  // Hive-native snaps feed and spliced in client-side; see splice step below.
+  const {
+    waves,
+    loadingMore: wavesLoadingMore,
+    hasMore: wavesHasMore,
+    fetchWaves,
+    loadMore: loadMoreWaves,
+  } = useWavesFeed(username);
+
   // Cache management for follow/mute lists
   const { invalidateFollowingCache, invalidateMutedCache } = useFollowCacheManagement();
 
@@ -224,6 +236,21 @@ const FeedScreenRefactored = () => {
     const filtered = snaps.filter((item) => !mutedList || !mutedList.includes(item.author));
     return filtered;
   }, [snaps, mutedList]);
+
+  // Splice waves into the snaps feed. Independent fetch/failure from the
+  // Hive-native path above — if snapie.io is unreachable, `waves` is just
+  // empty and this collapses back to `filteredSnaps` unchanged.
+  const WAVES_SPLICE_CADENCE = 8;
+  const snapsWithWaves = useMemo(() => {
+    if (activeFeed !== 'snaps' || waves.length === 0) return filteredSnaps;
+    // On the Following tab, only splice in waves from authors the user actually follows —
+    // otherwise "Following" stops meaning following.
+    const eligibleWaves = currentFilter === 'following'
+      ? waves.filter(w => followingList?.includes(w.author))
+      : waves;
+    if (eligibleWaves.length === 0) return filteredSnaps;
+    return interleave(filteredSnaps, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
+  }, [filteredSnaps, waves, activeFeed, currentFilter, followingList]);
 
   // Apply the same muted-list filter to blog posts
   const filteredBlogPosts = useMemo(() => {
@@ -285,11 +312,21 @@ const FeedScreenRefactored = () => {
   const flatListRef = useRef<FlatList<any>>(null);
   const hasInitialFetch = useRef(false);
   const hasOpenedBlogsRef = useRef(false);
+  const hasFetchedWavesRef = useRef(false);
 
   // Load recent searches on mount
   useEffect(() => {
     loadRecentSearches();
   }, [loadRecentSearches]);
+
+  // Initial waves fetch on mount — independent of the Hive-native snaps fetch below,
+  // so a slow/failed waves load never blocks or delays the main feed.
+  useEffect(() => {
+    if (!hasFetchedWavesRef.current) {
+      hasFetchedWavesRef.current = true;
+      void fetchWaves();
+    }
+  }, [fetchWaves]);
 
   // Initial data fetch on mount - only once
   useEffect(() => {
@@ -383,6 +420,11 @@ const FeedScreenRefactored = () => {
       console.log(`📜 [SCROLL-DEBUG] Current snaps count: ${snaps.length}`);
       console.log(`📜 [SCROLL-DEBUG] Filtered snaps count: ${filteredSnaps.length}`);
       console.log(`📜 [SCROLL-DEBUG] Feed loading: ${feedLoading}`);
+    }
+
+    // Waves pagination is independent of the Hive-native snap container limit below.
+    if (!wavesLoadingMore && wavesHasMore) {
+      void loadMoreWaves();
     }
 
     if (!canFetchMore()) {
@@ -1126,7 +1168,7 @@ const FeedScreenRefactored = () => {
           <FlatList
             key="snaps-feed"
             ref={flatListRef}
-            data={filteredSnaps}
+            data={snapsWithWaves}
             keyExtractor={(item, index) =>
               `${item.author}-${item.permlink}-${index}`
             }
@@ -1137,8 +1179,11 @@ const FeedScreenRefactored = () => {
                 avatarUrl: item.avatarUrl,
                 body: item.body,
                 created: item.created,
-                voteCount: item.net_votes || 0,
-                replyCount: item.children || 0,
+                // Raw Hive items carry net_votes/children; spliced-in wave items are
+                // pre-mapped to voteCount/replyCount instead (see useWavesFeed) — prefer
+                // the blockchain-native field, fall back to the pre-mapped one.
+                voteCount: item.net_votes ?? item.voteCount ?? 0,
+                replyCount: item.children ?? item.replyCount ?? 0,
                 payout: parseFloat(
                   item.pending_payout_value
                     ? item.pending_payout_value.replace(' HBD', '')
@@ -1153,6 +1198,7 @@ const FeedScreenRefactored = () => {
                 // Include metadata fields needed for HiveSnaps badge detection
                 json_metadata: item.json_metadata,
                 posting_json_metadata: item.posting_json_metadata,
+                isWave: (item as any).isWave === true,
               };
 
               return (
