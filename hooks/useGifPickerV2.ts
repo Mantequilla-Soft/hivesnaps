@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { searchGifs as searchGifsApi, getTrendingGifs, TenorGif, TenorSearchResponse } from '../utils/tenorApi';
+import { searchGifs as searchGifsApi, getTrendingGifs, GiphyGif, GiphySearchResponse } from '../utils/giphyApi';
 
 /**
  * Mode for GIF picker - determines whether we store single GIF or array
@@ -17,7 +17,7 @@ export type GifSelectionCallback = (gifUrl: string) => void;
 interface GifPickerState {
   readonly modalVisible: boolean;
   readonly searchQuery: string;
-  readonly results: TenorGif[];
+  readonly results: GiphyGif[];
   readonly loading: boolean;
   readonly error: string | null;
 }
@@ -103,11 +103,11 @@ export const useGifPicker = (config: GifPickerConfig): UseGifPickerReturn => {
     try {
       setState(prev => ({ ...prev, loading: true }));
       
-      const response: TenorSearchResponse = await getTrendingGifs(limit);
+      const response: GiphySearchResponse = await getTrendingGifs(limit);
       
       setState(prev => ({
         ...prev,
-        results: response.results,
+        results: response.data,
         loading: false,
       }));
     } catch (error) {
@@ -147,13 +147,13 @@ export const useGifPicker = (config: GifPickerConfig): UseGifPickerReturn => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      const response: TenorSearchResponse = query.trim() 
+      const response: GiphySearchResponse = query.trim()
         ? await searchGifsApi(query.trim(), limit)
         : await getTrendingGifs(limit);
 
       setState(prev => ({
         ...prev,
-        results: response.results,
+        results: response.data,
         loading: false,
       }));
     } catch (error) {
@@ -226,11 +226,11 @@ export const useGifPicker = (config: GifPickerConfig): UseGifPickerReturn => {
 
 /**
  * Helper function to extract the best GIF URL for display
- * Re-exported from tenorApi for convenience
+ * Re-exported from giphyApi for convenience
  */
-export { getBestGifUrl, getGifPreviewUrl } from '../utils/tenorApi';
+export { getBestGifUrl, getGifPreviewUrl } from '../utils/giphyApi';
 
 /**
  * Type exports for external use
  */
-export type { TenorGif, TenorSearchResponse } from '../utils/tenorApi';
+export type { GiphyGif, GiphySearchResponse } from '../utils/giphyApi';
