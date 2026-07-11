@@ -27,6 +27,11 @@ export interface SnapData {
   parent_permlink?: string;
   // When a post belongs to a Hive community, this will be like 'hive-124838'
   community?: string;
+  // True for content spliced in from snapie.io's Waves (Ecency short-form), not a native Hive snap
+  isWave?: boolean;
+  // True for content promoted from snapie.io's discovery engine (trending/resurrected)
+  isDiscovery?: boolean;
+  discoveryReason?: 'trending' | 'resurrected';
 }
 
 export interface ReplyData extends SnapData {

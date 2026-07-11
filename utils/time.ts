@@ -1,3 +1,10 @@
+// Some snapie.io sidecar endpoints return `created` timestamps without a
+// trailing Z even though they're UTC — a naive parser reads them as local
+// time, silently skewing age calculations. Force UTC before that happens.
+export function normalizeToUtcTimestamp(created: string): string {
+  return created.endsWith('Z') ? created : `${created}Z`;
+}
+
 export function formatRelativeShort(input: Date | string | number, nowInput?: Date | string | number): string {
   const date = input instanceof Date ? input : new Date(input);
   if (isNaN(date.getTime())) return '';

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, type ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -151,6 +151,33 @@ const PatronBadge: React.FC<{ tier: PatronTier }> = ({ tier }) => {
   );
 };
 
+// Marks content spliced in from snapie.io's Waves (Ecency short-form) rather than a native Hive snap
+const WaveBadge: React.FC = () => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(20,184,166,0.15)', borderWidth: 1, borderColor: '#14B8A6', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 }}>
+    <FontAwesome name='bolt' size={9} color='#14B8A6' style={{ marginRight: 3 }} />
+    <Text style={{ color: '#14B8A6', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>WAVE</Text>
+  </View>
+);
+
+type FontAwesomeIconName = ComponentProps<typeof FontAwesome>['name'];
+
+const DISCOVERY_REASON_CONFIG: Record<'trending' | 'resurrected', { bg: string; border: string; color: string; icon: FontAwesomeIconName; label: string }> = {
+  trending:    { bg: 'rgba(249,115,22,0.15)',  border: '#F97316', color: '#F97316', icon: 'fire',    label: 'TRENDING' },
+  resurrected: { bg: 'rgba(168,85,247,0.15)',  border: '#A855F7', color: '#A855F7', icon: 'history', label: 'FROM THE VAULT' },
+};
+
+// Marks content promoted from snapie.io's discovery engine — trending (hot right now)
+// vs resurrected (old content spiking again), visually distinct per the web app's convention
+const DiscoveryBadge: React.FC<{ reason: 'trending' | 'resurrected' }> = ({ reason }) => {
+  const { bg, border, color, icon, label } = DISCOVERY_REASON_CONFIG[reason];
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 }}>
+      <FontAwesome name={icon} size={9} color={color} style={{ marginRight: 3 }} />
+      <Text style={{ color, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{label}</Text>
+    </View>
+  );
+};
+
 // Custom markdown rules for mp4 and video support
 
 const Snap: React.FC<SnapProps> = ({
@@ -185,6 +212,9 @@ const Snap: React.FC<SnapProps> = ({
     permlink,
     hasUpvoted = false,
     community,
+    isWave = false,
+    isDiscovery = false,
+    discoveryReason,
   } = snap;
 
   // Detect if this content was posted via HiveSnaps (from metadata)
@@ -789,6 +819,8 @@ const Snap: React.FC<SnapProps> = ({
               </Text>
             </Pressable>
             {patronTier && <PatronBadge tier={patronTier} />}
+            {isWave && <WaveBadge />}
+            {isDiscovery && discoveryReason && <DiscoveryBadge reason={discoveryReason} />}
             <View style={styles.topRightCluster}>
               {viaHiveSnaps && (
                 <ExpoImage
