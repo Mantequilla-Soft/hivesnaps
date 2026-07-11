@@ -111,7 +111,12 @@ export async function fetchWaveItems(before?: string): Promise<FetchWaveItemsRes
       const lastItem = page.items[page.items.length - 1];
       cursor = lastItem ? lastItem.created : cursor;
 
-      if (page.items.length === 0) break; // nothing left to page through
+      if (page.items.length === 0) {
+        // An empty page means nothing left to page through, regardless of what
+        // the server's own hasMore claimed — don't let callers keep paginating.
+        hasMore = false;
+        break;
+      }
     } while (waves.length < THIN_PAGE_THRESHOLD && hasMore && pagesFetched <= MAX_FOLLOWUP_PAGES);
 
     return {

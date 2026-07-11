@@ -273,14 +273,16 @@ const FeedScreenRefactored = () => {
   const WAVES_SPLICE_CADENCE = 8;
   const snapsWithWaves = useMemo(() => {
     if (activeFeed !== 'snaps' || waves.length === 0) return feedWithTrending;
+    // Same muted-author filter filteredSnaps already applies to native snaps.
+    let eligibleWaves = waves.filter(w => !mutedList || !mutedList.includes(w.author));
     // On the Following tab, only splice in waves from authors the user actually follows —
     // otherwise "Following" stops meaning following.
-    const eligibleWaves = currentFilter === 'following'
-      ? waves.filter(w => followingList?.includes(w.author))
-      : waves;
+    if (currentFilter === 'following') {
+      eligibleWaves = eligibleWaves.filter(w => followingList?.includes(w.author));
+    }
     if (eligibleWaves.length === 0) return feedWithTrending;
     return interleave(feedWithTrending, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
-  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList]);
+  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, mutedList]);
 
   // Apply the same muted-list filter to blog posts
   const filteredBlogPosts = useMemo(() => {
@@ -342,30 +344,34 @@ const FeedScreenRefactored = () => {
   const flatListRef = useRef<FlatList<any>>(null);
   const hasInitialFetch = useRef(false);
   const hasOpenedBlogsRef = useRef(false);
-  const hasFetchedWavesRef = useRef(false);
-  const hasFetchedTrendingRef = useRef(false);
+  // Tracks the username each fetch last ran with (undefined = never fetched),
+  // so a re-fetch fires once when auth resolves after mount (username goes
+  // null -> real value) instead of permanently locking in stale hasUpvoted
+  // state computed before the current user was known.
+  const wavesFetchedForUsernameRef = useRef<string | null | undefined>(undefined);
+  const trendingFetchedForUsernameRef = useRef<string | null | undefined>(undefined);
 
   // Load recent searches on mount
   useEffect(() => {
     loadRecentSearches();
   }, [loadRecentSearches]);
 
-  // Initial waves fetch on mount — independent of the Hive-native snaps fetch below,
-  // so a slow/failed waves load never blocks or delays the main feed.
+  // Waves fetch — independent of the Hive-native snaps fetch below, so a
+  // slow/failed waves load never blocks or delays the main feed.
   useEffect(() => {
-    if (!hasFetchedWavesRef.current) {
-      hasFetchedWavesRef.current = true;
+    if (wavesFetchedForUsernameRef.current !== username) {
+      wavesFetchedForUsernameRef.current = username;
       void fetchWaves();
     }
-  }, [fetchWaves]);
+  }, [username, fetchWaves]);
 
-  // Initial trending fetch on mount — one-time, no pagination (see useTrendingFeed).
+  // Trending fetch — one-time per username, no pagination (see useTrendingFeed).
   useEffect(() => {
-    if (!hasFetchedTrendingRef.current) {
-      hasFetchedTrendingRef.current = true;
+    if (trendingFetchedForUsernameRef.current !== username) {
+      trendingFetchedForUsernameRef.current = username;
       void fetchTrending();
     }
-  }, [fetchTrending]);
+  }, [username, fetchTrending]);
 
   // Initial data fetch on mount - only once
   useEffect(() => {
@@ -462,7 +468,11 @@ const FeedScreenRefactored = () => {
     }
 
     // Waves pagination is independent of the Hive-native snap container limit below.
-    if (!wavesLoadingMore && wavesHasMore) {
+    // Stop once we already have enough waves to fill every currently available
+    // interleave slot — interleave only ever uses the earliest extras anyway,
+    // so fetching further pages here would just be wasted, unrendered work.
+    const availableWaveSlots = Math.floor(feedWithTrending.length / WAVES_SPLICE_CADENCE);
+    if (!wavesLoadingMore && wavesHasMore && waves.length < availableWaveSlots) {
       void loadMoreWaves();
     }
 

@@ -102,6 +102,18 @@ describe('wavesFeedService', () => {
     expect(result.nextCursor).toBe('2026-01-01T10:00:00.000Z');
   });
 
+  it('treats an empty page as exhausted even if the server claims hasMore true', async () => {
+    mockFetchOnce([waveItem({ permlink: 'w1' })], true);
+    mockFetchOnce([], true); // server bug/edge case: empty items but hasMore still true
+
+    const result = await fetchWaveItems();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(result.waves).toHaveLength(1);
+    expect(result.hasMore).toBe(false);
+    expect(result.nextCursor).toBeNull();
+  });
+
   it('returns a safe empty result and does not throw on fetch failure', async () => {
     (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('network down'));
 

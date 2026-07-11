@@ -36,18 +36,36 @@ describe('interleave', () => {
     ]);
   });
 
-  it('dedupes extras that share a permlink with a base item', () => {
+  it('dedupes extras that share both author and permlink with a base item', () => {
     const b = base(4);
-    const dupExtra = { author: 'dup', permlink: 'base-1' };
+    const dupExtra = { author: 'base-author-1', permlink: 'base-1' }; // same identity as b[1]
     const result = interleave(b, [dupExtra, ...extra(1)], { every: 1 });
     // dupExtra is skipped entirely; only the genuinely new wave item is spliced in
     expect(result.map(i => i.permlink)).toEqual(['base-0', 'wave-0', 'base-1', 'base-2', 'base-3']);
+  });
+
+  it('does NOT dedupe an extra that shares a permlink but has a different author (Hive permlinks are only unique per-author)', () => {
+    const b = base(2);
+    const differentAuthorSamePermlink = { author: 'someone-else', permlink: 'base-1' };
+    const result = interleave(b, [differentAuthorSamePermlink], { every: 1 });
+    expect(result).toHaveLength(3);
+    expect(result.filter(i => i.permlink === 'base-1')).toHaveLength(2);
   });
 
   it('dedupes extras that repeat a permlink among themselves', () => {
     const dupExtras = [
       { author: 'a', permlink: 'wave-x' },
       { author: 'b', permlink: 'wave-x' },
+    ];
+    const result = interleave(base(2), dupExtras, { every: 1 });
+    // different authors, same permlink — not a real duplicate, both survive
+    expect(result.filter(i => i.permlink === 'wave-x')).toHaveLength(2);
+  });
+
+  it('dedupes extras that repeat the same author AND permlink among themselves', () => {
+    const dupExtras = [
+      { author: 'a', permlink: 'wave-x' },
+      { author: 'a', permlink: 'wave-x' },
     ];
     const result = interleave(base(2), dupExtras, { every: 1 });
     expect(result.filter(i => i.permlink === 'wave-x')).toHaveLength(1);
@@ -88,17 +106,25 @@ describe('promoteToTop', () => {
     expect(result.map(i => i.permlink)).toEqual(['wave-0', 'wave-1', 'base-0', 'base-1', 'base-2']);
   });
 
-  it('dedupes extras that share a permlink with a base item', () => {
+  it('dedupes extras that share both author and permlink with a base item', () => {
     const b = base(3);
-    const dupExtra = { author: 'dup', permlink: 'base-1' };
+    const dupExtra = { author: 'base-author-1', permlink: 'base-1' }; // same identity as b[1]
     const result = promoteToTop(b, [dupExtra, ...extra(1)], { count: 5 });
     expect(result.map(i => i.permlink)).toEqual(['wave-0', 'base-0', 'base-1', 'base-2']);
   });
 
-  it('dedupes extras that repeat a permlink among themselves', () => {
+  it('does NOT dedupe an extra that shares a permlink but has a different author', () => {
+    const b = base(2);
+    const differentAuthorSamePermlink = { author: 'someone-else', permlink: 'base-1' };
+    const result = promoteToTop(b, [differentAuthorSamePermlink], { count: 5 });
+    expect(result).toHaveLength(3);
+    expect(result.filter(i => i.permlink === 'base-1')).toHaveLength(2);
+  });
+
+  it('dedupes extras that repeat the same author AND permlink among themselves', () => {
     const dupExtras = [
       { author: 'a', permlink: 'wave-x' },
-      { author: 'b', permlink: 'wave-x' },
+      { author: 'a', permlink: 'wave-x' },
     ];
     const result = promoteToTop(base(2), dupExtras, { count: 5 });
     expect(result.filter(i => i.permlink === 'wave-x')).toHaveLength(1);
@@ -130,7 +156,12 @@ describe('promoteToTopOrMerge', () => {
 
   const mergeInto = (item: Tagged, extra: Candidate): Tagged => ({ ...item, badge: extra.reason });
 
+  // A "new" candidate (no match in base) gets its own distinct author.
   const candidate = (permlink: string, reason = 'trending'): Candidate => ({ author: `c-${permlink}`, permlink, reason });
+  // An "already visible" candidate must share both author AND permlink with
+  // the base item it's meant to match — that's what real duplicate Hive
+  // content looks like (permlinks are only unique per-author).
+  const candidateFor = (baseItem: Item, reason = 'trending'): Candidate => ({ author: baseItem.author, permlink: baseItem.permlink, reason });
 
   it('returns the base list unchanged when there are no extras', () => {
     const result = promoteToTopOrMerge(base(3), [], { count: 5 }, mergeInto);
@@ -144,18 +175,28 @@ describe('promoteToTopOrMerge', () => {
 
   it('badges a base item in place instead of promoting or duplicating a matching extra', () => {
     const b = base(3);
-    const result = promoteToTopOrMerge(b, [candidate('base-1', 'resurrected')], { count: 5 }, mergeInto) as Tagged[];
+    const result = promoteToTopOrMerge(b, [candidateFor(b[1], 'resurrected')], { count: 5 }, mergeInto) as Tagged[];
 
     expect(result.map(i => i.permlink)).toEqual(['base-0', 'base-1', 'base-2']); // unchanged order, no duplicate
     expect(result[1].badge).toBe('resurrected');
     expect(result[0].badge).toBeUndefined();
   });
 
+  it('does NOT match an extra that shares a permlink but has a different author', () => {
+    const b = base(2);
+    const differentAuthorSamePermlink: Candidate = { author: 'someone-else', permlink: 'base-1', reason: 'trending' };
+    const result = promoteToTopOrMerge(b, [differentAuthorSamePermlink], { count: 5 }, mergeInto) as Tagged[];
+
+    // treated as new content and promoted, not merged into base-1
+    expect(result.map(i => i.permlink)).toEqual(['base-1', 'base-0', 'base-1']);
+    expect(result.find(i => i.author === 'base-author-1')?.badge).toBeUndefined();
+  });
+
   it('handles a mix of matched (merged in place) and unmatched (promoted) extras', () => {
     const b = base(3);
     const result = promoteToTopOrMerge(
       b,
-      [candidate('new-1'), candidate('base-1', 'resurrected')],
+      [candidate('new-1'), candidateFor(b[1], 'resurrected')],
       { count: 5 },
       mergeInto
     ) as Tagged[];
@@ -168,7 +209,7 @@ describe('promoteToTopOrMerge', () => {
     const b = base(2);
     const result = promoteToTopOrMerge(
       b,
-      [candidate('new-1'), candidate('new-2'), candidate('base-0', 'resurrected'), candidate('base-1', 'resurrected')],
+      [candidate('new-1'), candidate('new-2'), candidateFor(b[0], 'resurrected'), candidateFor(b[1], 'resurrected')],
       { count: 1 },
       mergeInto
     ) as Tagged[];
@@ -178,7 +219,7 @@ describe('promoteToTopOrMerge', () => {
     expect(result.find(i => i.permlink === 'base-1')?.badge).toBe('resurrected');
   });
 
-  it('dedupes extras that repeat a permlink among themselves, keeping the first', () => {
+  it('dedupes extras that repeat the same author and permlink among themselves, keeping the first', () => {
     const result = promoteToTopOrMerge(
       base(2),
       [candidate('new-1', 'trending'), candidate('new-1', 'resurrected')],
@@ -193,7 +234,7 @@ describe('promoteToTopOrMerge', () => {
     const b = base(2);
     const result = promoteToTopOrMerge(
       b,
-      [candidate('new-1'), candidate('base-0', 'resurrected')],
+      [candidate('new-1'), candidateFor(b[0], 'resurrected')],
       { count: 0 },
       mergeInto
     ) as Tagged[];
@@ -204,7 +245,7 @@ describe('promoteToTopOrMerge', () => {
 
   it('does not mutate the input arrays', () => {
     const b = base(3);
-    const c = [candidate('new-1'), candidate('base-1', 'resurrected')];
+    const c = [candidate('new-1'), candidateFor(b[1], 'resurrected')];
     const bCopy = [...b];
     const cCopy = [...c];
     promoteToTopOrMerge(b, c, { count: 5 }, mergeInto);

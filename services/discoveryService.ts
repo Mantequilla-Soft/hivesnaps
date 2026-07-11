@@ -3,7 +3,9 @@
 // engine. Fetched once per feed session, not paginated — this is a fixed
 // "what's hot right now" shelf, not a recurring stream.
 
-import { Snap } from '../hooks/useFeedData';
+// Type-only: avoids pulling useFeedData.ts's runtime (a React hook with
+// module-load side effects) into this plain service module.
+import type { Snap } from '../hooks/useFeedData';
 
 const DISCOVERY_URL = 'https://snapie.io/api/discovery/snap-candidates';
 const FETCH_TIMEOUT_MS = 10_000;

@@ -1,8 +1,15 @@
-// Splices extra items into a base list, deduping by `permlink`.
+// Splices extra items into a base list, deduping by identity.
 
 export interface Interleavable {
   author: string;
   permlink?: string;
+}
+
+// Hive permlinks are only unique per-author, not globally — keying on permlink
+// alone can drop unrelated content that happens to share a permlink string
+// across authors, or collapse everything with an undefined permlink into one.
+function identityKey(item: Interleavable): string {
+  return `${item.author}::${item.permlink ?? ''}`;
 }
 
 // Extras that already appear in base (or repeat among themselves) are dropped,
@@ -11,12 +18,13 @@ function dedupeExtras<T extends Interleavable, E extends Interleavable>(
   base: readonly T[],
   extras: readonly E[]
 ): E[] {
-  const basePermlinks = new Set(base.map(item => item.permlink));
-  const usedExtraPermlinks = new Set<string | undefined>();
+  const baseKeys = new Set(base.map(identityKey));
+  const usedExtraKeys = new Set<string>();
   return extras.filter(extra => {
-    if (basePermlinks.has(extra.permlink)) return false;
-    if (usedExtraPermlinks.has(extra.permlink)) return false;
-    usedExtraPermlinks.add(extra.permlink);
+    const key = identityKey(extra);
+    if (baseKeys.has(key)) return false;
+    if (usedExtraKeys.has(key)) return false;
+    usedExtraKeys.add(key);
     return true;
   });
 }
@@ -93,18 +101,19 @@ export function promoteToTopOrMerge<T extends Interleavable, E extends Interleav
     return [...base];
   }
 
-  const basePermlinkIndex = new Map<string | undefined, number>();
-  base.forEach((item, index) => basePermlinkIndex.set(item.permlink, index));
+  const baseKeyIndex = new Map<string, number>();
+  base.forEach((item, index) => baseKeyIndex.set(identityKey(item), index));
 
-  const seenExtraPermlinks = new Set<string | undefined>();
+  const seenExtraKeys = new Set<string>();
   const newExtras: E[] = [];
   const mergesByIndex = new Map<number, E>();
 
   for (const extra of extras) {
-    if (seenExtraPermlinks.has(extra.permlink)) continue;
-    seenExtraPermlinks.add(extra.permlink);
+    const key = identityKey(extra);
+    if (seenExtraKeys.has(key)) continue;
+    seenExtraKeys.add(key);
 
-    const baseIndex = basePermlinkIndex.get(extra.permlink);
+    const baseIndex = baseKeyIndex.get(key);
     if (baseIndex !== undefined) {
       mergesByIndex.set(baseIndex, extra);
     } else {
