@@ -14,6 +14,7 @@ import { useReply } from './useReply';
 import { useEdit } from './useEdit';
 import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
+import type { PollDraft } from '../utils/pollDetection';
 
 const client = getClient();
 
@@ -42,6 +43,9 @@ interface ComposeState {
     selectionStart: number;
     selectionEnd: number;
 
+    // Poll
+    poll: PollDraft | null;
+
     // User
     currentUsername: string | null;
     avatarUrl: string | null;
@@ -66,6 +70,7 @@ type ComposeAction =
     | { type: 'SET_PREVIEW_VISIBLE'; payload: boolean }
     | { type: 'SET_SELECTION'; payload: { start: number; end: number } }
     | { type: 'SET_USER'; payload: { username: string | null; avatarUrl: string | null } }
+    | { type: 'SET_POLL'; payload: PollDraft | null }
     | { type: 'CLEAR_FORM' };
 
 const initialState: ComposeState = {
@@ -83,6 +88,7 @@ const initialState: ComposeState = {
     previewVisible: false,
     selectionStart: 0,
     selectionEnd: 0,
+    poll: null,
     currentUsername: null,
     avatarUrl: null,
 };
@@ -137,6 +143,8 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
                 currentUsername: action.payload.username,
                 avatarUrl: action.payload.avatarUrl,
             };
+        case 'SET_POLL':
+            return { ...state, poll: action.payload };
         case 'CLEAR_FORM':
             return {
                 ...state,
@@ -149,6 +157,7 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
                 audioRecorderVisible: false,
                 spoilerModalVisible: false,
                 previewVisible: false,
+                poll: null,
             };
         default:
             return state;
@@ -521,6 +530,10 @@ export function useCompose({
         dispatch({ type: 'CLEAR_AUDIO' });
     }, []);
 
+    const setPoll = useCallback((poll: PollDraft | null): void => {
+        dispatch({ type: 'SET_POLL', payload: poll });
+    }, []);
+
     // ===== Validation =====
 
     const hasPostableContent = useMemo(() => {
@@ -529,9 +542,10 @@ export function useCompose({
             state.images.length > 0 ||
             state.gifs.length > 0 ||
             video.videoEmbedUrl ||
-            state.audioEmbedUrl
+            state.audioEmbedUrl ||
+            state.poll
         );
-    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl]);
+    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl, state.poll]);
 
     const hasDraftContent = useMemo(() => {
         return Boolean(
@@ -540,9 +554,10 @@ export function useCompose({
             state.gifs.length > 0 ||
             video.hasVideo ||
             state.audioEmbedUrl ||
-            state.audioUploading
+            state.audioUploading ||
+            state.poll
         );
-    }, [state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
+    }, [state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading, state.poll]);
 
     const isSubmitting = useMemo(() => {
         return state.posting || reply.posting || edit.editing || video.uploading || state.audioUploading;
@@ -697,6 +712,20 @@ export function useCompose({
             const permlink = `snap-${Date.now()}`;
 
             const allMedia = [...state.images, ...state.gifs];
+            const pollMeta = state.poll
+                ? {
+                    content_type: 'poll',
+                    version: 0.8,
+                    question: state.poll.question,
+                    choices: state.poll.choices,
+                    end_time: Math.floor((Date.now() + state.poll.durationDays * 86400000) / 1000),
+                    max_choices_voted: state.poll.maxChoicesVoted,
+                    allow_vote_changes: state.poll.allowVoteChanges,
+                    ui_hide_res_until_voted: state.poll.hideResultsUntilVoted,
+                    preferred_interpretation: 'number_of_votes',
+                    filters: { account_age: 0 },
+                }
+                : {};
             const json_metadata = JSON.stringify({
                 app: 'hivesnaps/1.0',
                 tags: ['hive-178315', 'snaps'],
@@ -711,6 +740,7 @@ export function useCompose({
                         duration: state.audioDuration
                     }
                     : undefined,
+                ...pollMeta,
             });
 
             await postSnapWithBeneficiaries(
@@ -799,6 +829,7 @@ export function useCompose({
             closeAudioRecorder,
             handleAudioRecorded,
             removeAudio,
+            setPoll,
             submit,
         }),
         [
@@ -827,6 +858,7 @@ export function useCompose({
             closeAudioRecorder,
             handleAudioRecorded,
             removeAudio,
+            setPoll,
             submit,
         ]
     );

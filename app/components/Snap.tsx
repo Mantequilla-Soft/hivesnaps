@@ -58,6 +58,8 @@ import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
+import { extractPoll } from '../../utils/pollDetection';
+import { PollWidget } from './PollWidget';
 import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
 import { renderHiveToHtml } from '../../utils/renderHive';
 import { linkifyMentions } from '../../utils/linkifyMentions';
@@ -272,6 +274,7 @@ const Snap: React.FC<SnapProps> = ({
   const mediaInfo = detectMediaInBody(body); // Detect audio and video media
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
   const hangoutRoomNames = useMemo(() => [...new Set(extractHangoutRoomNames(body))], [body]);
+  const pollData = extractPoll(snap.json_metadata ?? '{}');
   const router = useRouter(); // For navigation in reply mode
 
   // Calculate indentation and content width for replies
@@ -1369,6 +1372,28 @@ const Snap: React.FC<SnapProps> = ({
                 </Text>
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* Poll Widget */}
+        {pollData && (
+          <View style={{ marginTop: 8 }}>
+            <PollWidget
+              poll={pollData}
+              author={snap.author}
+              permlink={snap.permlink ?? ''}
+              currentUsername={currentUsername ?? null}
+              colors={{
+                text: colors.text,
+                textSecondary: colors.textSecondary,
+                bubble: colors.bubble,
+                border: colors.border,
+                button: colors.button,
+                buttonText: colors.buttonText,
+                buttonInactive: colors.buttonInactive,
+                payout: colors.payout,
+              }}
+            />
           </View>
         )}
 

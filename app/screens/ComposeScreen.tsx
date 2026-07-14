@@ -31,6 +31,7 @@ import { useCompose } from '../../hooks/useCompose';
 import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
+import { PollCreatorModal } from '../components/PollCreatorModal';
 import { getTheme } from '../../constants/Colors';
 import { styles } from './ComposeScreen.styles';
 
@@ -67,6 +68,7 @@ export default function ComposeScreen() {
   // UI-only refs
   const textInputRef = useRef<TextInput>(null);
   const [avatarError, setAvatarError] = useState(false);
+  const [pollModalVisible, setPollModalVisible] = useState(false);
 
   // Reset avatar error whenever the URL changes (e.g. avatarService resolves a new URL)
   useEffect(() => { setAvatarError(false); }, [compose.state.avatarUrl]);
@@ -692,6 +694,22 @@ export default function ComposeScreen() {
             />
           )}
 
+          {/* Poll Preview Chip */}
+          {compose.state.poll && (
+            <View style={[styles.pollChip, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
+              <FontAwesome name="bar-chart" size={14} color={colors.button} />
+              <Text style={[styles.pollChipText, { color: colors.text }]} numberOfLines={1}>
+                Poll: {compose.state.poll.question}
+              </Text>
+              <TouchableOpacity
+                onPress={() => compose.setPoll(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <FontAwesome name="times" size={14} color={colors.info} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Action buttons */}
           <View style={styles.actions}>
             {/* Markdown formatting toolbar */}
@@ -896,6 +914,37 @@ export default function ComposeScreen() {
                   {compose.state.audioEmbedUrl ? '1' : '0'}/1
                 </Text>
               </View>
+
+              {/* Poll button — only for new top-level posts */}
+              {mode === 'compose' && (
+                <View style={styles.mediaButtonWrapper}>
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: colors.inputBg, marginLeft: 12 },
+                    ]}
+                    onPress={() => setPollModalVisible(true)}
+                    disabled={compose.state.poll !== null}
+                    accessibilityLabel={compose.state.poll ? 'Poll already added' : 'Add poll'}
+                  >
+                    <FontAwesome
+                      name="bar-chart"
+                      size={20}
+                      color={compose.state.poll !== null ? colors.info : colors.button}
+                    />
+                    {compose.state.poll !== null && (
+                      <View style={[styles.imageBadge, { backgroundColor: colors.button }]}>
+                        <Text style={styles.imageBadgeText}>1</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <Text
+                    style={[styles.buttonLabel, { color: compose.state.poll ? colors.info : colors.text }]}
+                  >
+                    Poll
+                  </Text>
+                </View>
+              )}
             </View>
 
             {compose.state.images.length === 0 && !compose.state.uploading && (
@@ -1061,6 +1110,28 @@ export default function ComposeScreen() {
           background: colors.background,
           text: colors.text,
           inputBorder: colors.inputBorder,
+        }}
+      />
+
+      {/* Poll Creator Modal */}
+      <PollCreatorModal
+        visible={pollModalVisible}
+        onClose={() => setPollModalVisible(false)}
+        onConfirm={(poll) => {
+          compose.setPoll(poll);
+          setPollModalVisible(false);
+        }}
+        colors={{
+          background: colors.background,
+          text: colors.text,
+          textSecondary: colors.info,
+          inputBg: colors.inputBg,
+          inputBorder: colors.inputBorder,
+          button: colors.button,
+          buttonText: colors.buttonText,
+          buttonInactive: colors.buttonInactive,
+          error: colors.error,
+          warning: colors.warning,
         }}
       />
     </SafeAreaView>
