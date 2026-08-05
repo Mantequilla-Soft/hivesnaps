@@ -43,6 +43,11 @@ Autolinking (via `expo-modules-autolinking`, which wraps standard RN community
 autolinking) picks up any package with a valid podspec/`build.gradle` automatically —
 no manual registration needed for either platform.
 
+Note: `@mantequilla-soft/cuarenta` currently only ships a real (SpriteKit-backed)
+implementation on iOS. Reusing this example for Android depends on the library
+providing a working `build.gradle` implementation there too — check the library's
+own docs/README for current platform support before assuming both platforms work.
+
 ## 3. Rebuild the dev client
 
 Native code changes are invisible to Fast Refresh. After installing or updating a native
@@ -60,7 +65,7 @@ Import and render like any other component:
 ```tsx
 import { CuarentaView } from '@mantequilla-soft/cuarenta';
 
-<CuarentaView color="#32a852" style={{ width: 200, height: 200 }} />
+<CuarentaView color={theme.success} style={{ width: 200, height: 200 }} />
 ```
 
 ## Developing against an unpublished library (local `file:` dependency)
@@ -85,6 +90,9 @@ config.watchFolders = [...(config.watchFolders || []), libRoot];
 // The linked library ships its own node_modules (react/react-native, for its own
 // example app) — without blocking these, Metro tries to bundle a second copy of
 // react-native and gets confused running RN's own codegen against it.
+const existingBlockList = config.resolver.blockList
+  ? [].concat(config.resolver.blockList)
+  : [];
 config.resolver.blockList = [
   ...existingBlockList,
   new RegExp(`${libRoot}/node_modules/.*`),
