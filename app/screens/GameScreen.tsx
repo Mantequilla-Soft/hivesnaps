@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,7 @@ import { getTheme } from '../../constants/Colors';
 import { useColorScheme } from '../../components/useColorScheme';
 
 export default function GameScreen() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() || 'light';
   const theme = getTheme(colorScheme);
   const router = useRouter();
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
@@ -21,7 +21,7 @@ export default function GameScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Text style={[styles.title, { color: theme.text }]}>Cuarenta</Text>
       <CuarentaView
-        color="#32a852"
+        color={theme.success}
         style={styles.game}
         onGameEvent={(e) => setLastEvent(e.nativeEvent)}
       />
