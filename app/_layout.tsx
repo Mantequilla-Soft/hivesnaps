@@ -105,6 +105,7 @@ function RootLayoutNav() {
                 <Stack.Screen name='screens/HangoutsLobbyScreen' />
                 <Stack.Screen name='screens/HangoutsRoomScreen' />
                 <Stack.Screen name='screens/PointsLeaderboardScreen' />
+                <Stack.Screen name='screens/GameScreen' />
                 <Stack.Screen name='modal' options={{ presentation: 'modal' }} />
               </Stack>
               <PointsToast />
