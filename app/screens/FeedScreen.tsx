@@ -1011,6 +1011,16 @@ const FeedScreenRefactored = () => {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
               style={[styles.searchBtn, { marginRight: 12 }]}
+              onPress={() => router.push('/screens/GameScreen')}
+              accessibilityLabel='Play game'
+              accessibilityRole='button'
+              accessibilityHint='Navigates to the game screen'
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <FontAwesome name='gamepad' size={22} color={colors.icon} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.searchBtn, { marginRight: 12 }]}
               onPress={() => router.push('/screens/HangoutsLobbyScreen')}
               accessibilityLabel='Open Hangouts'
               accessibilityRole='button'
