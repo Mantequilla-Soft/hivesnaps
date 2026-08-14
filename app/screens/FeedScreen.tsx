@@ -1203,7 +1203,7 @@ const FeedScreenRefactored = () => {
               Loading snaps...
             </Text>
           </View>
-        ) : filteredSnaps.length === 0 ? (
+        ) : snapsWithWaves.length === 0 ? (
           <View style={{
             alignItems: 'center',
             marginTop: EMPTY_STATE_MARGIN_TOP,
