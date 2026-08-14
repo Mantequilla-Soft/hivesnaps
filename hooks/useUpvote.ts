@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateVoteValue } from '../utils/calculateVoteValue';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
+import { awardPoints } from '../services/pointsService';
+import { isPointsEnabled } from '../utils/pointsConfig';
 
 const client = getClient();
 
@@ -187,6 +189,10 @@ export const useUpvote = (
         },
         postingKey
       );
+
+      if (isPointsEnabled(username)) {
+        awardPoints('vote', username, upvoteTarget.author, upvoteTarget.permlink);
+      }
 
       // Persist the vote weight after successful vote
       await AsyncStorage.setItem('hivesnaps_vote_weight', String(voteWeight));

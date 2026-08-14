@@ -25,6 +25,7 @@ import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { RewardsSection } from '../components/profile/RewardsSection';
 import { WalletSection } from '../components/profile/WalletSection';
+import { PointsSection } from '../components/profile/PointsSection';
 import { ProfileSnaps } from '../components/profile/ProfileSnaps';
 // ContentModal removed - now using ComposeScreen for edit
 
@@ -364,6 +365,14 @@ const ProfileScreen = () => {
               colors={colors}
               styles={styles}
               handleClaimRewards={handleClaimRewards}
+            />
+
+            {/* Snapie Points Section */}
+            <PointsSection
+              isOwnProfile={isOwnProfile}
+              profileUsername={profile.username}
+              viewerUsername={currentUsername}
+              colors={colors}
             />
 
             {/* Wallet Section — only shown when active key stored AND device auth available */}

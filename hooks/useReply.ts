@@ -5,6 +5,8 @@ import { accountStorageService } from '../services/AccountStorageService';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import * as ImagePicker from 'expo-image-picker';
 import { convertImageSmart } from '../utils/imageConverter';
+import { awardPoints } from '../services/pointsService';
+import { isPointsEnabled } from '../utils/pointsConfig';
 
 const client = getClient();
 
@@ -283,6 +285,10 @@ export const useReply = (
         },
         postingKey
       );
+
+      if (isPointsEnabled(author)) {
+        awardPoints('comment', author, author, permlink);
+      }
 
       // Close modal and reset state
       closeReplyModal();
