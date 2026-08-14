@@ -246,11 +246,13 @@ const FeedScreenRefactored = () => {
     return filtered;
   }, [snaps, mutedList]);
 
-  // Promote trending/resurrected snaps to the top of the Newest feed — a fixed
-  // "what's hot right now" shelf, not spread through the scroll like waves.
+  // Surface trending/resurrected snaps in the Newest feed without letting them
+  // dominate the top: one gets a small "shelf" right at the front, the rest
+  // trickle in at a low cadence further down instead of stacking up front.
   // Newest tab only: Following has its own curated scope, and the existing
   // 'trending' FeedFilter tab is a separate, unrelated payout-based Hive sort.
-  const TRENDING_PROMOTE_COUNT = 5;
+  const TRENDING_PROMOTE_COUNT = 1;
+  const TRENDING_SPLICE_CADENCE = 15;
   const feedWithTrending = useMemo(() => {
     if (activeFeed !== 'snaps' || currentFilter !== 'newest' || trending.length === 0) return filteredSnaps;
     const eligibleTrending = trending.filter(t => !mutedList || !mutedList.includes(t.author));
@@ -258,12 +260,15 @@ const FeedScreenRefactored = () => {
     // A trending snap is real recent content — it may already be organically visible
     // in filteredSnaps. promoteToTopOrMerge badges it in place instead of dropping the
     // flag when it's a duplicate; only genuinely new-to-this-page items get promoted.
-    return promoteToTopOrMerge(
+    const promoted = promoteToTopOrMerge(
       filteredSnaps,
       eligibleTrending,
       { count: TRENDING_PROMOTE_COUNT },
       (snap, extra) => ({ ...snap, isDiscovery: true, discoveryReason: extra.discoveryReason })
     ) as typeof filteredSnaps;
+    // Remaining trending items (already merged or promoted above) are deduped
+    // out automatically by interleave — this only splices in what's left.
+    return interleave(promoted, eligibleTrending, { every: TRENDING_SPLICE_CADENCE }) as typeof filteredSnaps;
   }, [filteredSnaps, trending, activeFeed, currentFilter, mutedList]);
 
   // Splice waves into the (now trending-promoted) snaps feed. Independent
