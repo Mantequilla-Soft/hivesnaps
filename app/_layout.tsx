@@ -16,6 +16,7 @@ import { HivePostPreviewProvider } from '../context/HivePostPreviewContext';
 import { ShareProvider } from '../context/ShareContext';
 import { AppProvider } from '../store/context';
 import TOSWrapper from '../components/TOSWrapper';
+import { PointsToast } from './components/points/PointsToast';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -98,8 +99,10 @@ function RootLayoutNav() {
                 <Stack.Screen name='screens/WalletScreen' />
                 <Stack.Screen name='screens/HangoutsLobbyScreen' />
                 <Stack.Screen name='screens/HangoutsRoomScreen' />
+                <Stack.Screen name='screens/PointsLeaderboardScreen' />
                 <Stack.Screen name='modal' options={{ presentation: 'modal' }} />
               </Stack>
+              <PointsToast />
             </TOSWrapper>
           </ThemeProvider>
         </HivePostPreviewProvider>

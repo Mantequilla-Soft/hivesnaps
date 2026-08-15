@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useAppStore } from '../store/context';
 import { authService } from '../services/AuthService';
 import { accountStorageService } from '../services/AccountStorageService';
+import { clearPointsAuthToken } from '../services/pointsAuthService';
 
 export const useAuth = () => {
   const router = useRouter();
@@ -74,6 +75,7 @@ export const useAuth = () => {
       throw error;
     }
     authService.logout();
+    void clearPointsAuthToken();
     clearAuth();
     setCurrentUser(null);
     setHasActiveKey(false);
@@ -89,6 +91,7 @@ export const useAuth = () => {
       throw new Error(`No keys found for account @${username}`);
     }
     await accountStorageService.setCurrentAccountUsername(username);
+    void clearPointsAuthToken(); // previous account's cached JWT must not leak onto the new one
     setCurrentUser(username);
     setHasActiveKey(!!keys.activeKey);
     // Best-effort JWT — don't block the switch if it fails

@@ -23,6 +23,10 @@ jest.mock('../../services/AuthService', () => ({
     },
 }));
 
+jest.mock('../../services/pointsAuthService', () => ({
+    clearPointsAuthToken: jest.fn(),
+}));
+
 jest.mock('../../store/context', () => ({
     useAppStore: jest.fn(),
 }));

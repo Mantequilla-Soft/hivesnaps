@@ -14,6 +14,8 @@ import { useReply } from './useReply';
 import { useEdit } from './useEdit';
 import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
+import { awardPoints } from '../services/pointsService';
+import { isPointsEnabled } from '../utils/pointsConfig';
 
 const client = getClient();
 
@@ -728,6 +730,10 @@ export function useCompose({
                 },
                 postingKey
             );
+
+            if (isPointsEnabled(state.currentUsername)) {
+                awardPoints('snap', state.currentUsername, state.currentUsername, permlink);
+            }
 
             console.log('[useCompose] Post published successfully');
 
