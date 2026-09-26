@@ -48,6 +48,13 @@ bottom bar's height/padding against the feed `FlatList`'s bottom inset.
 Not copying: Shorts, Chat, OpenPods-as-bottom-tab, Patrons filter, snapie's
 multi-theme system — snapie-specific and out of scope here.
 
+**Found on first device run**: the old bottom-right floating "+" compose
+button (`FeedScreen.tsx`'s `fab`/`fabIcon` styles) was never removed when
+`BottomTabBar` added its own center compose FAB — it sat behind/overlapping
+the new bar, fully redundant. Removed the button, its now-unused
+`useSafeAreaInsets` call, and the dead `fab`/`fabIcon` styles from
+`FeedScreenStyles.ts`.
+
 ## ✅ Notifications rework
 
 Was capped at a hard 50 with no pagination, and read-status was a local

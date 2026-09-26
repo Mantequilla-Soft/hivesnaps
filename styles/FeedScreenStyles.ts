@@ -284,29 +284,6 @@ export const createFeedScreenStyles = (colors: any, isDark: boolean) => {
       fontSize: 15,
     },
 
-    // FAB (Floating Action Button) styles
-    fab: {
-      position: 'absolute',
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: colors.button,
-      right: 20,
-      bottom: 80,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8,
-    },
-    fabIcon: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: '#FFFFFF',
-    },
-
     // Search styles
     searchBtn: {
       padding: 10, // Increased padding for better touch target

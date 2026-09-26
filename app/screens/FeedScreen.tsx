@@ -18,10 +18,7 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import ImageView from 'react-native-image-viewing';
@@ -88,7 +85,6 @@ const EMPTY_STATE_MESSAGES = {
 const FeedScreenRefactored = () => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // Shared state integration
@@ -1196,24 +1192,6 @@ const FeedScreenRefactored = () => {
           />
         )}
       </View>
-
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={[
-          styles.fab,
-          {
-            backgroundColor: colors.button,
-            shadowColor: colorScheme === 'dark' ? '#000' : '#1DA1F2',
-            bottom: insets.bottom + 24,
-            right: insets.right + 24,
-          },
-        ]}
-        activeOpacity={0.8}
-        onPress={() => router.push('/screens/ComposeScreen' as any)}
-        accessibilityLabel='Create new snap'
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
 
       {/* Image Modal */}
       <ImageView
