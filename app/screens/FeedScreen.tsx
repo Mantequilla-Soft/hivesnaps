@@ -834,100 +834,92 @@ const FeedScreenRefactored = () => {
           the profile page; Compose and Hangouts moved to BottomTabBar. */}
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+          <Pressable
+            onPress={() => {
+              if (username) {
+                console.log('Navigating to profile for username:', username);
+                router.push(`/screens/ProfileScreen?username=${username}` as any);
+              } else {
+                console.log(
+                  'Cannot navigate to profile: username is undefined'
+                );
+              }
             }}
+            style={({ pressed }) => [
+              {
+                opacity: pressed ? 0.7 : 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+              },
+            ]}
+            accessibilityRole='button'
+            accessibilityLabel={`View your profile`}
           >
-            <Pressable
-              onPress={() => {
-                if (username) {
-                  console.log('Navigating to profile for username:', username);
-                  router.push(`/screens/ProfileScreen?username=${username}` as any);
-                } else {
-                  console.log(
-                    'Cannot navigate to profile: username is undefined'
-                  );
-                }
-              }}
-              style={({ pressed }) => [
-                {
-                  opacity: pressed ? 0.7 : 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                },
-              ]}
-              accessibilityRole='button'
-              accessibilityLabel={`View your profile`}
-            >
-              {userLoading ? (
-                <ActivityIndicator
-                  size='small'
-                  color={colors.text}
+            {userLoading ? (
+              <ActivityIndicator
+                size='small'
+                color={colors.text}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={{ position: 'relative' }}>
+                <Image
+                  source={
+                    avatarUrl
+                      ? { uri: avatarUrl }
+                      : require('../../assets/images/generic-avatar.png')
+                  }
                   style={styles.avatar}
                 />
-              ) : (
-                <View style={{ position: 'relative' }}>
-                  <Image
-                    source={
-                      avatarUrl
-                        ? { uri: avatarUrl }
-                        : require('../../assets/images/generic-avatar.png')
-                    }
-                    style={styles.avatar}
-                  />
-                  {hasUnclaimedRewards && (
-                    <View
-                      style={[
-                        styles.rewardIndicator,
-                        {
-                          position: 'absolute',
-                          top: -2,
-                          right: -2,
-                          backgroundColor: '#FFD700',
-                          borderWidth: 1,
-                          borderColor: colors.background,
-                        },
-                      ]}
-                    >
-                      <FontAwesome name='dollar' size={8} color='#FFF' />
-                    </View>
-                  )}
-                </View>
-              )}
-              <Text style={[styles.username, { color: colors.text }]}>
-                {username && username.length > 8
-                  ? username.slice(0, 8) + '...'
-                  : username}
-              </Text>
-            </Pressable>
+                {hasUnclaimedRewards && (
+                  <View
+                    style={[
+                      styles.rewardIndicator,
+                      {
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        backgroundColor: '#FFD700',
+                        borderWidth: 1,
+                        borderColor: colors.background,
+                      },
+                    ]}
+                  >
+                    <FontAwesome name='dollar' size={8} color='#FFF' />
+                  </View>
+                )}
+              </View>
+            )}
+            <Text style={[styles.username, { color: colors.text }]}>
+              {username && username.length > 8
+                ? username.slice(0, 8) + '...'
+                : username}
+            </Text>
+          </Pressable>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                style={[styles.searchBtn, { marginRight: 12 }]}
-                onPress={() => setIsSearchModalVisible(true)}
-                accessibilityLabel='Search posts and users'
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <FontAwesome name='search' size={22} color={colors.icon} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.bellBtn}
-                onPress={() => router.push('/screens/NotificationsScreen')}
-              >
-                <View style={{ position: 'relative' }}>
-                  <FontAwesome name='bell' size={22} color={colors.icon} />
-                  <NotificationBadge
-                    count={unreadCount}
-                    size='small'
-                    color='#FF3B30'
-                    visible={unreadCount > 0}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.searchBtn, { marginRight: 12 }]}
+              onPress={() => setIsSearchModalVisible(true)}
+              accessibilityLabel='Search posts and users'
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <FontAwesome name='search' size={22} color={colors.icon} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bellBtn}
+              onPress={() => router.push('/screens/NotificationsScreen')}
+            >
+              <View style={{ position: 'relative' }}>
+                <FontAwesome name='bell' size={22} color={colors.icon} />
+                <NotificationBadge
+                  count={unreadCount}
+                  size='small'
+                  color='#FF3B30'
+                  visible={unreadCount > 0}
+                />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
 

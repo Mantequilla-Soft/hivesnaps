@@ -62,6 +62,22 @@ same `setActiveFeed('blogs')`. Now actually removed from the filter row
 (caught by inspection, not a device run this time); filter pills are
 genuinely Following/Newest/Trending only.
 
+**Bug found on device — top bar not actually spread out.** The condensed
+header looked cramped: avatar+username and search+bell sat bunched
+together instead of at opposite ends. Cause: when condensing the header,
+an extra wrapping `<View>` (with its own `flexDirection:'row',
+justifyContent:'space-between'`) got added around the two groups, as the
+*sole child* of `styles.topBar` — which already had that exact
+`flexDirection`/`justifyContent`/`alignItems` set. In RN Flexbox, a row
+container doesn't stretch a child along the main (horizontal) axis by
+default, so that inner wrapper only sized to fit its content instead of
+spanning the bar's full width — its own `space-between` had no extra room
+to distribute, so everything collapsed to one side. Fixed by deleting the
+redundant wrapper entirely and making the avatar/username `Pressable` and
+the search/bell `View` direct children of `styles.topBar`, which already
+had the right properties and (via its `SafeAreaView` parent) the full
+screen width to work with.
+
 ## ✅ Notifications rework
 
 Was capped at a hard 50 with no pagination, and read-status was a local
