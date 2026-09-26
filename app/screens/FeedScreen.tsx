@@ -52,8 +52,7 @@ import { useAppStore, useCurrentUser, useAppDebug, useFollowCacheManagement } fr
 import Snap from '../components/Snap';
 import { BlogCard } from '../components/BlogCard';
 import NotificationBadge from '../components/NotificationBadge';
-import SmallButton from '../../components/SmallButton';
-import StaticContentModal from '../../components/StaticContentModal';
+import BottomTabBar from '../components/BottomTabBar';
 import UpvoteModal from '../../components/UpvoteModal';
 import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
@@ -65,35 +64,6 @@ type FeedTab = {
   label: string;
   icon: ComponentProps<typeof FontAwesome>['name'];
   feed: 'blogs' | 'snaps';
-};
-
-// Modal content constants
-const VP_MODAL_CONTENT = {
-  title: 'What is Voting Power (VP)?',
-  content: `Voting Power (VP) is a measure of your ability to upvote posts and comments on the Hive blockchain. The higher your VP, the more influence your votes have.
-
-- VP decreases each time you upvote.
-- VP regenerates automatically over time (about 20% per day).
-- Keeping your VP high means your votes have more impact.
-
-You can see your current VP in the top bar. After upvoting, your VP will drop slightly and recharge over time.`,
-};
-
-const RC_MODAL_CONTENT = {
-  title: 'What are Resource Credits (RC)?',
-  content: `Resource Credits are like digital fuel. You need them to do things on Hive, like posting, voting, or making transactions. Every account has them, and using the network costs a small amount each time.
-
-How can I get more?
-
-• Power Up Hive: The more Hive Power you have, the more RC you get.
-
-• Ask for a Delegation: A friend or community can temporarily boost your RC by delegating Hive Power.
-
-• Use a Faucet or Service: Some apps or websites offer small amounts of RC for free.
-
-Don't worry—RC recharges over time!
-
-Even if you're out of credits, just wait a bit. Your RC will slowly refill, and you'll be able to use Hive again without doing anything else.`,
 };
 
 // Loading footer style constants
@@ -137,6 +107,7 @@ const FeedScreenRefactored = () => {
     icon: theme.icon,
     bubble: theme.bubble,
     success: theme.success,
+    border: theme.border,
   };
 
   // Initialize styles
@@ -334,8 +305,6 @@ const FeedScreenRefactored = () => {
   const hangoutsCount = useHangoutsCount();
 
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
-  const [vpInfoModalVisible, setVpInfoModalVisible] = useState(false);
-  const [rcInfoModalVisible, setRcInfoModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [modalImages, setModalImages] = useState<Array<{ uri: string }>>([]);
   const [modalImageIndex, setModalImageIndex] = useState(0);
@@ -861,17 +830,19 @@ const FeedScreenRefactored = () => {
         onClose={closeUpvoteModal}
         onConfirm={confirmUpvote}
         onVoteWeightChange={setVoteWeight}
+        votingPower={votingPower}
         colors={colors}
       />
 
-      {/* Top bar */}
+      {/* Top bar — condensed: avatar + search + bell only. VP/RC now live on
+          the profile page; Compose and Hangouts moved to BottomTabBar. */}
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              position: 'relative',
+              justifyContent: 'space-between',
             }}
           >
             <Pressable
@@ -937,122 +908,30 @@ const FeedScreenRefactored = () => {
               </Text>
             </Pressable>
 
-            {username && (vpLoading || rcLoading) ? (
-              <ActivityIndicator
-                size='small'
-                color={colors.button}
-                style={styles.creditsIcon}
-              />
-            ) : username ? (
-              <View style={styles.creditsContainer}>
-                {/* Voting Power */}
-                <SmallButton
-                  label='VP:'
-                  value={
-                    votingPower !== null
-                      ? formatVotingPower(votingPower)
-                      : '--'
-                  }
-                  unit='%'
-                  colors={colors}
-                  onPress={() => setVpInfoModalVisible(true)}
-                  accessibilityLabel='Show Voting Power info'
-                  accessibilityRole='button'
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                />
-
-                {/* Separator */}
-                <Text style={styles.creditsSeparator}>|</Text>
-
-                {/* Resource Credits */}
-                <SmallButton
-                  label='RC:'
-                  value={
-                    resourceCredits !== null ? resourceCredits.toFixed(1) : '--'
-                  }
-                  unit='%'
-                  colors={colors}
-                  onPress={() => setRcInfoModalVisible(true)}
-                  accessibilityLabel='Show Resource Credits info'
-                  accessibilityRole='button'
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                />
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Info Modals */}
-        <StaticContentModal
-          visible={vpInfoModalVisible}
-          onClose={() => setVpInfoModalVisible(false)}
-          title={VP_MODAL_CONTENT.title}
-          content={VP_MODAL_CONTENT.content}
-          colors={colors}
-          closeButtonAccessibilityLabel='Close Voting Power info'
-        />
-
-        <StaticContentModal
-          visible={rcInfoModalVisible}
-          onClose={() => setRcInfoModalVisible(false)}
-          title={RC_MODAL_CONTENT.title}
-          content={RC_MODAL_CONTENT.content}
-          colors={colors}
-          closeButtonAccessibilityLabel='Close Resource Credits info'
-        />
-
-        {/* Slogan row */}
-        <View style={styles.sloganRow}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => router.push('/screens/ComposeScreen')}
-            accessibilityLabel='Create new snap (slogan)'
-          >
-            <Text style={[styles.slogan, { color: colors.text }]}>
-              What's snappening today?
-            </Text>
-          </TouchableOpacity>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={[styles.searchBtn, { marginRight: 12 }]}
-              onPress={() => router.push('/screens/HangoutsLobbyScreen')}
-              accessibilityLabel='Open Hangouts'
-              accessibilityRole='button'
-              accessibilityHint='Navigates to the Hangouts lobby'
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <View style={{ position: 'relative' }}>
-                <FontAwesome name='microphone' size={22} color={colors.icon} />
-                <NotificationBadge
-                  count={hangoutsCount}
-                  size='small'
-                  color={colors.success}
-                  visible={hangoutsCount > 0}
-                />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.searchBtn, { marginRight: 12 }]}
-              onPress={() => setIsSearchModalVisible(true)}
-              accessibilityLabel='Search posts and users'
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <FontAwesome name='search' size={22} color={colors.icon} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.bellBtn}
-              onPress={() => router.push('/screens/NotificationsScreen')}
-            >
-              <View style={{ position: 'relative' }}>
-                <FontAwesome name='bell' size={22} color={colors.icon} />
-                <NotificationBadge
-                  count={unreadCount}
-                  size='small'
-                  color='#FF3B30'
-                  visible={unreadCount > 0}
-                />
-              </View>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styles.searchBtn, { marginRight: 12 }]}
+                onPress={() => setIsSearchModalVisible(true)}
+                accessibilityLabel='Search posts and users'
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <FontAwesome name='search' size={22} color={colors.icon} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.bellBtn}
+                onPress={() => router.push('/screens/NotificationsScreen')}
+              >
+                <View style={{ position: 'relative' }}>
+                  <FontAwesome name='bell' size={22} color={colors.icon} />
+                  <NotificationBadge
+                    count={unreadCount}
+                    size='small'
+                    color='#FF3B30'
+                    visible={unreadCount > 0}
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -1662,6 +1541,18 @@ const FeedScreenRefactored = () => {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <BottomTabBar
+        activeFeed={activeFeed}
+        onHomePress={() => {
+          setActiveFeed('snaps');
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }}
+        onBlogsPress={() => setActiveFeed('blogs')}
+        username={username}
+        hangoutsCount={hangoutsCount}
+        colors={colors}
+      />
     </View>
   );
 };

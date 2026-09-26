@@ -24,6 +24,7 @@ import { EditAvatarModal } from '../components/profile/EditAvatarModal';
 import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { RewardsSection } from '../components/profile/RewardsSection';
+import { VotingPowerSection } from '../components/profile/VotingPowerSection';
 import { WalletSection } from '../components/profile/WalletSection';
 import { PointsSection } from '../components/profile/PointsSection';
 import { ProfileSnaps } from '../components/profile/ProfileSnaps';
@@ -365,6 +366,13 @@ const ProfileScreen = () => {
               colors={colors}
               styles={styles}
               handleClaimRewards={handleClaimRewards}
+            />
+
+            {/* Voting Power / Resource Credits — own profile only */}
+            <VotingPowerSection
+              isOwnProfile={isOwnProfile}
+              username={profile.username}
+              colors={colors}
             />
 
             {/* Snapie Points Section */}
