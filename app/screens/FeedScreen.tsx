@@ -853,6 +853,7 @@ const FeedScreenRefactored = () => {
                 opacity: pressed ? 0.7 : 1,
                 flexDirection: 'row',
                 alignItems: 'center',
+                flexShrink: 1,
               },
             ]}
             accessibilityRole='button'
@@ -893,10 +894,12 @@ const FeedScreenRefactored = () => {
                 )}
               </View>
             )}
-            <Text style={[styles.username, { color: colors.text }]}>
-              {username && username.length > 8
-                ? username.slice(0, 8) + '...'
-                : username}
+            <Text
+              style={[styles.username, { color: colors.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode='tail'
+            >
+              {username}
             </Text>
           </Pressable>
 
