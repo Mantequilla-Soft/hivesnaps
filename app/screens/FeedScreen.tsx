@@ -110,7 +110,6 @@ const EMPTY_STATE_LINE_HEIGHT = 24;
 
 // Empty state messages by filter
 const EMPTY_STATE_MESSAGES = {
-  my: "You've been too quiet lately... Why don't you share a little?",
   following: "No snaps from people you follow yet. Check back soon!",
   trending: "Nothing trending right now. Be the first to create something!",
   newest: "No snaps to display.",
@@ -1070,7 +1069,6 @@ const FeedScreenRefactored = () => {
               { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' },
               { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' },
               { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' },
-              { key: 'my', label: 'My Snaps', icon: 'user', feed: 'snaps' },
             ]) as FeedTab[]).map((filter, index) => {
               const isActive = filter.key === 'blogs'
                 ? activeFeed === 'blogs'

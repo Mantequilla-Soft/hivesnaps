@@ -33,14 +33,12 @@ const client = getClient();
 interface NotificationItemProps {
   notification: ParsedNotification;
   onPress: (notification: ParsedNotification) => void;
-  onMarkAsRead: (id: number) => void;
   isDark: boolean;
 }
 
 const NotificationItem: React.FC<NotificationItemProps> = ({
   notification,
   onPress,
-  onMarkAsRead,
   isDark,
 }) => {
   // Compute theme once per render
@@ -56,9 +54,6 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   const translatedTimestamp = formatNotificationTime(localDate.toISOString());
 
   const handlePress = () => {
-    if (!notification.read) {
-      onMarkAsRead(notification.id);
-    }
     onPress(notification);
   };
 
@@ -152,9 +147,11 @@ const NotificationsScreen = () => {
     unreadCount,
     loading,
     refreshing,
+    loadingMore,
+    hasMore,
     settings,
     refresh,
-    markAsRead,
+    loadMore,
     markAllAsRead,
     updateSettings,
   } = useNotifications(currentUsername);
@@ -296,15 +293,17 @@ const NotificationsScreen = () => {
     }
   };
 
-  const handleMarkAsRead = useCallback(
-    async (notificationId: number) => {
-      await markAsRead(notificationId);
-    },
-    [markAsRead]
-  );
-
   const handleMarkAllAsRead = useCallback(async () => {
-    await markAllAsRead();
+    try {
+      await markAllAsRead();
+    } catch (error) {
+      console.error('[NotificationsScreen] Error marking all as read:', error);
+      Alert.alert(
+        'Could Not Mark as Read',
+        error instanceof Error ? error.message : 'Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   }, [markAllAsRead]);
 
   const handleRefresh = () => {
@@ -315,10 +314,16 @@ const NotificationsScreen = () => {
     <NotificationItem
       notification={item}
       onPress={handleNotificationPress}
-      onMarkAsRead={handleMarkAsRead}
       isDark={isDark}
     />
   );
+
+  const renderFooter = () =>
+    loadingMore ? (
+      <View style={styles.loadingFooter}>
+        <ActivityIndicator size='small' color={colors.buttonBackground} />
+      </View>
+    ) : null;
 
   const renderHeader = () => (
     <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -483,6 +488,9 @@ const NotificationsScreen = () => {
             />
           }
           ListEmptyComponent={renderEmpty}
+          ListFooterComponent={renderFooter}
+          onEndReached={hasMore ? loadMore : undefined}
+          onEndReachedThreshold={0.5}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={
             notifications.length === 0 ? styles.emptyContainer : undefined
@@ -596,6 +604,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     textAlign: 'center',
+  },
+  loadingFooter: {
+    paddingVertical: 20,
   },
   errorText: {
     fontSize: 16,

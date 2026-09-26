@@ -79,7 +79,7 @@ export interface Snap {
   [key: string]: any;
 }
 
-export type FeedFilter = 'following' | 'newest' | 'trending' | 'my';
+export type FeedFilter = 'following' | 'newest' | 'trending';
 
 // Container metadata with ordered dictionary structure
 interface ContainerMetadata {
@@ -369,15 +369,6 @@ export function useFeedData(): UseFeedDataReturn {
           filteredSnaps = snaps.filter(snap => followingSet.has(snap.author));
           console.log(
             `🔍 [applyFilter] Following filter: ${snaps.length} → ${filteredSnaps.length} snaps`
-          );
-          break;
-
-        case 'my':
-          // Filter by current user - use passed parameter directly
-          console.log('🔍 [applyFilter] Current user:', currentUsername);
-          filteredSnaps = snaps.filter(snap => snap.author === currentUsername);
-          console.log(
-            `🔍 [applyFilter] My snaps filter: ${snaps.length} → ${filteredSnaps.length} snaps`
           );
           break;
 

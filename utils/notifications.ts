@@ -1,3 +1,4 @@
+import { Client, PrivateKey, Operation } from '@hiveio/dhive';
 import { getCurrentNode, hiveCall } from '../services/HiveClient';
 
 export interface HiveNotification {
@@ -9,6 +10,24 @@ export interface HiveNotification {
   url: string;
   read?: boolean;
   timestamp?: number;
+}
+
+export interface UnreadNotificationState {
+  lastread: string;
+  unread: number;
+}
+
+/**
+ * Hive bridge dates are UTC but come back without a trailing 'Z'
+ * (e.g. "2024-01-01T12:00:00"). Parsing that directly makes JS treat it
+ * as local time, which silently shifts every comparison by the device's
+ * UTC offset — exactly the bug that would make the read/unread cursor
+ * below compare wrong. Always go through this before comparing dates.
+ */
+export function parseHiveDate(dateString?: string): number {
+  if (!dateString) return 0;
+  const iso = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+  return new Date(iso).getTime();
 }
 
 export interface ParsedNotification extends HiveNotification {
@@ -24,13 +43,22 @@ export interface ParsedNotification extends HiveNotification {
 }
 
 /**
- * Fetch notifications for a given account from Hive Bridge API
+ * Fetch notifications for a given account from Hive Bridge API.
+ *
+ * Pass `lastId` (the `id` of the oldest notification already loaded) to
+ * page backwards in time — this is `bridge.account_notifications`'
+ * standard cursor param. Without it, always returns the newest page,
+ * which is why this used to feel capped at `limit`.
  */
 export async function fetchNotifications(
   account: string,
-  limit: number = 50
+  limit: number = 50,
+  lastId?: number
 ): Promise<HiveNotification[]> {
   try {
+    const params: Record<string, string | number> = { account, limit };
+    if (lastId !== undefined) params.last_id = lastId;
+
     const data = await hiveCall(async () => {
       const response = await fetch(getCurrentNode(), {
         method: 'POST',
@@ -38,7 +66,7 @@ export async function fetchNotifications(
         body: JSON.stringify({
           jsonrpc: '2.0',
           method: 'bridge.account_notifications',
-          params: { account, limit },
+          params,
           id: 1,
         }),
       });
@@ -52,6 +80,63 @@ export async function fetchNotifications(
 }
 
 /**
+ * Fetch the account's read cursor from Hive itself: `lastread` is the
+ * timestamp the account (or any app it used) last acknowledged, and
+ * `unread` is Hive's own count of notifications since then. This is the
+ * same state PeakD/Ecency/hive.blog read and write, via
+ * `bridge.unread_notifications` — using it (instead of a local read-ID
+ * list) is what makes read status sync across apps and devices.
+ */
+export async function fetchUnreadNotificationState(
+  account: string
+): Promise<UnreadNotificationState> {
+  try {
+    const data = await hiveCall(async () => {
+      const response = await fetch(getCurrentNode(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'bridge.unread_notifications',
+          params: { account },
+          id: 1,
+        }),
+      });
+      return response.json();
+    });
+    return data.result || { lastread: '1970-01-01T00:00:00', unread: 0 };
+  } catch (error) {
+    console.error('Error fetching unread notification state:', error);
+    return { lastread: '1970-01-01T00:00:00', unread: 0 };
+  }
+}
+
+/**
+ * Marks notifications read up through `throughDate` by broadcasting Hive's
+ * native read-cursor operation: a `custom_json` with id `notify` and
+ * payload `['setLastRead', { date }]`, signed with the posting key. This
+ * is a real transaction (costs a sliver of RC) — call it for explicit user
+ * actions (mark read / mark all read), not automatically on every render.
+ */
+export async function broadcastSetLastRead(
+  client: Client,
+  username: string,
+  postingKey: PrivateKey,
+  throughDate: string
+): Promise<void> {
+  const op: Operation = [
+    'custom_json',
+    {
+      required_auths: [],
+      required_posting_auths: [username],
+      id: 'notify',
+      json: JSON.stringify(['setLastRead', { date: throughDate }]),
+    },
+  ];
+  await client.broadcast.sendOperations([op], postingKey);
+}
+
+/**
  * Parse notification message to extract key information
  */
 export function parseNotification(
@@ -62,7 +147,7 @@ export function parseNotification(
     icon: 'bell',
     color: '#1DA1F2',
     actionText: 'Activity',
-    timestamp: new Date(notification.date).getTime(),
+    timestamp: parseHiveDate(notification.date),
   };
 
   // Parse different notification types
@@ -200,10 +285,19 @@ export async function getNotificationCount(account: string): Promise<number> {
 }
 
 /**
- * Get unread notification count (assuming we store read status locally)
+ * Stamps each notification's `read` flag from Hive's read cursor
+ * (`date <= lastRead`) instead of a locally-stored ID list — the cursor
+ * is the single source of truth for read/unread.
  */
-export function getUnreadCount(notifications: ParsedNotification[]): number {
-  return notifications.filter(n => !n.read).length;
+export function applyReadCursor(
+  notifications: ParsedNotification[],
+  lastRead: string
+): ParsedNotification[] {
+  const cursor = parseHiveDate(lastRead);
+  return notifications.map(n => ({
+    ...n,
+    read: parseHiveDate(n.date) <= cursor,
+  }));
 }
 
 export function sortNotifications(
@@ -213,7 +307,7 @@ export function sortNotifications(
   return notifications.sort((a, b) => {
     if (sortBy === 'chronological') {
       // Pure chronological sorting: newest first, ignoring priority and read status
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
+      return parseHiveDate(b.date) - parseHiveDate(a.date);
     }
     // Legacy priority-based sorting (groups notifications by type)
     // First sort by read status (unread first)
@@ -227,7 +321,7 @@ export function sortNotifications(
       return priorityDiff;
     }
     // Finally by date (newest first)
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    return parseHiveDate(b.date) - parseHiveDate(a.date);
   });
 }
 
@@ -299,26 +393,10 @@ export function getNotificationPriority(
   return priorities[notification.type] || 1;
 }
 
-export function markAsRead(
-  notifications: ParsedNotification[],
-  notificationId: number
-): ParsedNotification[] {
-  return notifications.map(n =>
-    n.id === notificationId ? { ...n, read: true } : n
-  );
-}
-
-export function markAllAsRead(
-  notifications: ParsedNotification[]
-): ParsedNotification[] {
-  return notifications.map(n => ({ ...n, read: true }));
-}
-
 export function formatNotificationTime(date: string): string {
-  const notificationDate = new Date(date);
   const now = new Date();
   const diffInMinutes = Math.floor(
-    (now.getTime() - notificationDate.getTime()) / (1000 * 60)
+    (now.getTime() - parseHiveDate(date)) / (1000 * 60)
   );
   if (diffInMinutes < 1) {
     return 'Just now';
@@ -333,7 +411,7 @@ export function formatNotificationTime(date: string): string {
     const days = Math.floor(diffInMinutes / 1440);
     return `${days}d ago`;
   } else {
-    return notificationDate.toLocaleDateString();
+    return new Date(parseHiveDate(date)).toLocaleDateString();
   }
 }
 
