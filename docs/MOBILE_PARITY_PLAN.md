@@ -180,15 +180,32 @@ piling wasn't in scope for this phase, easy to extend later). No auth
 needed, matches `getPile`'s public endpoint. Verified: full suite still 235
 passing, `tsc --noEmit` still clean.
 
-**Phase 2 — Throwing**: a "Throw something" affordance on the pill row that
-opens a modal over `getMyInventory()` (RN equivalent of
-`ThrowItemButton.tsx`) — same `Modal`+list pattern already used by
-`UpvoteModal.tsx`/`StaticContentModal.tsx`, not a new sheet primitive. Empty
-inventory state links to Phase 3's market screen. Handle all four
-`throwItem` statuses explicitly, especially `insufficient_balance` (for the
-anonymous-throw surcharge) and the silent-403 `not_enrolled` case from the
-blocking dependency above — needs its own explicit message, not a generic
-error toast, so a non-allowlisted user understands why nothing happened.
+**✅ Phase 2 — Throwing**. `PileTray` now always renders when the viewer is
+logged in (even with an empty pile — otherwise there'd be no way to be
+first), with a "Throw" pill opening new `app/components/ThrowItemModal.tsx`:
+an inventory picker (`getMyInventory()`) over the same centered-card `Modal`
+pattern, each row offering "Throw" or an anonymous throw (🕵 icon button,
+with its points-burn cost surfaced via `accessibilityLabel` and an
+insufficient-balance alert if it's declined). A successful throw patches
+`PileTray`'s local pile state directly (`onThrown` callback) instead of
+refetching — same idea as snapie.io's `ITEM_THROWN_EVENT`, just as a normal
+prop callback since thrower and tray are already parent/child here, with no
+need for snapie's DOM-event indirection. Empty inventory shows a message
+pointing at "buy from the market" — no link yet since Phase 3 (the actual
+market screen) doesn't exist; wire it once that lands rather than ship a
+dead link now.
+
+Handles all `throwItem` outcomes distinctly: `thrown` (success),
+`insufficient_balance` (anonymous-throw surcharge decline), `not_found`
+(unit already thrown/not owned), and — the blocking dependency from
+earlier — a 403 `{error:'not_enrolled'}` response. That last one needed a
+`pileService.ts` change: added `NotEnrolledError` (a distinct thrown type)
+and an `assertOk()` helper so `buyItem`/`throwItem`/`claimOwnItem` all
+throw it specifically instead of a generic "try again" message that would
+never actually help a non-allowlisted user. Covered in
+`pileService.test.ts` (not-enrolled vs. a generic 403 with a different
+body). Verified: full suite now 237/237 (2 new), `tsc --noEmit` still
+clean.
 
 **Phase 3 — Buying / catalog screen**: a lightweight market screen (catalog
 via `listMarketItems`, buy via `buyItem`) so people with an empty inventory

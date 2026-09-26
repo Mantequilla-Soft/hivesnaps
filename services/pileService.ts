@@ -3,8 +3,10 @@
 // inventory/pile there). Reads (getPile, listMarketItems) are public; writes
 // (buy/throw/claim) require the Bearer JWT from pointsAuthService.ts, same as
 // pointsService.ts's awardPoints, and are additionally gated server-side by
-// an allowlist (lib/points/config.ts on snapie.io) — a 403 there surfaces as
-// an ordinary thrown Error here, same as any other non-OK response.
+// an allowlist (lib/points/config.ts on snapie.io) — a 403 with
+// {error:'not_enrolled'} there is thrown here as NotEnrolledError, distinct
+// from an ordinary Error, so callers can show "not enabled for your account
+// yet" instead of a generic "something went wrong" retry message.
 
 import { getPointsAuthToken } from './pointsAuthService';
 import { emitPointsSpent } from '../utils/pointsEvents';
@@ -74,6 +76,36 @@ export type ClaimOwnItemStatus = 'claimed' | 'item_not_found' | 'not_owner';
 export interface ClaimOwnItemResult {
   status: ClaimOwnItemStatus;
   unitId: string | null;
+}
+
+/** Thrown for a 403 {error:'not_enrolled'} response — the account isn't on
+ *  the server-side allowlist gating throw/buy/claim (lib/points/config.ts on
+ *  snapie.io). Distinct from a generic Error so the UI can show a specific
+ *  "not enabled yet" message instead of a retry prompt that would never
+ *  succeed. */
+export class NotEnrolledError extends Error {
+  constructor() {
+    super("This isn't enabled for your account yet.");
+    this.name = 'NotEnrolledError';
+  }
+}
+
+/** Throws NotEnrolledError for a 403 {error:'not_enrolled'} body, otherwise
+ *  a generic Error with `fallbackMessage`. Consumes `res`'s body either way
+ *  — callers must not call res.json() again after this returns without
+ *  throwing (it only returns at all when `res.ok`). */
+async function assertOk(res: Response, fallbackMessage: string): Promise<void> {
+  if (res.ok) return;
+  if (res.status === 403) {
+    try {
+      const body = await res.json();
+      if (body?.error === 'not_enrolled') throw new NotEnrolledError();
+    } catch (err) {
+      if (err instanceof NotEnrolledError) throw err;
+      // Body wasn't parseable JSON — fall through to the generic error below.
+    }
+  }
+  throw new Error(fallbackMessage);
 }
 
 let pileCooldownUntil = 0;
@@ -174,7 +206,7 @@ export async function buyItem(itemId: string, price: number): Promise<BuyItemRes
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ purchaseRefKey: generatePurchaseRefKey() }),
   });
-  if (!res.ok) throw new Error('Could not complete this purchase. Please try again.');
+  await assertOk(res, 'Could not complete this purchase. Please try again.');
 
   const data = (await res.json()) as BuyItemResult;
   if (data.status === 'purchased') {
@@ -193,7 +225,7 @@ export async function claimOwnItem(itemId: string): Promise<ClaimOwnItemResult> 
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Could not claim this. Please try again.');
+  await assertOk(res, 'Could not claim this. Please try again.');
 
   return (await res.json()) as ClaimOwnItemResult;
 }
@@ -223,7 +255,7 @@ export async function throwItem(
       anonymous,
     }),
   });
-  if (!res.ok) throw new Error('Could not throw that. Please try again.');
+  await assertOk(res, 'Could not throw that. Please try again.');
 
   const data = (await res.json()) as ThrowItemResult;
   if (data.status === 'thrown' && anonymous) {

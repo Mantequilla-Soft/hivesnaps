@@ -1376,7 +1376,12 @@ const Snap: React.FC<SnapProps> = ({
         {/* The Pile — thrown items, top-level snaps only for now (Phase 1:
             read display only, see docs/MOBILE_PARITY_PLAN.md) */}
         {!compactMode && !isReply && permlink && (
-          <PileTray author={author} permlink={permlink} colors={colors} />
+          <PileTray
+            author={author}
+            permlink={permlink}
+            currentUsername={currentUsername}
+            colors={colors}
+          />
         )}
 
         {/* Hive Post Previews - Footer Style */}

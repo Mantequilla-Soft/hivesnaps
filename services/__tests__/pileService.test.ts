@@ -167,6 +167,22 @@ describe('pileService', () => {
       expect(result.status).toBe('insufficient_balance');
       expect(emitPointsSpent).not.toHaveBeenCalled();
     });
+
+    it('throws NotEnrolledError on a 403 not_enrolled response', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ error: 'not_enrolled' }, false, 403, 'Forbidden');
+
+      await expect(pileService.buyItem('item-1', 25)).rejects.toThrow(pileService.NotEnrolledError);
+    });
+
+    it('throws a generic error (not NotEnrolledError) on a 403 with a different body', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ error: 'something_else' }, false, 403, 'Forbidden');
+
+      await expect(pileService.buyItem('item-1', 25)).rejects.toMatchObject({
+        message: expect.stringContaining('Could not complete this purchase'),
+      });
+    });
   });
 
   describe('throwItem', () => {
