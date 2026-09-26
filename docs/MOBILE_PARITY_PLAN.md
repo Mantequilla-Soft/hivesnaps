@@ -151,14 +151,22 @@ fetch-with-timeout-and-bearer-token call to copy for the write endpoints.
 
 ### Phased implementation plan
 
-**Phase 0 — `pileService.ts`** (`services/pileService.ts`, mirrors
-`pointsService.ts`'s shape exactly: module-level cooldown on read failures,
-`fetchWithTimeout`, typed results). Six functions: `getPile(author,
-permlink)`, `listMarketItems(sort, offset)`, `getMyInventory()`,
-`buyItem(itemId, price)` (generates its own `purchaseRefKey` via
-`crypto.randomUUID()` — confirm RN/Expo has this or needs a polyfill),
-`throwItem(unitId, target, anonymous)`, `claimOwnItem(itemId)`. Pure data
-layer, no UI — independently testable once written.
+**✅ Phase 0 — `pileService.ts`** (`services/pileService.ts`). Six
+functions: `getPile(author, permlink)`, `listMarketItems(sort, offset)`,
+`getMyInventory()`, `buyItem(itemId, price)`, `throwItem(unitId, target,
+item, anonymous)`, `claimOwnItem(itemId)`. `purchaseRefKey` is generated
+locally (timestamp + `Math.random()`) rather than via `crypto.randomUUID()`
+— it's just a client-side idempotency key, not a security token, and
+RN/Hermes `crypto.randomUUID` availability isn't guaranteed without an
+extra polyfill dependency. Added a matching `onPointsSpent`/
+`emitPointsSpent` pair to `utils/pointsEvents.ts` (mirrors the existing
+earned-points event and snapie.io's own `POINTS_SPENT_EVENT`), fired on a
+real buy or an anonymous throw's burn. Covered by
+`services/__tests__/pileService.test.ts`, same mocking pattern as
+`pointsService.test.ts`. Verified for real (not just read-through) once
+`node_modules` got installed this session: full suite (235 tests/17
+suites) passes, `tsc --noEmit` is clean except one pre-existing unrelated
+error.
 
 **Phase 1 — Read-only Pile display** (ships even if throw/buy stay
 allowlist-gated, since `getPile` is public): a Pile row under `Snap.tsx`'s
