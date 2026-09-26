@@ -19,3 +19,24 @@ export function onPointsEarned(cb: Listener): () => void {
 export function emitPointsEarned(detail: PointsEarnedDetail): void {
   listeners.forEach(cb => cb(detail));
 }
+
+// Separate from PointsEarnedDetail — a listener that adds `awarded` to a
+// running total must never be handed a spend by mistake. Fired by
+// pileService.ts on a successful buy or anonymous throw.
+export interface PointsSpentDetail {
+  spent: number;
+  balance: number;
+}
+
+type SpentListener = (detail: PointsSpentDetail) => void;
+
+const spentListeners = new Set<SpentListener>();
+
+export function onPointsSpent(cb: SpentListener): () => void {
+  spentListeners.add(cb);
+  return () => spentListeners.delete(cb);
+}
+
+export function emitPointsSpent(detail: PointsSpentDetail): void {
+  spentListeners.forEach(cb => cb(detail));
+}

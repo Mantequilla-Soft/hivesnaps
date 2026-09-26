@@ -7,7 +7,7 @@ snapie.io share the same Snapie Points backend (`services/pointsService.ts`
 calls `https://snapie.io/api/...` directly), so several of these are UI-only
 ports, not new backend work.
 
-Status key: ✅ done · 🔜 planned, not started · 💤 noted, no action yet.
+Status key: ✅ done · 🏗️ in progress · 🔜 planned, not started · 💤 noted, no action yet.
 
 ## ✅ Phase 1 — Simplify the feed
 
@@ -75,7 +75,7 @@ SecureStore ID list (device-only, invisible to other Hive apps). Now:
 (`getAvatarImageUrl`, the existing `images.hive.blog` deterministic-URL
 helper — same one the feed already uses) next to rank/username/points.
 
-## 🔜 "The Pile" — item-throwing on posts/snaps
+## 🏗️ "The Pile" — item-throwing on posts/snaps
 
 ### Mechanics (from the spike)
 
@@ -193,15 +193,17 @@ directly instead of refetching), and the graceful-degradation UI for
 (e.g. hide the throw button entirely rather than showing one that always
 fails, once a user's `not_enrolled` status is known).
 
-### Open questions before coding starts
-1. Allowlist/rollout state (blocking dependency above) — is broader access
-   planned, and on what timeline?
-2. Nav placement for the buy/catalog screen (Phase 3).
-3. Ship Phase 1 (read-only pile display) independently and early since it
-   needs no allowlist access at all, or bundle everything into one release?
+### Resolved
+1. **Allowlist**: not actually a blocker — the allowlist is controlled by
+   whoever holds the `POINTS_ALLOWLIST` env var on snapie.io's deployment,
+   and that's us. Add HiveSnaps' target accounts there as needed; build the
+   full feature (throw + buy), not just the read-only phase.
+2. **Catalog nav placement (Phase 3)**: lives inside `WalletScreen` as a
+   section/tab, not a separate destination.
+3. **Sequencing**: build Phase 0 (`pileService.ts`) now, continue straight
+   through the phases rather than pausing between them.
 
-Not started — sized as its own multi-phase implementation pass, not a
-drive-by change.
+In progress — sized as its own multi-phase implementation pass.
 
 ## 💤 CI/CD pipeline (noted, no action yet)
 
