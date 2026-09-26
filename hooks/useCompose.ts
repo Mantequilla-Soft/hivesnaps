@@ -7,6 +7,8 @@ import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { uploadImageSmart } from '../utils/imageUploadService';
 import { postSnapWithBeneficiaries } from '../services/snapPostingService';
+import { generatePostPermlink, parseHiveTags } from '../utils/blogPostUtils';
+import { SNAPIE_COMMUNITY } from './useBlogFeed';
 import { convertImageSmart, convertToJPEG } from '../utils/imageConverter';
 import { stripImageTags, getAllImageUrls } from '../utils/extractImageInfo';
 import { useVideoUpload } from './useVideoUpload';
@@ -21,10 +23,12 @@ const client = getClient();
 
 // ===== Types =====
 
-export type ComposeMode = 'compose' | 'reply' | 'edit';
+export type ComposeMode = 'compose' | 'reply' | 'edit' | 'blog';
 
 interface ComposeState {
     // Content
+    title: string;
+    tags: string;
     text: string;
     images: string[];
     gifs: string[];
@@ -50,6 +54,8 @@ interface ComposeState {
 }
 
 type ComposeAction =
+    | { type: 'SET_TITLE'; payload: string }
+    | { type: 'SET_TAGS'; payload: string }
     | { type: 'SET_TEXT'; payload: string }
     | { type: 'SET_IMAGES'; payload: string[] }
     | { type: 'ADD_IMAGES'; payload: string[] }
@@ -71,6 +77,8 @@ type ComposeAction =
     | { type: 'CLEAR_FORM' };
 
 const initialState: ComposeState = {
+    title: '',
+    tags: '',
     text: '',
     images: [],
     gifs: [],
@@ -91,6 +99,10 @@ const initialState: ComposeState = {
 
 function composeReducer(state: ComposeState, action: ComposeAction): ComposeState {
     switch (action.type) {
+        case 'SET_TITLE':
+            return { ...state, title: action.payload };
+        case 'SET_TAGS':
+            return { ...state, tags: action.payload };
         case 'SET_TEXT':
             return { ...state, text: action.payload };
         case 'SET_IMAGES':
@@ -142,6 +154,8 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
         case 'CLEAR_FORM':
             return {
                 ...state,
+                title: '',
+                tags: '',
                 text: '',
                 images: [],
                 gifs: [],
@@ -440,6 +454,14 @@ export function useCompose({
         dispatch({ type: 'SET_TEXT', payload: text });
     }, []);
 
+    const setTitle = useCallback((title: string) => {
+        dispatch({ type: 'SET_TITLE', payload: title });
+    }, []);
+
+    const setTags = useCallback((tags: string) => {
+        dispatch({ type: 'SET_TAGS', payload: tags });
+    }, []);
+
     const setSelection = useCallback((start: number, end: number) => {
         dispatch({ type: 'SET_SELECTION', payload: { start, end } });
     }, []);
@@ -526,6 +548,9 @@ export function useCompose({
     // ===== Validation =====
 
     const hasPostableContent = useMemo(() => {
+        if (mode === 'blog') {
+            return Boolean(state.title.trim() && state.text.trim());
+        }
         return Boolean(
             state.text.trim() ||
             state.images.length > 0 ||
@@ -533,9 +558,12 @@ export function useCompose({
             video.videoEmbedUrl ||
             state.audioEmbedUrl
         );
-    }, [state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl]);
+    }, [mode, state.title, state.text, state.images.length, state.gifs.length, video.videoEmbedUrl, state.audioEmbedUrl]);
 
     const hasDraftContent = useMemo(() => {
+        if (mode === 'blog') {
+            return Boolean(state.title.trim() || state.text.trim() || state.images.length > 0 || state.gifs.length > 0);
+        }
         return Boolean(
             state.text.trim() ||
             state.images.length > 0 ||
@@ -544,7 +572,7 @@ export function useCompose({
             state.audioEmbedUrl ||
             state.audioUploading
         );
-    }, [state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
+    }, [mode, state.title, state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
 
     const isSubmitting = useMemo(() => {
         return state.posting || reply.posting || edit.editing || video.uploading || state.audioUploading;
@@ -759,15 +787,139 @@ export function useCompose({
         }
     }, [video, hasPostableContent, state, onSuccess]);
 
+    const submitBlogPost = useCallback(async () => {
+        if (video.uploading || state.audioUploading) {
+            Alert.alert('Upload in Progress', 'Please wait for the upload to finish.');
+            return;
+        }
+
+        const title = state.title.trim();
+
+        if (!hasPostableContent) {
+            Alert.alert('Missing Title or Body', 'Please add a title and some body text before posting.');
+            return;
+        }
+
+        if (title.length < 3) {
+            Alert.alert('Title Too Short', 'Please enter a title of at least 3 characters.');
+            return;
+        }
+
+        if (video.asset && !video.assetId) {
+            Alert.alert('Video Not Ready', 'Finish uploading or remove the video before posting.');
+            return;
+        }
+
+        if (!state.currentUsername) {
+            Alert.alert('Not Logged In', 'Please log in to post to Hive.');
+            return;
+        }
+
+        dispatch({ type: 'SET_POSTING', payload: true });
+
+        try {
+            const postingKeyStr = await accountStorageService.getCurrentPostingKey();
+            if (!postingKeyStr) {
+                throw new Error('No posting key found. Please log in again.');
+            }
+            const postingKey = PrivateKey.fromString(postingKeyStr);
+
+            // Compose body
+            let body = state.text.trim();
+            if (state.images.length > 0) {
+                state.images.forEach((imageUrl, index) => {
+                    body += `\n![image${index + 1}](${imageUrl})`;
+                });
+            }
+            if (state.gifs.length > 0) {
+                state.gifs.forEach((gifUrl, index) => {
+                    body += `\n![gif${index + 1}](${gifUrl})`;
+                });
+            }
+            if (video.videoEmbedUrl) {
+                body += `\n${video.videoEmbedUrl}`;
+            }
+            if (state.audioEmbedUrl) {
+                body += `\n${state.audioEmbedUrl}`;
+            }
+
+            // Blog posts are always root posts under the HiveSnaps community
+            // (community selection is a later polish item, not v1). The
+            // community tag leads so the post surfaces in the Blogs feed,
+            // which queries bridge.get_ranked_posts by that same tag.
+            const userTags = parseHiveTags(state.tags);
+            const tags = [SNAPIE_COMMUNITY, ...userTags.filter(t => t !== SNAPIE_COMMUNITY)];
+            const permlink = generatePostPermlink(title);
+
+            const allMedia = [...state.images, ...state.gifs];
+            const json_metadata = JSON.stringify({
+                app: 'hivesnaps/1.0',
+                format: 'markdown',
+                tags,
+                image: allMedia,
+                video: video.videoEmbedUrl
+                    ? { platform: '3speak', url: video.videoEmbedUrl, uploadUrl: video.uploadUrl }
+                    : undefined,
+                audio: state.audioEmbedUrl
+                    ? {
+                        platform: '3speak',
+                        url: state.audioEmbedUrl,
+                        duration: state.audioDuration
+                    }
+                    : undefined,
+            });
+
+            await postSnapWithBeneficiaries(
+                client,
+                {
+                    parentAuthor: '',
+                    parentPermlink: tags[0],
+                    author: state.currentUsername,
+                    permlink,
+                    title,
+                    body,
+                    jsonMetadata: json_metadata,
+                    hasVideo: !!video.videoEmbedUrl,
+                    hasAudio: !!state.audioEmbedUrl,
+                },
+                postingKey
+            );
+
+            console.log('[useCompose] Blog post published successfully');
+
+            dispatch({ type: 'CLEAR_FORM' });
+            video.clear();
+
+            if (onSuccess) {
+                onSuccess();
+            }
+
+            Alert.alert(
+                'Posted!',
+                'Your blog post has been published to the Hive blockchain.'
+            );
+        } catch (error) {
+            console.error('[useCompose] Blog post submission error:', error);
+            Alert.alert(
+                'Post Failed',
+                error instanceof Error ? error.message : 'Unknown error occurred'
+            );
+        } finally {
+            dispatch({ type: 'SET_POSTING', payload: false });
+        }
+    }, [video, hasPostableContent, state, onSuccess]);
+
     const submit = useCallback(async () => {
         if (mode === 'reply') {
             await submitReply();
         } else if (mode === 'edit') {
             await submitEdit();
+        } else if (mode === 'blog') {
+            await submitBlogPost();
         } else {
             await submitPost();
         }
-    }, [mode, submitReply, submitEdit, submitPost]);
+    }, [mode, submitReply, submitEdit, submitBlogPost, submitPost]);
 
     // ===== Return stable object =====
 
@@ -791,6 +943,8 @@ export function useCompose({
 
             // Actions
             setText,
+            setTitle,
+            setTags,
             setSelection,
             addImage,
             removeImage,
@@ -819,6 +973,8 @@ export function useCompose({
             isSubmitting,
             canSubmit,
             setText,
+            setTitle,
+            setTags,
             setSelection,
             addImage,
             removeImage,

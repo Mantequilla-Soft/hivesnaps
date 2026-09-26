@@ -71,9 +71,13 @@ export default function BottomTabBar({
       <View style={styles.composeSlot}>
         <TouchableOpacity
           style={[styles.composeButton, { backgroundColor: colors.icon }]}
-          onPress={() => router.push('/screens/ComposeScreen')}
+          onPress={() =>
+            activeFeed === 'blogs'
+              ? router.push({ pathname: '/screens/ComposeScreen', params: { mode: 'blog' } })
+              : router.push('/screens/ComposeScreen')
+          }
           accessibilityRole='button'
-          accessibilityLabel='Create new snap'
+          accessibilityLabel={activeFeed === 'blogs' ? 'Create new blog post' : 'Create new snap'}
         >
           <FontAwesome name='plus' size={22} color='#fff' />
         </TouchableOpacity>

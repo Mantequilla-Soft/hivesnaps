@@ -147,6 +147,48 @@ row now has the space this used to share with the "Blogs" chip before that
 moved to `BottomTabBar`. Covered by `hooks/__tests__/usePatronList.test.tsx`.
 Verified: full suite now 245/245 (3 new), `tsc --noEmit` still clean.
 
+## ✅ Blog composer (repurposed from the snap composer)
+
+Mirrors snapie-io: on the Blogs tab, the center FAB opens a blog composer
+instead of the snap composer, publishing a real Hive root post rather than
+a reply nested under the `@peak.snaps` container. Built by extending the
+existing composer rather than forking it — most of the UI (image/GIF/video/
+audio pickers, markdown toolbar, Preview modal) is identical between the
+two, confirmed by checking how snapie-io itself shares one `createComposer`
+op-builder between its own snap and blog composers (`@snapie/operations`).
+
+- `hooks/useCompose.ts`: `ComposeMode` gained a `'blog'` value. New
+  `title`/`tags` state, `setTitle`/`setTags` actions, and a `submitBlogPost`
+  callback alongside the existing `submitPost`/`submitReply`/`submitEdit` —
+  same shape, different op: `parent_author: ''`, `parent_permlink` set to
+  the HiveSnaps community (`SNAPIE_COMMUNITY`, imported from
+  `hooks/useBlogFeed.ts` rather than re-declared, since the Blogs feed
+  already queries `bridge.get_ranked_posts` by that same tag — a new post
+  needs to land there to actually show up), and a title-based permlink
+  (`utils/blogPostUtils.ts`'s `generatePostPermlink`, slugify + timestamp
+  suffix for uniqueness). `postSnapWithBeneficiaries` needed no changes —
+  it already took `parentAuthor`/`parentPermlink`/`title` as plain
+  parameters, so root posts and replies both flow through the same
+  broadcast call. `hasPostableContent` requires a non-empty title *and*
+  body in blog mode instead of the snap rule (any of text/image/gif/video/
+  audio).
+- `app/screens/ComposeScreen.tsx`: title input and a tags input (free text,
+  parsed via `parseHiveTags` — space/comma/#-separated, lowercased,
+  deduped) render only in blog mode; the 280-char cap and counter are
+  snap-only. Preview prepends the title as a markdown H1 so the existing
+  Preview modal needs no changes of its own.
+- `app/components/BottomTabBar.tsx`: the compose FAB now checks
+  `activeFeed` — `'blogs'` opens `ComposeScreen` with `mode: 'blog'`,
+  `'snaps'` keeps today's behavior.
+- Community selection, editable beneficiaries, and draft autosave (all
+  present in snapie-io's web blog composer) are deferred — v1 always
+  targets the HiveSnaps community with a fixed 0% extra beneficiary,
+  matching how the snap composer already behaves by default.
+
+Covered by `utils/__tests__/blogPostUtils.test.ts` (10 new tests, permlink
+slugification + tag parsing). Verified: full suite now 255/255,
+`tsc --noEmit` still clean.
+
 ## 🏗️ "The Pile" — item-throwing on posts/snaps
 
 ### Mechanics (from the spike)

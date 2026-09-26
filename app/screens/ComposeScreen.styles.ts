@@ -69,6 +69,26 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
   },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: '600',
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  tagsInput: {
+    fontSize: 15,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  tagsHint: {
+    fontSize: 12,
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
   charCountRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
