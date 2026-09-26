@@ -207,13 +207,22 @@ never actually help a non-allowlisted user. Covered in
 body). Verified: full suite now 237/237 (2 new), `tsc --noEmit` still
 clean.
 
-**Phase 3 — Buying / catalog screen**: a lightweight market screen (catalog
-via `listMarketItems`, buy via `buyItem`) so people with an empty inventory
-aren't dead-ended. **Open nav decision**: where this lives (own screen
-reached from Profile/Wallet, vs. a section inside `WalletScreen`) — decide
-alongside Phase 2's tab-bar shape rather than bolting on a destination
-later. Creating new items and the creator-claim flow are lower priority
-than buying/throwing — could ship Phase 3 as buy-only first.
+**✅ Phase 3 — Buying / catalog (buy-only, as scoped)**. New
+`app/components/wallet/PileMarketSection.tsx`, mounted inside
+`WalletScreen.tsx` between "Actions" and "Recent Transactions" (the nav
+decision from before Phase 0 started). Fetches `listMarketItems('hot', 0)`
+(first page only — pagination/"load more" wasn't in scope for this pass)
+as a horizontally scrolling row of cards (image, name, price, Buy button),
+plus the viewer's live points balance via `pointsService.fetchPointsSummary`,
+kept in sync with `onPointsSpent`/`onPointsEarned` so a vote award or a
+throw's anonymous burn elsewhere in the app updates the number shown here
+too. Handles every `buyItem` outcome (`purchased`, `already_purchased`,
+`insufficient_balance`, `self_purchase`, `item_not_found` — the last one
+also prunes the now-gone item from the visible list) plus `NotEnrolledError`,
+same distinct message as Phase 2's throw flow. Renders nothing when logged
+out. Creating new items and the creator-claim flow are out of scope (lower
+priority than buy/throw, per the original call to ship buy-only first).
+Verified: full suite still 237/237, `tsc --noEmit` still clean.
 
 **Phase 4 — Polish**: optimistic local pile updates on a successful throw
 (mirrors `ITEM_THROWN_EVENT`'s role in `PileTray.tsx` — patch state

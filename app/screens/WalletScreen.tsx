@@ -21,6 +21,7 @@ import { TransferModal } from '../components/wallet/TransferModal';
 import { PowerUpModal } from '../components/wallet/PowerUpModal';
 import { PowerDownModal } from '../components/wallet/PowerDownModal';
 import { TransactionList } from '../components/wallet/TransactionList';
+import PileMarketSection from '../components/wallet/PileMarketSection';
 import { AuthCancelledError } from '../../services/LocalAuthService';
 
 const client = getClient();
@@ -334,6 +335,9 @@ const WalletScreen = (): React.JSX.Element => {
                             </TouchableOpacity>
                         ))}
                     </View>
+
+                    {/* The Pile market — buy items to throw from any snap */}
+                    <PileMarketSection currentUsername={currentUsername} colors={colors} />
 
                     {/* Recent transactions */}
                     <Text style={styles.sectionTitle}>Recent Transactions</Text>
