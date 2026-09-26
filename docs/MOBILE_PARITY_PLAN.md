@@ -168,13 +168,17 @@ real buy or an anonymous throw's burn. Covered by
 suites) passes, `tsc --noEmit` is clean except one pre-existing unrelated
 error.
 
-**Phase 1 — Read-only Pile display** (ships even if throw/buy stay
-allowlist-gated, since `getPile` is public): a Pile row under `Snap.tsx`'s
-existing action row (upvote/comment/payout — see `Snap.tsx:~1113-1310`),
-rendering `getPile()`'s grouped items as pill badges (icon + count). Tap →
-a bottom sheet/modal listing recent throwers (avatar + username, or
-"Anonymous"), RN equivalent of `PileThrowersModal.tsx`. No auth needed for
-this phase at all.
+**✅ Phase 1 — Read-only Pile display**. New `app/components/PileTray.tsx`
+(pill badges — item image + count, renders nothing when the pile is empty
+since there's no throw affordance yet to justify an empty state) and
+`app/components/PileThrowersModal.tsx` (tap a pill → centered-card modal
+listing recent throwers, avatar + username or "Anonymous" + relative time —
+same modal shape as `UpvoteModal`/`StaticContentModal`, not a new sheet
+primitive). Wired into `Snap.tsx` right after the vote/reply action row,
+top-level snaps only for now (guarded on `!compactMode && !isReply` — reply
+piling wasn't in scope for this phase, easy to extend later). No auth
+needed, matches `getPile`'s public endpoint. Verified: full suite still 235
+passing, `tsc --noEmit` still clean.
 
 **Phase 2 — Throwing**: a "Throw something" affordance on the pill row that
 opens a modal over `getMyInventory()` (RN equivalent of

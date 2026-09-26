@@ -64,6 +64,7 @@ import { linkifyMentions } from '../../utils/linkifyMentions';
 import { linkifyUrls } from '../../utils/linkifyUrls';
 import { detectLanguage, translateText, getLanguageName } from '../../services/translationService';
 import { getPatronTier, PatronTier } from '../../services/patronService';
+import PileTray from './PileTray';
 
 interface SnapProps {
   snap: SnapData;
@@ -1370,6 +1371,12 @@ const Snap: React.FC<SnapProps> = ({
               </TouchableOpacity>
             )}
           </View>
+        )}
+
+        {/* The Pile — thrown items, top-level snaps only for now (Phase 1:
+            read display only, see docs/MOBILE_PARITY_PLAN.md) */}
+        {!compactMode && !isReply && permlink && (
+          <PileTray author={author} permlink={permlink} colors={colors} />
         )}
 
         {/* Hive Post Previews - Footer Style */}
