@@ -77,60 +77,131 @@ helper — same one the feed already uses) next to rank/username/points.
 
 ## 🔜 "The Pile" — item-throwing on posts/snaps
 
-Spiked snapie-io's implementation (`components/shared/PileTray.tsx`,
-`ThrowItemButton.tsx`, `PileThrowersModal.tsx`, `lib/points/marketClient.ts`,
-`lib/points/marketConfig.ts`, `lib/db/models/ItemThrow.ts`). This is a full
-item-market feature layered on Snapie Points, gated behind
-`ITEM_MARKET_FEATURE_FLAG` on the web side:
+### Mechanics (from the spike)
 
-**Mechanics:**
+Read `lib/points/marketService.ts` and every route under
+`app/api/points/market/` directly (not just the client wrapper) to pin down
+exact contracts. Full model:
+
 - Users spend Snapie Points to *buy* market items (a small catalog of named,
-  imaged items — "items" are admin-seeded or user-submitted for a flat
+  imaged items — admin-seeded or user-submitted for a flat
   `ITEM_CREATION_FEE` = 50 points, burned on submission whether approved or
-  not, capped at 3 submissions/user/day — the anti-spam lever). A bought
-  item becomes a unit in the buyer's inventory (`getMyInventory`).
-- From any post/snap, "Throw something" opens a picker over your inventory;
-  throwing consumes one unit (`POST /api/points/market/throw` with
-  `{unitId, targetAuthor, targetPermlink, targetType, anonymous}`) and is
-  idempotent per unit (a unit can only ever be thrown once — the DB's unique
-  index on `unitId` is the actual guard).
+  not, capped at 3 submissions/user/day). A bought item becomes a unit in
+  the buyer's inventory.
+- From any post/snap, throwing consumes one owned unit and is idempotent
+  per unit (a unit can only ever be thrown once — enforced by an
+  ownerUsername+status guard server-side, not just a client-side check).
 - Throwing anonymously costs an *additional* burn of the item's price on
-  top of consuming the unit — the identity is still stored server-side for
-  moderation, just redacted from the public API response.
-- "The Pile" for a target = `GET /api/points/market/pile/[author]/[permlink]`
-  → grouped `{item, count, recentThrowers[]}[]`, rendered as pill badges
-  (icon + count) under the post; tapping a pill opens a "who threw this"
-  modal (up to `MAX_THROWERS_PER_ITEM` = 50 recent throwers, avatar + name,
-  or "Anonymous"). A live `ITEM_THROWN_EVENT` patches an already-mounted
-  pile optimistically instead of refetching.
-- Creator economics: item creator gets `ITEM_CREATOR_SHARE_BP` = 70% of each
-  sale: the rest is burned outright (not paid to the platform) — deliberate,
-  to keep an alt-account self-buy loop lossy instead of free money.
+  top of consuming the unit — claim-then-charge, so if the burn fails the
+  claim is rolled back rather than leaving a paid-for-nothing throw. Real
+  identity is always stored server-side for moderation, only redacted to
+  "Anonymous" in the public read API.
+- "The Pile" for a target is everything thrown at it, grouped by item with
+  a count and up to `MAX_THROWERS_PER_ITEM` (50) recent throwers.
+- Creator economics: `ITEM_CREATOR_SHARE_BP` = 70% of each sale goes to the
+  item's creator, the rest is burned outright (not paid to the platform) —
+  deliberate, so an alt-account self-buy loop is lossy, not free money.
+  Buying your own item is blocked outright (`self_purchase`); creators get
+  one free unit of their own item via a separate claim endpoint instead.
 
-**Porting to HiveSnaps — what's reusable vs. new:**
-- Auth is already solved: HiveSnaps' `pointsAuthService.ts` already gets the
-  bearer JWT the web app's `authenticatedFetch` uses, so throw/buy calls
-  need no new auth plumbing — same pattern as points-awarding today.
-- New: a `pileService.ts` (mirrors `pointsService.ts`'s shape) wrapping
-  `GET /api/points/market/pile/:author/:permlink`, `GET
-  /api/points/market/inventory`, `POST /api/points/market/throw`, `GET
-  /api/points/market/items` (catalog) and the buy endpoint — all against
-  the existing `snapie.io` backend, no new server work.
-- New UI, native equivalents of the web components:
-  - A "Pile" row under `Snap.tsx` (pill badges + counts, tap → throwers
-    bottom sheet) — RN equivalent of `PileTray.tsx` + `PileThrowersModal.tsx`.
-  - A "Throw something" action opening an inventory bottom sheet (RN
-    equivalent of `ThrowItemButton.tsx`), plus a lightweight market/catalog
-    screen so people who own nothing yet can buy an item without leaving
-    the app (web sends them to `/settings/points/market`; HiveSnaps needs
-    its own screen or reuses `WalletScreen`'s pattern for something similar).
-- Needs a design decision before implementation: where does "buy an item"
-  live in HiveSnaps' nav (own screen vs. a tab inside the Wallet/Profile
-  area) — worth deciding alongside the Phase 2 tab-bar shape rather than
-  bolting on a sixth destination afterward.
+### ⚠️ Blocking dependency — confirm before writing any code
 
-Not started — this is a real feature slice (catalog + inventory + throwing +
-pile display), sized for its own implementation pass, not a drive-by change.
+The market is gated **server-side**, not just behind a client feature flag:
+every write route (`throw`, `buy`, item creation) checks
+`ITEM_MARKET_FEATURE_FLAG && passesPointsAllowlist(username)` from
+`lib/points/config.ts`, and rejects with `403 {error:'not_enrolled'}`
+otherwise. `passesPointsAllowlist` reads an explicit username allowlist from
+`POINTS_ALLOWLIST`/`NEXT_PUBLIC_POINTS_ALLOWLIST` env vars on snapie.io's own
+deployment — HiveSnaps has no control over this from its own codebase or
+repo. Read-only endpoints (`GET pile`, `GET items` catalog) are NOT
+allowlist-gated, only the money-moving ones are.
+
+This means: before implementation, confirm (a) whether the market is meant
+to go fully public soon, or stays allowlist-limited for a while, and (b) who
+controls that allowlist / whether HiveSnaps' target users are already on it.
+Building the full throw/buy UI against an allowlist most HiveSnaps users
+aren't on means everyone else hits a silent `not_enrolled` wall — the UI
+needs to degrade gracefully either way (see Phase 4 below), but *how much*
+of this to build now depends on the answer.
+
+### API contracts (confirmed from route handlers + marketService.ts)
+
+| Endpoint | Auth | Request | Response |
+|---|---|---|---|
+| `GET /api/points/market/pile/:author/:permlink` | none (public) | — | `{ pile: PileEntry[] }` |
+| `GET /api/points/market/items?sort=hot\|new&offset=N` | none (public) | — | `{ items: ItemDTO[], hasMore }` |
+| `GET /api/points/market/inventory` | Bearer JWT | — | `{ inventory: InventoryEntry[] }` |
+| `POST /api/points/market/throw` | Bearer JWT | `{unitId, targetAuthor, targetPermlink, targetType: 'post'\|'snap', anonymous?}` | `{status: 'thrown'\|'not_found'\|'insufficient_balance', balance}` |
+| `POST /api/points/market/items/:itemId/buy` | Bearer JWT | `{purchaseRefKey}` (client-generated UUID, idempotency key) | `{status: 'purchased'\|'already_purchased'\|'insufficient_balance'\|'item_not_found'\|'self_purchase', unitId, balance}` |
+| `POST /api/points/market/items/:itemId/claim` | Bearer JWT | — | `{status: 'claimed'\|'item_not_found'\|'not_owner', unitId}` (creator's free unit of their own item) |
+| `POST /api/points/market/items` | Bearer JWT | `{name, description, imageUrl, price}` | `{status: 'submitted'\|'capped'\|'insufficient_balance', item, balance}` |
+
+```ts
+interface ItemDTO { id: string; creatorUsername: string; name: string; description: string; imageUrl: string; price: number; purchaseCount: number }
+interface InventoryEntry { item: ItemDTO; unitIds: string[] }
+interface PileThrower { username: string; createdAt: string; anonymous: boolean }
+interface PileEntry { item: ItemDTO; count: number; recentThrowers: PileThrower[] }
+```
+
+Auth: identical Bearer-JWT pattern HiveSnaps already uses for points
+awarding — `pointsAuthService.getPointsAuthToken()` (challenge/sign/verify
+with the posting key, cached in AsyncStorage) — no new auth plumbing.
+`services/pointsService.ts`'s `awardPoints()` is the exact template for a
+fetch-with-timeout-and-bearer-token call to copy for the write endpoints.
+
+### Phased implementation plan
+
+**Phase 0 — `pileService.ts`** (`services/pileService.ts`, mirrors
+`pointsService.ts`'s shape exactly: module-level cooldown on read failures,
+`fetchWithTimeout`, typed results). Six functions: `getPile(author,
+permlink)`, `listMarketItems(sort, offset)`, `getMyInventory()`,
+`buyItem(itemId, price)` (generates its own `purchaseRefKey` via
+`crypto.randomUUID()` — confirm RN/Expo has this or needs a polyfill),
+`throwItem(unitId, target, anonymous)`, `claimOwnItem(itemId)`. Pure data
+layer, no UI — independently testable once written.
+
+**Phase 1 — Read-only Pile display** (ships even if throw/buy stay
+allowlist-gated, since `getPile` is public): a Pile row under `Snap.tsx`'s
+existing action row (upvote/comment/payout — see `Snap.tsx:~1113-1310`),
+rendering `getPile()`'s grouped items as pill badges (icon + count). Tap →
+a bottom sheet/modal listing recent throwers (avatar + username, or
+"Anonymous"), RN equivalent of `PileThrowersModal.tsx`. No auth needed for
+this phase at all.
+
+**Phase 2 — Throwing**: a "Throw something" affordance on the pill row that
+opens a modal over `getMyInventory()` (RN equivalent of
+`ThrowItemButton.tsx`) — same `Modal`+list pattern already used by
+`UpvoteModal.tsx`/`StaticContentModal.tsx`, not a new sheet primitive. Empty
+inventory state links to Phase 3's market screen. Handle all four
+`throwItem` statuses explicitly, especially `insufficient_balance` (for the
+anonymous-throw surcharge) and the silent-403 `not_enrolled` case from the
+blocking dependency above — needs its own explicit message, not a generic
+error toast, so a non-allowlisted user understands why nothing happened.
+
+**Phase 3 — Buying / catalog screen**: a lightweight market screen (catalog
+via `listMarketItems`, buy via `buyItem`) so people with an empty inventory
+aren't dead-ended. **Open nav decision**: where this lives (own screen
+reached from Profile/Wallet, vs. a section inside `WalletScreen`) — decide
+alongside Phase 2's tab-bar shape rather than bolting on a destination
+later. Creating new items and the creator-claim flow are lower priority
+than buying/throwing — could ship Phase 3 as buy-only first.
+
+**Phase 4 — Polish**: optimistic local pile updates on a successful throw
+(mirrors `ITEM_THROWN_EVENT`'s role in `PileTray.tsx` — patch state
+directly instead of refetching), and the graceful-degradation UI for
+`not_enrolled` if the market is still allowlist-limited when this ships
+(e.g. hide the throw button entirely rather than showing one that always
+fails, once a user's `not_enrolled` status is known).
+
+### Open questions before coding starts
+1. Allowlist/rollout state (blocking dependency above) — is broader access
+   planned, and on what timeline?
+2. Nav placement for the buy/catalog screen (Phase 3).
+3. Ship Phase 1 (read-only pile display) independently and early since it
+   needs no allowlist access at all, or bundle everything into one release?
+
+Not started — sized as its own multi-phase implementation pass, not a
+drive-by change.
 
 ## 💤 CI/CD pipeline (noted, no action yet)
 
