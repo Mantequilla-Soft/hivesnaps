@@ -940,14 +940,11 @@ const FeedScreenRefactored = () => {
             style={styles.filterScrollView}
           >
             {(([
-              { key: 'blogs', label: 'Blogs', icon: 'newspaper-o', feed: 'blogs' },
               { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' },
               { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' },
               { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' },
             ]) as FeedTab[]).map((filter, index) => {
-              const isActive = filter.key === 'blogs'
-                ? activeFeed === 'blogs'
-                : activeFeed === 'snaps' && currentFilter === filter.key;
+              const isActive = activeFeed === 'snaps' && currentFilter === filter.key;
               return (
                 <TouchableOpacity
                   key={filter.key}
@@ -959,12 +956,8 @@ const FeedScreenRefactored = () => {
                     },
                   ]}
                   onPress={() => {
-                    if (filter.key === 'blogs') {
-                      setActiveFeed('blogs');
-                    } else {
-                      setActiveFeed('snaps');
-                      handleFilterPress(filter.key as FeedFilter);
-                    }
+                    setActiveFeed('snaps');
+                    handleFilterPress(filter.key as FeedFilter);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="tab"

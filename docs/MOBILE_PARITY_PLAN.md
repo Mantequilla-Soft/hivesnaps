@@ -55,6 +55,13 @@ the new bar, fully redundant. Removed the button, its now-unused
 `useSafeAreaInsets` call, and the dead `fab`/`fabIcon` styles from
 `FeedScreenStyles.ts`.
 
+**Correction**: the "Blogs" chip in the top filter row was likewise never
+actually removed when `BottomTabBar` got its own Blogs tab, despite what
+the bullet above originally claimed — both existed side by side, doing the
+same `setActiveFeed('blogs')`. Now actually removed from the filter row
+(caught by inspection, not a device run this time); filter pills are
+genuinely Following/Newest/Trending only.
+
 ## ✅ Notifications rework
 
 Was capped at a hard 50 with no pagination, and read-status was a local
