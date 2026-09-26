@@ -76,6 +76,27 @@ SecureStore ID list (device-only, invisible to other Hive apps). Now:
   on every tap just from browsing) — "Mark all read" is the only
   read-marking action, matching snapie's own `NotificationsComp.tsx` exactly.
 
+**Found on first device run — real infinite loop, not just a caught error.**
+The console showed `[HiveMuteService]` errors and `[AppProvider]` init logs
+flooding continuously. Root cause was in the rewritten
+`hooks/useNotifications.ts`'s muted-list loader:
+`ensureMutedListLoaded`'s guard was `!mutedList || mutedList.length === 0 ||
+needsMutedRefresh` — treating a *genuinely empty* muted list as "still needs
+fetching" forever, not just a missing/stale cache. `fetchMutedList` never
+throws (it catches internally and resolves to an empty `Set` on any
+failure, including the "no auth session yet" case this device hit), so
+every attempt called `setMutedList([])` with a **new** array reference each
+time → `ensureMutedListLoaded`'s `useCallback` identity changed → the
+`useEffect` watching it re-fired → fetch again → forever, as fast as the
+microtask queue allowed. That's the flood: not a native crash, a tight
+async loop pegging the JS thread. Fixed by dropping the `.length === 0`
+check — cache presence/staleness (`needsRefresh`) is the only thing that
+should ever trigger a refetch; `hooks/useFeedData.ts`'s equivalent
+(`ensureMutedListCached`) already had this right and was the reference for
+the fix. No regression test added yet (this hook has no dedicated test
+file, and none of the others touched by the Pile work do either) — worth
+adding if this file gets touched again.
+
 ## ✅ Leaderboard avatars
 
 `PointsLeaderboardScreen.tsx` rows now show each user's avatar

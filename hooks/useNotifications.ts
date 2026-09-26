@@ -72,11 +72,20 @@ export const useNotifications = (
     setError: setMutedError,
   } = useMutedList(username || '');
 
-  // Ensure muted list is loaded
+  // Ensure muted list is loaded. Checks only cache presence/staleness, never
+  // list length — a genuinely (or persistently, e.g. no auth session yet)
+  // empty list is still a validly cached result. fetchMutedList never
+  // throws (it catches internally and resolves to an empty Set), so on any
+  // failure this still calls setMutedList([]), which creates a NEW array
+  // reference every time; if length===0 were part of the guard, that new
+  // reference would make this callback's identity change on every call,
+  // re-firing the effect below forever — a real infinite loop this hook
+  // used to have, surfaced by an auth-required backend call always
+  // resolving empty before a session exists.
   const ensureMutedListLoaded = useCallback(async () => {
     if (!username) return;
 
-    if (!mutedList || mutedList.length === 0 || needsMutedRefresh) {
+    if (!mutedList || needsMutedRefresh) {
       try {
         setMutedLoading(true);
         const mutedSet = await fetchMutedList(username);
