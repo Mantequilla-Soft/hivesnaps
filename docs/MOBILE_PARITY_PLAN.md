@@ -180,10 +180,12 @@ op-builder between its own snap and blog composers (`@snapie/operations`).
 - `app/components/BottomTabBar.tsx`: the compose FAB now checks
   `activeFeed` — `'blogs'` opens `ComposeScreen` with `mode: 'blog'`,
   `'snaps'` keeps today's behavior.
-- Community selection, editable beneficiaries, and draft autosave (all
-  present in snapie-io's web blog composer) are deferred — v1 always
-  targets the HiveSnaps community with a fixed 0% extra beneficiary,
-  matching how the snap composer already behaves by default.
+- Every blog post sends `@snapie` a beneficiary cut via `postSnapWithBeneficiaries`'s
+  existing `hasHangout` flag — 3% normally, 10% if video/audio is attached
+  (same weight logic hangout-announcement snaps already use).
+- Community selection and draft autosave (both present in snapie-io's web
+  blog composer) are deferred — v1 always targets the HiveSnaps community;
+  beneficiaries are not yet user-editable, only the fixed cut above.
 
 Covered by `utils/__tests__/blogPostUtils.test.ts` (10 new tests, permlink
 slugification + tag parsing). Verified: full suite now 255/255,

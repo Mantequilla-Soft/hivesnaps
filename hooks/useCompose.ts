@@ -881,6 +881,10 @@ export function useCompose({
                     jsonMetadata: json_metadata,
                     hasVideo: !!video.videoEmbedUrl,
                     hasAudio: !!state.audioEmbedUrl,
+                    // Blog posts always send @snapie a beneficiary cut, same
+                    // as hangout-announcement snaps: 10% if video/audio is
+                    // attached (hasVideo/hasAudio wins), else 3% via this flag.
+                    hasHangout: true,
                 },
                 postingKey
             );
