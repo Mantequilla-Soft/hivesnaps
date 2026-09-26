@@ -286,13 +286,17 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
               onPress: (_event: unknown, href?: string): void => {
                 if (!href) return;
                 if (href.startsWith('hashtag://')) {
-                  const tag = href.replace('hashtag://', '');
+                  // Hive hashtags are always lowercase on-chain; normalize here too
+                  // since this link may come from external content (e.g. Ecency).
+                  const tag = href.replace('hashtag://', '').toLowerCase();
                   router.push({
                     pathname: '/screens/DiscoveryScreen',
                     params: { hashtag: tag },
                   });
                 } else if (href.startsWith('profile://')) {
-                  const username = href.replace('profile://', '');
+                  // Hive usernames are always lowercase on-chain; normalize here too
+                  // since this link may come from external content (e.g. Ecency).
+                  const username = href.replace('profile://', '').toLowerCase();
                   router.push({
                     pathname: '/screens/ProfileScreen',
                     params: { username },
@@ -403,7 +407,9 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
 
               // Handle profile:// links for mentions
               if (href && href.startsWith('profile://')) {
-                const username = href.replace('profile://', '');
+                // Hive usernames are always lowercase on-chain; normalize here too
+                // since this link may come from external content (e.g. Ecency).
+                const username = href.replace('profile://', '').toLowerCase();
                 return (
                   <Text
                     key={node.key}
@@ -427,7 +433,9 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
 
               // Handle hashtag:// deep links from Ecency and similar apps
               if (href && href.startsWith('hashtag://')) {
-                const tag = href.replace('hashtag://', '');
+                // Hive hashtags are always lowercase on-chain; normalize here too
+                // since this link may come from external content (e.g. Ecency).
+                const tag = href.replace('hashtag://', '').toLowerCase();
                 return (
                   <Text
                     key={node.key}

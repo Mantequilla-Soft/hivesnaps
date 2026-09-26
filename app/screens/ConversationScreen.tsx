@@ -77,7 +77,9 @@ const ConversationScreenRefactored = () => {
 
   // Get navigation params
   const params = useLocalSearchParams();
-  const author = params.author as string | undefined;
+  // Hive usernames are always lowercase on-chain; normalize defensively in
+  // case the caller passed mixed case.
+  const author = (params.author as string | undefined)?.toLowerCase();
   const permlink = params.permlink as string | undefined;
 
   // Custom hooks for business logic
@@ -493,7 +495,10 @@ const ConversationScreenRefactored = () => {
           return match;
         }
 
-        return `${pre}[**#${hashtag}**](hashtag://${hashtag})`;
+        // Hive hashtags are always lowercase on-chain; normalize both the
+        // displayed text and the link target so #Foo and #foo resolve the same.
+        const normalizedHashtag = hashtag.toLowerCase();
+        return `${pre}[**#${normalizedHashtag}**](hashtag://${normalizedHashtag})`;
       }
     );
   };

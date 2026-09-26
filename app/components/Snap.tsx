@@ -257,7 +257,10 @@ const Snap: React.FC<SnapProps> = ({
         beforeMatch.lastIndexOf('<a') > beforeMatch.lastIndexOf('</a>') &&
         afterMatch.includes('</a>');
       if (insideHtmlAnchor) return match;
-      return `${prefix}[#${hashtag}](hashtag://${hashtag})`;
+      // Hive hashtags are always lowercase on-chain; normalize both the
+      // displayed text and the link target so #Foo and #foo resolve the same.
+      const normalizedHashtag = hashtag.toLowerCase();
+      return `${prefix}[#${normalizedHashtag}](hashtag://${normalizedHashtag})`;
     });
   }
   const colorScheme = useColorScheme() || 'light';

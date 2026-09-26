@@ -666,7 +666,9 @@ const FeedScreenRefactored = () => {
       const hashtag = searchTerm.startsWith('#')
         ? searchTerm.slice(1)
         : searchTerm;
-      const cleanHashtag = hashtag.trim();
+      // Hive hashtags are always lowercase on-chain; normalize before saving
+      // to recents or navigating so #Foo and #foo are treated identically.
+      const cleanHashtag = hashtag.trim().toLowerCase();
 
       if (cleanHashtag) {
         await saveToRecentHashtags(cleanHashtag);

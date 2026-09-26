@@ -53,8 +53,9 @@ const ProfileScreen = () => {
   console.log('ProfileScreen params.username:', params.username);
   console.log('ProfileScreen params type:', typeof params.username);
 
-  // Get username from params
-  const username = params.username as string | undefined;
+  // Get username from params. Hive usernames are always lowercase on-chain;
+  // normalize defensively in case the caller passed mixed case.
+  const username = (params.username as string | undefined)?.toLowerCase();
 
   // Use custom hooks
   const { currentUsername, logout: handleLogout, hasActiveKey, requireActiveKey } = useAuth();
