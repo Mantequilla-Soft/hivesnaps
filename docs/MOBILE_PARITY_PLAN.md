@@ -126,6 +126,27 @@ adding if this file gets touched again.
 (`getAvatarImageUrl`, the existing `images.hive.blog` deterministic-URL
 helper — same one the feed already uses) next to rank/username/points.
 
+## ✅ Patrons feed filter
+
+Mirrors snapie-io's Patrons tab (`hooks/useSnaps.ts`'s `'patrons'` filter
+type there, filtering already-fetched snaps by author against a patrons
+map — not a separate feed source). HiveSnaps already had the underlying
+piece: `services/patronService.ts` (`getPatronTier`, used for the patron
+badge already shown on snap cards) is close to a line-for-line port of
+snapie's own `usePatronStatus`-backing service, same
+`https://snapie.io/api/patrons` endpoint, same cache/backoff shape. Added
+`getPatronsMap()` (the whole cached map, not just a single-account lookup)
+and a new `hooks/usePatronList.ts` bridging that into a `Set<string>` for
+filtering — a plain hook rather than shared-store state, since patrons
+(unlike following/muted) isn't scoped per viewer.
+
+Wired into `useFeedData.ts`'s existing `applyFilter` (new `'patrons'` case,
+same `Set`-membership shape as `'following'`) and a new "Patrons" pill in
+`FeedScreen.tsx`'s filter row (Following/Newest/Trending/Patrons) — the
+row now has the space this used to share with the "Blogs" chip before that
+moved to `BottomTabBar`. Covered by `hooks/__tests__/usePatronList.test.tsx`.
+Verified: full suite now 245/245 (3 new), `tsc --noEmit` still clean.
+
 ## 🏗️ "The Pile" — item-throwing on posts/snaps
 
 ### Mechanics (from the spike)

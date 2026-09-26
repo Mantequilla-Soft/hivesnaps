@@ -80,6 +80,7 @@ const EMPTY_STATE_MESSAGES = {
   following: "No snaps from people you follow yet. Check back soon!",
   trending: "Nothing trending right now. Be the first to create something!",
   newest: "No snaps to display.",
+  patrons: "No snaps from patrons yet. Check back soon!",
 } as const;
 
 const FeedScreenRefactored = () => {
@@ -935,6 +936,7 @@ const FeedScreenRefactored = () => {
               { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' },
               { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' },
               { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' },
+              { key: 'patrons', label: 'Patrons', icon: 'star', feed: 'snaps' },
             ]) as FeedTab[]).map((filter, index) => {
               const isActive = activeFeed === 'snaps' && currentFilter === filter.key;
               return (
