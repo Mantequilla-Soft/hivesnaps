@@ -7,7 +7,8 @@ import {
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import 'react-native-reanimated';
 
@@ -15,6 +16,8 @@ import { useColorScheme } from '../components/useColorScheme';
 import { HivePostPreviewProvider } from '../context/HivePostPreviewContext';
 import { ShareProvider } from '../context/ShareContext';
 import { AppProvider } from '../store/context';
+import { useAuth } from '../hooks/useAuth';
+import { onAuthorityMismatch } from '../utils/hiveAuthErrors';
 import TOSWrapper from '../components/TOSWrapper';
 import { PointsToast } from './components/points/PointsToast';
 
@@ -103,10 +106,49 @@ function RootLayoutNav() {
                 <Stack.Screen name='modal' options={{ presentation: 'modal' }} />
               </Stack>
               <PointsToast />
+              <StaleKeyWatcher />
             </TOSWrapper>
           </ThemeProvider>
         </HivePostPreviewProvider>
       </ShareProvider>
     </AppProvider>
   );
+}
+
+/**
+ * Rendered once, inside AppProvider (useAuth needs its context) — listens
+ * for a broadcast anywhere in the app failing because the stored key no
+ * longer matches the account's on-chain authority (see
+ * utils/hiveAuthErrors.ts), e.g. the user rotated their posting/active key
+ * with another app. There's no fixing that locally, so this logs the user
+ * out and routes back through app/index.tsx's normal post-logout landing
+ * (account selection or login) instead of leaving them stuck re-hitting
+ * the same broadcast error indefinitely.
+ */
+function StaleKeyWatcher() {
+  const router = useRouter();
+  const { logout } = useAuth();
+  const handledRef = useRef(false);
+
+  useEffect(() => {
+    return onAuthorityMismatch(() => {
+      if (handledRef.current) return; // one shot per session — avoid a burst of concurrent broadcasts double-firing this
+      handledRef.current = true;
+
+      // '/' (not LoginScreen directly) — same target AccountSelectionScreen's
+      // own logout flow uses. app/index.tsx's own routing logic then decides
+      // between AccountSelectionScreen (other stored accounts remain) and
+      // LoginScreen (none do), same as any other logout in this app.
+      router.replace('/');
+      logout().catch(err => {
+        console.error('[StaleKeyWatcher] Logout after key mismatch failed:', err);
+      });
+      Alert.alert(
+        'Signed Out',
+        "Your saved key no longer matches this account — it may have been changed in another app. Please log in again with your current key."
+      );
+    });
+  }, [logout, router]);
+
+  return null;
 }

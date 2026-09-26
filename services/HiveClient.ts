@@ -15,6 +15,7 @@
  */
 
 import { Client } from '@hiveio/dhive';
+import { isAuthorityMismatchError, emitAuthorityMismatch } from '../utils/hiveAuthErrors';
 
 // --- Beacon API types ---
 
@@ -226,8 +227,21 @@ function createFailoverProxy(getTarget: () => any, isBroadcast = false): Client 
       const value = getTarget()[prop];
 
       if (typeof value === 'function') {
-        return (...args: any[]) =>
-          wrapper(() => value.apply(getTarget(), args));
+        return (...args: any[]) => {
+          const call = () => value.apply(getTarget(), args);
+          if (!isBroadcast) return wrapper(call);
+
+          // A broadcast rejected for an authority mismatch means the
+          // stored key is stale (rotated out via another app) — no retry
+          // or new attempt will ever fix that locally. Flag it once here,
+          // centrally, since every broadcast in the app goes through this
+          // proxy; still rethrow so the caller's own error handling (a
+          // toast, a modal state) behaves exactly as it did before.
+          return wrapper(call).catch((err: unknown) => {
+            if (isAuthorityMismatchError(err)) emitAuthorityMismatch();
+            throw err;
+          });
+        };
       }
 
       // For sub-objects (database, broadcast, etc.), return a stable
