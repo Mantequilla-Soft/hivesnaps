@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,14 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { listMarketItems, buyItem, claimOwnItem, NotEnrolledError } from '../../../services/pileService';
+import {
+  listMarketItems,
+  buyItem,
+  claimOwnItem,
+  NotEnrolledError,
+  PurchaseOutcomeUnknownError,
+  generatePurchaseRefKey,
+} from '../../../services/pileService';
 import type { ItemDTO } from '../../../services/pileService';
 import { fetchPointsSummary } from '../../../services/pointsService';
 import { onPointsSpent, onPointsEarned } from '../../../utils/pointsEvents';
@@ -37,6 +44,10 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
   const [items, setItems] = useState<ItemDTO[] | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
+  // One purchaseRefKey per in-progress purchase intent (keyed by item id),
+  // so a retry after a timeout/network failure reuses the same key instead
+  // of generating a new one — see PurchaseOutcomeUnknownError below.
+  const purchaseRefKeysRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     listMarketItems('hot', 0).then(page => setItems(page.items));
@@ -68,8 +79,12 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
       if (!currentUsername || busyItemId) return;
 
       setBusyItemId(item.id);
+      const purchaseRefKey =
+        purchaseRefKeysRef.current[item.id] ?? generatePurchaseRefKey();
+      purchaseRefKeysRef.current[item.id] = purchaseRefKey;
       try {
-        const result = await buyItem(item.id, item.price);
+        const result = await buyItem(item.id, item.price, purchaseRefKey);
+        delete purchaseRefKeysRef.current[item.id]; // this purchase intent is resolved
         switch (result.status) {
           case 'purchased':
             setBalance(result.balance);
@@ -105,6 +120,14 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
             break;
         }
       } catch (error) {
+        // Outcome unknown (timed out / failed before a response) — keep the
+        // key so retrying this same item dedupes against a first attempt
+        // that may have actually succeeded. Any other error is a confirmed
+        // server response, so a later retry is a genuinely new intent.
+        if (!(error instanceof PurchaseOutcomeUnknownError)) {
+          delete purchaseRefKeysRef.current[item.id];
+        }
+
         if (error instanceof NotEnrolledError) {
           Alert.alert('Not Available Yet', error.message);
         } else {

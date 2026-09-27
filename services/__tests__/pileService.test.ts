@@ -135,7 +135,7 @@ describe('pileService', () => {
     it('throws when there is no auth token', async () => {
       getPointsAuthToken.mockResolvedValueOnce(null);
 
-      await expect(pileService.buyItem('item-1', 25)).rejects.toThrow('start a session');
+      await expect(pileService.buyItem('item-1', 25, 'ref-1')).rejects.toThrow('start a session');
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
@@ -143,26 +143,26 @@ describe('pileService', () => {
       getPointsAuthToken.mockResolvedValueOnce('jwt-token');
       mockFetchOnce({}, false, 500, 'Server Error');
 
-      await expect(pileService.buyItem('item-1', 25)).rejects.toThrow('Could not complete this purchase');
+      await expect(pileService.buyItem('item-1', 25, 'ref-1')).rejects.toThrow('Could not complete this purchase');
     });
 
     it('emits pointsSpent and returns the result on a successful purchase', async () => {
       getPointsAuthToken.mockResolvedValueOnce('jwt-token');
       mockFetchOnce({ status: 'purchased', unitId: 'unit-1', balance: 75 });
 
-      const result = await pileService.buyItem('item-1', 25);
+      const result = await pileService.buyItem('item-1', 25, 'ref-1');
 
       expect(result).toEqual({ status: 'purchased', unitId: 'unit-1', balance: 75 });
       expect(emitPointsSpent).toHaveBeenCalledWith({ spent: 25, balance: 75 });
       const [, init] = (global.fetch as jest.Mock).mock.calls[0];
-      expect(JSON.parse(init.body).purchaseRefKey).toEqual(expect.any(String));
+      expect(JSON.parse(init.body).purchaseRefKey).toBe('ref-1');
     });
 
     it('does not emit pointsSpent when the purchase is declined (e.g. insufficient balance)', async () => {
       getPointsAuthToken.mockResolvedValueOnce('jwt-token');
       mockFetchOnce({ status: 'insufficient_balance', unitId: null, balance: 5 });
 
-      const result = await pileService.buyItem('item-1', 25);
+      const result = await pileService.buyItem('item-1', 25, 'ref-1');
 
       expect(result.status).toBe('insufficient_balance');
       expect(emitPointsSpent).not.toHaveBeenCalled();
@@ -172,15 +172,35 @@ describe('pileService', () => {
       getPointsAuthToken.mockResolvedValueOnce('jwt-token');
       mockFetchOnce({ error: 'not_enrolled' }, false, 403, 'Forbidden');
 
-      await expect(pileService.buyItem('item-1', 25)).rejects.toThrow(pileService.NotEnrolledError);
+      await expect(pileService.buyItem('item-1', 25, 'ref-1')).rejects.toThrow(pileService.NotEnrolledError);
     });
 
     it('throws a generic error (not NotEnrolledError) on a 403 with a different body', async () => {
       getPointsAuthToken.mockResolvedValueOnce('jwt-token');
       mockFetchOnce({ error: 'something_else' }, false, 403, 'Forbidden');
 
-      await expect(pileService.buyItem('item-1', 25)).rejects.toMatchObject({
+      await expect(pileService.buyItem('item-1', 25, 'ref-1')).rejects.toMatchObject({
         message: expect.stringContaining('Could not complete this purchase'),
+      });
+    });
+
+    it('encodes itemId in the buy URL', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'purchased', unitId: 'unit-1', balance: 75 });
+
+      await pileService.buyItem('item/with slash', 25, 'ref-1');
+
+      const [url] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('https://snapie.io/api/points/market/items/item%2Fwith%20slash/buy');
+    });
+
+    it('throws PurchaseOutcomeUnknownError carrying the same purchaseRefKey when the request fails before a response arrives', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network request failed'));
+
+      await expect(pileService.buyItem('item-1', 25, 'ref-1')).rejects.toMatchObject({
+        name: 'PurchaseOutcomeUnknownError',
+        purchaseRefKey: 'ref-1',
       });
     });
   });

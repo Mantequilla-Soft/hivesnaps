@@ -18,6 +18,17 @@
  */
 
 const CHECKER_URL = 'https://checker.3speak.tv/shortssorted';
+const FETCH_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export interface ShortItem {
   /** `${author}/${permlink}` — stable dedup/list key. */
@@ -130,7 +141,7 @@ export async function fetchShortsPage(
   limit: number = 10
 ): Promise<FetchShortsPageResult> {
   const url = `${CHECKER_URL}?page=${page}&limit=${limit}&seed=${encodeURIComponent(seed)}`;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
 
   if (!response.ok) {
     throw new Error(`Shorts request failed with status ${response.status}`);

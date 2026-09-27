@@ -98,7 +98,7 @@ export default function BottomTabBar({
         color={colors.text}
         onPress={() => {
           if (username) {
-            router.push(`/screens/ProfileScreen?username=${username}` as any);
+            router.push({ pathname: '/screens/ProfileScreen', params: { username } });
           }
         }}
       />

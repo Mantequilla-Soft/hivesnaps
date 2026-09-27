@@ -16,7 +16,12 @@ export interface HiveTransferQRData {
 
 export function encodeHiveTransferQR(to: string, amount: string, memo: string): string {
   const op = JSON.stringify(['transfer', { to, amount, memo }]);
-  const b64 = btoa(op).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = new TextEncoder().encode(op);
+  let binary = '';
+  bytes.forEach(b => {
+    binary += String.fromCharCode(b);
+  });
+  const b64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return `hive://sign/op/${b64}`;
 }
 
@@ -28,7 +33,9 @@ export function decodeHiveTransferQR(raw: string): HiveTransferQRData | null {
     const b64url = raw.slice(PREFIX.length);
     const pad = '=='.slice(0, (4 - (b64url.length % 4)) % 4);
     const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/') + pad;
-    const op = JSON.parse(atob(b64));
+    const binary = atob(b64);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    const op = JSON.parse(new TextDecoder().decode(bytes));
 
     if (!Array.isArray(op) || op[0] !== 'transfer') return null;
     const { to, amount, memo } = op[1] as Record<string, string>;

@@ -218,6 +218,39 @@ export async function hiveCall<T>(fn: () => Promise<T>): Promise<T> {
  * transactions — they get a single attempt with a timeout. If a broadcast
  * times out, the caller receives the error and can decide whether to retry.
  */
+// Best-effort extraction of the acting account from a broadcast call, so a
+// later authority-mismatch rejection can be tied back to the account it was
+// actually signed for (see emitAuthorityMismatch). Covers the operation
+// shapes this app actually broadcasts (vote, comment, custom_json, and the
+// raw ops passed to sendOperations) — returns null rather than guessing if
+// the shape isn't recognized.
+function extractOperationAccount(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const p = payload as Record<string, unknown>;
+  const candidates: unknown[] = [
+    p.voter,
+    p.author,
+    p.from,
+    p.account,
+    p.delegator,
+    p.owner,
+    Array.isArray(p.required_posting_auths) ? p.required_posting_auths[0] : undefined,
+    Array.isArray(p.required_auths) ? p.required_auths[0] : undefined,
+  ];
+  const account = candidates.find(c => typeof c === 'string' && c.length > 0);
+  return typeof account === 'string' ? account : null;
+}
+
+function extractBroadcastAccount(methodName: string | symbol, args: unknown[]): string | null {
+  const first = args[0];
+  if (methodName === 'sendOperations' && Array.isArray(first)) {
+    const op = first[0];
+    const payload = Array.isArray(op) ? op[1] : undefined;
+    return extractOperationAccount(payload);
+  }
+  return extractOperationAccount(first);
+}
+
 function createFailoverProxy(getTarget: () => any, isBroadcast = false): Client {
   const subProxies = new Map<string | symbol, any>();
   const wrapper = isBroadcast ? hiveCallOnce : hiveCall;
@@ -227,7 +260,7 @@ function createFailoverProxy(getTarget: () => any, isBroadcast = false): Client 
       const value = getTarget()[prop];
 
       if (typeof value === 'function') {
-        return (...args: any[]) => {
+        return (...args: unknown[]): Promise<unknown> => {
           const call = () => value.apply(getTarget(), args);
           if (!isBroadcast) return wrapper(call);
 
@@ -237,8 +270,9 @@ function createFailoverProxy(getTarget: () => any, isBroadcast = false): Client 
           // centrally, since every broadcast in the app goes through this
           // proxy; still rethrow so the caller's own error handling (a
           // toast, a modal state) behaves exactly as it did before.
+          const account = extractBroadcastAccount(prop, args);
           return wrapper(call).catch((err: unknown) => {
-            if (isAuthorityMismatchError(err)) emitAuthorityMismatch();
+            if (isAuthorityMismatchError(err)) emitAuthorityMismatch(account);
             throw err;
           });
         };

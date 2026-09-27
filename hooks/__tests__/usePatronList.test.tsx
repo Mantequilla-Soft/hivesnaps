@@ -17,10 +17,13 @@ const mockGetPatronsMap = getPatronsMap as jest.Mock;
 // `container` is mutated in place on every re-render — read container.result
 // fresh after each act() rather than destructuring it once.
 function renderUsePatronList(): { result: ReturnType<typeof usePatronList> } {
-  const container: { result: ReturnType<typeof usePatronList> } = { result: null as any };
+  const container: { result: ReturnType<typeof usePatronList> | null } = { result: null };
   const TestComponent = () => { container.result = usePatronList(); return null; };
   act(() => { create(React.createElement(TestComponent)); });
-  return container;
+  if (container.result === null) {
+    throw new Error('usePatronList did not render synchronously');
+  }
+  return container as { result: ReturnType<typeof usePatronList> };
 }
 
 describe('usePatronList', () => {

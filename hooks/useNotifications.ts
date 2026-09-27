@@ -17,7 +17,8 @@ import {
 } from '../utils/notifications';
 
 import { useMutedList, useNotifications as useNotificationStore } from '../store/context';
-import { fetchMutedList } from '../services/HiveMuteService';
+import { fetchMutedList, didLastMutedListFetchFail } from '../services/HiveMuteService';
+import { CACHE_DURATIONS } from '../store/types';
 import { getClient } from '../services/HiveClient';
 import { accountStorageService } from '../services/AccountStorageService';
 
@@ -89,7 +90,12 @@ export const useNotifications = (
       try {
         setMutedLoading(true);
         const mutedSet = await fetchMutedList(username);
-        setMutedList(Array.from(mutedSet));
+        // A failed fetch shouldn't be cached here as if it were confirmed
+        // for a full day — use a short retry lifetime instead.
+        setMutedList(
+          Array.from(mutedSet),
+          didLastMutedListFetchFail(username) ? CACHE_DURATIONS.MUTED_LIST_RETRY : undefined
+        );
         setMutedError(null);
       } catch (error) {
         console.error('[useNotifications] Error loading muted list:', error);
@@ -109,6 +115,13 @@ export const useNotifications = (
   const refreshInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastReadRef = useRef(lastRead);
   lastReadRef.current = lastRead;
+  // Synchronous guard for loadMore — FlatList can call onEndReached again
+  // before React commits setLoadingMore(true), so the `loadingMore` state
+  // alone can't stop a duplicate fetch. listGenRef lets an in-flight
+  // loadMore detect that refresh() replaced the list underneath it and
+  // discard its (now stale) page instead of appending onto the fresh list.
+  const loadingMoreRef = useRef(false);
+  const listGenRef = useRef(0);
 
   // Load settings from storage
   useEffect(() => {
@@ -215,6 +228,9 @@ export const useNotifications = (
           fetchUnread(),
         ]);
 
+        // Bump before replacing the list so a loadMore in flight from the
+        // list this is about to replace can tell its page is now stale.
+        listGenRef.current += 1;
         const withReadStatus = applyReadCursor(items, freshLastRead);
         setNotifications(sortNotifications(withReadStatus, 'chronological'));
         setHasMore(rawCount >= PAGE_SIZE);
@@ -234,16 +250,23 @@ export const useNotifications = (
   );
 
   const loadMore = useCallback(async () => {
-    if (!username || loadingMore || !hasMore) return;
+    if (!username || loadingMoreRef.current || !hasMore) return;
 
     const oldestId = notifications[notifications.length - 1]?.id;
     if (oldestId === undefined) return;
 
+    loadingMoreRef.current = true;
+    const gen = listGenRef.current;
     setLoadingMore(true);
     setError(null);
 
     try {
       const { items, rawCount } = await fetchAndFilterPage(oldestId);
+      // refresh() replaced the list while this page was in flight — that
+      // page belongs to a list this hook no longer shows, so drop it
+      // instead of appending an older page onto the fresh one.
+      if (gen !== listGenRef.current) return;
+
       const withReadStatus = applyReadCursor(items, lastReadRef.current);
 
       setNotifications(prev => {
@@ -256,9 +279,10 @@ export const useNotifications = (
       console.error('Error loading more notifications:', err);
       setError(err instanceof Error ? err.message : 'Failed to load more notifications');
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [username, loadingMore, hasMore, notifications, fetchAndFilterPage]);
+  }, [username, hasMore, notifications, fetchAndFilterPage]);
 
   const getPostingKey = useCallback(async (): Promise<PrivateKey> => {
     const keyStr = await accountStorageService.getCurrentPostingKey();

@@ -3,7 +3,8 @@ import { getClient } from '../services/HiveClient';
 import { useFollowingList, useMutedList, useCurrentUser } from '../store/context';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
-import { fetchMutedList } from '../services/HiveMuteService';
+import { fetchMutedList, didLastMutedListFetchFail } from '../services/HiveMuteService';
+import { CACHE_DURATIONS } from '../store/types';
 import { usePatronList } from './usePatronList';
 import type { ActiveVote } from '../services/ModerationService';
 
@@ -925,7 +926,14 @@ export function useFeedData(): UseFeedDataReturn {
           mutedArray.length,
           'muted users from blockchain'
         );
-        setMutedList(mutedArray);
+        // A failed fetch (even one that fell back to stale/empty data)
+        // shouldn't be cached here as if it were confirmed for a full day —
+        // use a short retry lifetime instead so connectivity recovering
+        // gets picked up soon.
+        setMutedList(
+          mutedArray,
+          didLastMutedListFetchFail(username) ? CACHE_DURATIONS.MUTED_LIST_RETRY : undefined
+        );
         setMutedError(null);
         return mutedArray;
       } catch (error) {
@@ -1067,6 +1075,39 @@ export function useFeedData(): UseFeedDataReturn {
 
     return enrichedSnaps;
   }, [memoizedFilteredSnaps]);
+
+  // If the user selects Patrons before getPatronsMap() resolves, setFilter
+  // below filters with an empty patronSet and writes that empty result into
+  // state.snaps (the value this hook actually returns — memoizedFilteredSnaps/
+  // memoizedEnrichedSnaps above are otherwise unused). Once the real
+  // patronSet arrives, re-apply the filter so the feed doesn't stay stuck
+  // empty for the rest of the session.
+  const appliedPatronSetRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (state.currentFilter !== 'patrons') return;
+    if (appliedPatronSetRef.current === patronSet) return;
+    appliedPatronSetRef.current = patronSet;
+
+    setState(prev => {
+      if (prev.currentFilter !== 'patrons') return prev;
+      const allSnaps = prev.containerMap.getAllSnaps();
+      const filteredSnaps = applyFilter(
+        allSnaps,
+        'patrons',
+        followingListRef.current || [],
+        username,
+        patronSet
+      );
+      const enrichedSnaps = filteredSnaps.map(snap => ({
+        ...snap,
+        avatarUrl:
+          snap.avatarUrl ||
+          avatarService.getCachedAvatarUrl(snap.author) ||
+          `https://images.hive.blog/u/${snap.author}/avatar/original`,
+      }));
+      return { ...prev, snaps: enrichedSnaps };
+    });
+  }, [patronSet, state.currentFilter, applyFilter, username]);
 
   const setFilter = useCallback(
     (filter: FeedFilter) => {

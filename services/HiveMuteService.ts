@@ -26,18 +26,47 @@ interface CachedMutedList {
 
 const cache = new Map<string, CachedMutedList>();
 const inFlight = new Map<string, Promise<Set<string>>>();
+// True if the most recent fetchMutedList call for this user hit the catch
+// branch below (a bridge call failed). Callers that persist the result into
+// a longer-lived outer cache (e.g. the app store's 24h MUTED_LIST cache)
+// should use a short retry lifetime instead when this is true, so a
+// connectivity blip doesn't block muting for a full day.
+const lastFetchFailed = new Map<string, boolean>();
+// Bumped by clearMutedListCache. A fetch captures the epoch it started
+// with and only writes to `cache` if it's still current — otherwise a
+// mute/unmute that lands mid-fetch can't have its own invalidation undone
+// by that now-stale fetch resolving afterward.
+const epoch = new Map<string, number>();
 
 type CommunityRoleEntry = [account: string, role: string, title?: string];
 
+const COMMUNITY_ROLES_PAGE_SIZE = 1000;
+
 async function fetchCommunityMutedList(): Promise<string[]> {
   const client = getClient();
-  const roles = (await client.call('bridge', 'list_community_roles', {
-    community: SNAPIE_COMMUNITY,
-    limit: 1000,
-  })) as CommunityRoleEntry[] | null;
-  return (roles ?? [])
-    .filter(entry => entry[1] === 'muted')
-    .map(entry => entry[0]);
+  const muted: string[] = [];
+  let last = '';
+
+  // bridge.list_community_roles only returns one page per call — page
+  // through with `last` until a short page tells us we've reached the end,
+  // so a community with >1000 role entries doesn't silently lose the rest.
+  for (;;) {
+    const roles = (await client.call('bridge', 'list_community_roles', {
+      community: SNAPIE_COMMUNITY,
+      last,
+      limit: COMMUNITY_ROLES_PAGE_SIZE,
+    })) as CommunityRoleEntry[] | null;
+    const page = roles ?? [];
+
+    for (const entry of page) {
+      if (entry[1] === 'muted') muted.push(entry[0]);
+    }
+
+    if (page.length < COMMUNITY_ROLES_PAGE_SIZE) break;
+    last = page[page.length - 1][0];
+  }
+
+  return muted;
 }
 
 async function fetchPersonalMutedList(username: string): Promise<string[]> {
@@ -68,21 +97,42 @@ export async function fetchMutedList(username: string): Promise<Set<string>> {
     return new Set(cached.accounts);
   }
 
+  const startEpoch = epoch.get(key) ?? 0;
+
   const fetchPromise = (async (): Promise<Set<string>> => {
     try {
-      const [communityMuted, personalMuted] = await Promise.all([
+      // Settle independently — one source rejecting shouldn't discard the
+      // other's result the way Promise.all would.
+      const [communityResult, personalResult] = await Promise.allSettled([
         fetchCommunityMutedList(),
         fetchPersonalMutedList(username),
       ]);
+
+      if (communityResult.status === 'rejected' && personalResult.status === 'rejected') {
+        throw communityResult.reason;
+      }
+      if (communityResult.status === 'rejected') {
+        console.error('[HiveMuteService] Community-muted fetch failed:', communityResult.reason);
+      }
+      if (personalResult.status === 'rejected') {
+        console.error('[HiveMuteService] Personal-muted fetch failed:', personalResult.reason);
+      }
+
+      const communityMuted = communityResult.status === 'fulfilled' ? communityResult.value : [];
+      const personalMuted = personalResult.status === 'fulfilled' ? personalResult.value : [];
 
       const accounts = Array.from(
         new Set([...communityMuted, ...personalMuted].map(a => a.toLowerCase()))
       );
 
-      cache.set(key, { accounts, timestamp: Date.now() });
+      if ((epoch.get(key) ?? 0) === startEpoch) {
+        cache.set(key, { accounts, timestamp: Date.now() });
+        lastFetchFailed.delete(key);
+      }
       return new Set(accounts);
     } catch (err) {
       console.error('[HiveMuteService] Error fetching muted list, falling back to cache:', err);
+      lastFetchFailed.set(key, true);
       // Fail closed: prefer stale cached data over an empty set, so a
       // flaky/offline moment doesn't silently disable muting.
       return cached ? new Set(cached.accounts) : new Set();
@@ -95,8 +145,21 @@ export async function fetchMutedList(username: string): Promise<Set<string>> {
   return fetchPromise;
 }
 
+/** True if the most recent fetchMutedList call for `username` failed and
+ *  fell back to stale/empty data. See `lastFetchFailed` above. */
+export function didLastMutedListFetchFail(username: string): boolean {
+  return lastFetchFailed.get(username.toLowerCase()) ?? false;
+}
+
 /** Clears the cached muted list for a user, forcing the next
  *  fetchMutedList call to hit the network. Call after a mute/unmute. */
 export function clearMutedListCache(username: string): void {
-  cache.delete(username.toLowerCase());
+  const key = username.toLowerCase();
+  cache.delete(key);
+  // Bump the epoch so a fetch already in flight (started before this
+  // mute/unmute) can't repopulate the cache with pre-change data once it
+  // resolves. Also drop the in-flight entry itself so the next caller
+  // starts a fresh fetch instead of awaiting that stale one.
+  epoch.set(key, (epoch.get(key) ?? 0) + 1);
+  inFlight.delete(key);
 }

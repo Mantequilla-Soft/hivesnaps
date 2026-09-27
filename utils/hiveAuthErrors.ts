@@ -31,7 +31,11 @@ export function isAuthorityMismatchError(error: unknown): boolean {
 // app hits an authority mismatch; app/_layout.tsx's always-mounted root
 // listens and drives the actual logout + navigation, since only a
 // component has access to useAuth()/useRouter().
-type Listener = () => void;
+// `account` is the username the failing broadcast was signed for (when
+// known) — lets a listener ignore a mismatch for an account the user has
+// since switched away from, instead of logging out whatever account is
+// current by the time the rejection arrives.
+type Listener = (account: string | null) => void;
 
 const listeners = new Set<Listener>();
 
@@ -40,6 +44,6 @@ export function onAuthorityMismatch(cb: Listener): () => void {
   return () => listeners.delete(cb);
 }
 
-export function emitAuthorityMismatch(): void {
-  listeners.forEach(cb => cb());
+export function emitAuthorityMismatch(account: string | null = null): void {
+  listeners.forEach(cb => cb(account));
 }

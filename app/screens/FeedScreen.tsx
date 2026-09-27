@@ -40,6 +40,7 @@ import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
 import { useResourceCredits } from '../../hooks/useResourceCredits';
 import { useUserProfile } from '../../hooks/useUserProfile';
+import { usePatronList } from '../../hooks/usePatronList';
 import { formatVotingPower } from '../../utils/calculateVotingPower';
 
 // Shared state management
@@ -179,6 +180,10 @@ const FeedScreenRefactored = () => {
     loadMore: loadMoreWaves,
   } = useWavesFeed(username);
 
+  // Needed here (not just inside useFeedData) so the Patrons filter can
+  // also restrict which waves get interleaved below.
+  const { patronSet } = usePatronList();
+
   // Trending/resurrected snaps (snapie.io discovery engine) — fetched once per
   // session (not paginated) and promoted to the top of the Newest feed; see
   // splice step below.
@@ -248,13 +253,15 @@ const FeedScreenRefactored = () => {
     // Same muted-author filter filteredSnaps already applies to native snaps.
     let eligibleWaves = waves.filter(w => !mutedList || !mutedList.includes(w.author));
     // On the Following tab, only splice in waves from authors the user actually follows —
-    // otherwise "Following" stops meaning following.
+    // otherwise "Following" stops meaning following. Same idea for Patrons.
     if (currentFilter === 'following') {
       eligibleWaves = eligibleWaves.filter(w => followingList?.includes(w.author));
+    } else if (currentFilter === 'patrons') {
+      eligibleWaves = eligibleWaves.filter(w => patronSet.has(w.author));
     }
     if (eligibleWaves.length === 0) return feedWithTrending;
     return interleave(feedWithTrending, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
-  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, mutedList]);
+  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, patronSet, mutedList]);
 
   // Apply the same muted-list filter to blog posts
   const filteredBlogPosts = useMemo(() => {
@@ -1143,6 +1150,7 @@ const FeedScreenRefactored = () => {
               return (
                 <Snap
                   snap={snapData}
+                  currentUsername={username}
                   onUpvotePress={() =>
                     handleUpvotePress({
                       author: item.author,

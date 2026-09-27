@@ -125,9 +125,27 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
  *  cryptographically random (the server only uses it to dedupe a retried
  *  request, not as a security token), so this avoids depending on
  *  crypto.randomUUID(), which isn't reliably available across RN/Hermes
- *  versions without an extra polyfill dependency. */
-function generatePurchaseRefKey(): string {
+ *  versions without an extra polyfill dependency. Exported so a caller can
+ *  generate one key per purchase intent and reuse it across retries — see
+ *  buyItem/PurchaseOutcomeUnknownError below. */
+export function generatePurchaseRefKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Thrown by buyItem when the request timed out or failed before any
+ *  response arrived — the purchase may or may not have gone through
+ *  server-side. Distinct from a normal Error (a confirmed server response,
+ *  e.g. insufficient balance) so the caller knows it's safe, and necessary,
+ *  to retry with the SAME `purchaseRefKey` rather than a new one — reusing
+ *  it lets the server dedupe a retry against a first attempt that actually
+ *  succeeded, instead of charging the user twice. */
+export class PurchaseOutcomeUnknownError extends Error {
+  readonly purchaseRefKey: string;
+  constructor(purchaseRefKey: string) {
+    super('Could not confirm whether this purchase went through. Please try again.');
+    this.name = 'PurchaseOutcomeUnknownError';
+    this.purchaseRefKey = purchaseRefKey;
+  }
 }
 
 /** Everything thrown at one post/Snap, grouped by item. Public endpoint —
@@ -197,15 +215,29 @@ export async function getMyInventory(): Promise<InventoryEntry[]> {
  *  is a direct user-initiated action (a tap on "Buy"), so failures throw
  *  descriptive errors instead of swallowing — the caller is expected to show
  *  the user something went wrong, not silently no-op. */
-export async function buyItem(itemId: string, price: number): Promise<BuyItemResult> {
+export async function buyItem(
+  itemId: string,
+  price: number,
+  purchaseRefKey: string
+): Promise<BuyItemResult> {
   const token = await getPointsAuthToken();
   if (!token) throw new Error('Could not start a session to complete this purchase. Please try again.');
 
-  const res = await fetchWithTimeout(`${SNAPIE_API_URL}/api/points/market/items/${itemId}/buy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ purchaseRefKey: generatePurchaseRefKey() }),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${SNAPIE_API_URL}/api/points/market/items/${encodeURIComponent(itemId)}/buy`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ purchaseRefKey }),
+      }
+    );
+  } catch (err) {
+    // Timed out, or failed before any response arrived — the caller must
+    // retry with this same purchaseRefKey rather than treat it as resolved.
+    throw new PurchaseOutcomeUnknownError(purchaseRefKey);
+  }
   await assertOk(res, 'Could not complete this purchase. Please try again.');
 
   const data = (await res.json()) as BuyItemResult;
@@ -221,7 +253,7 @@ export async function claimOwnItem(itemId: string): Promise<ClaimOwnItemResult> 
   const token = await getPointsAuthToken();
   if (!token) throw new Error('Could not start a session to claim this. Please try again.');
 
-  const res = await fetchWithTimeout(`${SNAPIE_API_URL}/api/points/market/items/${itemId}/claim`, {
+  const res = await fetchWithTimeout(`${SNAPIE_API_URL}/api/points/market/items/${encodeURIComponent(itemId)}/claim`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
