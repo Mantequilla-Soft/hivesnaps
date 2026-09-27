@@ -319,6 +319,60 @@ suite now 277/277, `tsc --noEmit` still clean. Not yet verified: actual
 playback/scrolling on a device, since this container cannot run the app —
 please confirm the feed now populates and test the real swipe/autoplay feel.
 
+## ✅ Wallet: QR pay + avatar-on-manual-entry
+
+Investigated via a research spike first (snapie-io's `components/wallet/`),
+then built against the four things asked for. Reused heavily: HiveSnaps
+already had a working Send HIVE/HBD form (`TransferModal.tsx`), active-key
+storage + biometric signing (`useWalletOperations.ts`), avatar resolution
+(`useAvatar`), and `get_account_history` parsing (`useAccountHistory.ts`)
+— none of that changed. Every new piece calls into the existing signing
+path; HiveSnaps does not adopt snapie-io's Aioha/Keychain-delegation model.
+
+- **Avatar confirmation on manual entry** (was genuinely missing):
+  `TransferModal.tsx` now does a debounced (1s) `client.database.getAccounts`
+  existence check on the recipient field — idle/checking/found/not-found,
+  disables Send on not-found, shows the recipient's avatar (via `useAvatar`)
+  once confirmed. Direct port of snapie-io's `WalletModal.tsx` pattern.
+- **QR payload format**: ported snapie-io's `hive://sign/op/<base64url>`
+  scheme verbatim (`utils/hiveQr.ts` — `encodeHiveTransferQR`/
+  `decodeHiveTransferQR`/`currencyFromAmount`/`valueFromAmount`), by explicit
+  choice, so a HiveSnaps-generated QR and a snapie-io scanner (or vice
+  versa) read each other. Uses the RN-global `btoa`/`atob` (native since RN
+  0.74, no polyfill added).
+- **Request Payment**: `app/components/wallet/RequestPaymentModal.tsx`
+  renders the QR (new dependency: `react-native-qrcode-svg` +
+  `react-native-svg`) with optional amount/currency/memo fields, and polls
+  for the matching incoming transfer via the new
+  `hooks/useIncomingPayment.ts` — a port of snapie-io's `QRRequestSheet`
+  polling logic (5s interval, 15min timeout, matches recipient + currency +
+  recency + amount, allowing overpayment, ignoring memo) built on the same
+  `get_account_history` call `useAccountHistory.ts` already used, not a new
+  API surface.
+- **Scan to Pay**: `app/components/wallet/ScanPaymentModal.tsx` — `expo-camera`
+  was already a declared dependency but unused anywhere in the app; wired up
+  its `CameraView`/`onBarcodeScanned` (built into Expo SDK 54, no extra
+  native module) to decode with the same `decodeHiveTransferQR`. A scan
+  opens the existing `TransferModal` pre-filled (new optional `initialTo`/
+  `initialAmount`/`initialMemo` props) rather than sending immediately — the
+  scanner still reviews/edits before confirming. Added `expo-camera` to
+  `app.json`'s plugins (needed for the Android `CAMERA` permission to be
+  added at prebuild; iOS's `NSCameraUsageDescription` already existed from
+  photo/video capture, broadened to mention QR scanning too).
+- Both new actions ("Request Payment", "Scan to Pay") added to
+  `WalletScreen.tsx`'s existing action grid.
+
+Covered by `utils/__tests__/hiveQr.test.ts` (11 tests: encode/decode
+round-trip, malformed input, wrong-op-type rejection) and
+`hooks/__tests__/useIncomingPayment.test.tsx` (9 tests: match/no-match
+cases, overpayment, wrong currency/recipient, pre-request transfers
+ignored, never-throws). Verified: full suite now 297/297, `tsc --noEmit`
+still clean. **Not verified**: actual QR scan/generate/detect on a device,
+or genuine interop with a snapie-io scanner/generator — this container has
+no camera and network policy blocks `checker.3speak.tv`-style live checks,
+so please confirm the round-trip (generate on HiveSnaps → scan on
+snapie-io, and the reverse) actually works before relying on it.
+
 ## 🏗️ "The Pile" — item-throwing on posts/snaps
 
 ### Mechanics (from the spike)

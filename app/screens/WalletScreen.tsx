@@ -22,7 +22,10 @@ import { PowerUpModal } from '../components/wallet/PowerUpModal';
 import { PowerDownModal } from '../components/wallet/PowerDownModal';
 import { TransactionList } from '../components/wallet/TransactionList';
 import PileMarketSection from '../components/wallet/PileMarketSection';
+import { RequestPaymentModal } from '../components/wallet/RequestPaymentModal';
+import { ScanPaymentModal } from '../components/wallet/ScanPaymentModal';
 import { AuthCancelledError } from '../../services/LocalAuthService';
+import { currencyFromAmount, valueFromAmount, HiveTransferQRData } from '../../utils/hiveQr';
 
 const client = getClient();
 
@@ -70,6 +73,9 @@ const WalletScreen = (): React.JSX.Element => {
     const [transferHbdVisible, setTransferHbdVisible] = useState(false);
     const [powerUpVisible, setPowerUpVisible] = useState(false);
     const [powerDownVisible, setPowerDownVisible] = useState(false);
+    const [requestPaymentVisible, setRequestPaymentVisible] = useState(false);
+    const [scanPaymentVisible, setScanPaymentVisible] = useState(false);
+    const [transferPrefill, setTransferPrefill] = useState<{ to: string; amount: string; memo: string } | null>(null);
 
     // Stored key availability (checked once on mount)
     const [storedKeyAvailable, setStoredKeyAvailable] = useState(false);
@@ -176,6 +182,7 @@ const WalletScreen = (): React.JSX.Element => {
         const id = setTimeout(() => {
             setTransferHiveVisible(false);
             setTransferHbdVisible(false);
+            setTransferPrefill(null);
             resetOperationSuccess();
         }, 2500);
         return () => clearTimeout(id);
@@ -236,6 +243,17 @@ const WalletScreen = (): React.JSX.Element => {
         }
     };
 
+    // A scanned payment-request QR opens the matching Transfer modal
+    // pre-filled, rather than sending immediately — the scanner still
+    // reviews (and can edit) the recipient/amount/memo before confirming.
+    const handleScanned = (data: HiveTransferQRData): void => {
+        setScanPaymentVisible(false);
+        const currency = currencyFromAmount(data.amount);
+        setTransferPrefill({ to: data.to, amount: String(valueFromAmount(data.amount)), memo: data.memo });
+        if (currency === 'HBD') setTransferHbdVisible(true);
+        else setTransferHiveVisible(true);
+    };
+
     const actions = [
         {
             label: 'Transfer\nHIVE',
@@ -256,6 +274,16 @@ const WalletScreen = (): React.JSX.Element => {
             label: 'Power\nDown',
             icon: 'arrow-circle-down' as const,
             onPress: () => setPowerDownVisible(true),
+        },
+        {
+            label: 'Request\nPayment',
+            icon: 'qrcode' as const,
+            onPress: () => setRequestPaymentVisible(true),
+        },
+        {
+            label: 'Scan to\nPay',
+            icon: 'camera' as const,
+            onPress: () => setScanPaymentVisible(true),
         },
     ];
 
@@ -359,7 +387,10 @@ const WalletScreen = (): React.JSX.Element => {
                 loading={transferLoading}
                 success={transferSuccess}
                 colors={colors}
-                onClose={() => setTransferHiveVisible(false)}
+                initialTo={transferPrefill?.to}
+                initialAmount={transferPrefill?.amount}
+                initialMemo={transferPrefill?.memo}
+                onClose={() => { setTransferHiveVisible(false); setTransferPrefill(null); }}
                 onTransfer={(to, amount, memo, manualKey) => handleTransfer('HIVE', to, amount, memo, manualKey)}
             />
 
@@ -372,7 +403,10 @@ const WalletScreen = (): React.JSX.Element => {
                 loading={transferLoading}
                 success={transferSuccess}
                 colors={colors}
-                onClose={() => setTransferHbdVisible(false)}
+                initialTo={transferPrefill?.to}
+                initialAmount={transferPrefill?.amount}
+                initialMemo={transferPrefill?.memo}
+                onClose={() => { setTransferHbdVisible(false); setTransferPrefill(null); }}
                 onTransfer={(to, amount, memo, manualKey) => handleTransfer('HBD', to, amount, memo, manualKey)}
             />
 
@@ -400,6 +434,24 @@ const WalletScreen = (): React.JSX.Element => {
                 onClose={() => setPowerDownVisible(false)}
                 onPowerDown={handlePowerDown}
                 onCancelPowerDown={handleCancelPowerDown}
+            />
+
+            {/* Request Payment (QR) */}
+            {currentUsername && (
+                <RequestPaymentModal
+                    visible={requestPaymentVisible}
+                    username={currentUsername}
+                    colors={colors}
+                    onClose={() => setRequestPaymentVisible(false)}
+                />
+            )}
+
+            {/* Scan to Pay */}
+            <ScanPaymentModal
+                visible={scanPaymentVisible}
+                colors={colors}
+                onClose={() => setScanPaymentVisible(false)}
+                onScanned={handleScanned}
             />
         </SafeAreaView>
     );

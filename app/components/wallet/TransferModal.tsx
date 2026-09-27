@@ -11,7 +11,18 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome } from '@expo/vector-icons';
+import { getClient } from '../../../services/HiveClient';
+import { useAvatar } from '../../../hooks/useAvatar';
+
+const client = getClient();
+
+type UsernameLookupStatus = 'idle' | 'checking' | 'found' | 'not-found';
+
+// User asked for "1, maybe 2 seconds" so they're clearly done typing before
+// this spends a network call — same debounce snapie-io's WalletModal uses.
+const USERNAME_LOOKUP_DEBOUNCE_MS = 1000;
 
 interface TransferModalProps {
     visible: boolean;
@@ -33,6 +44,10 @@ interface TransferModalProps {
         infoBoxBackground: string;
         error?: string;
     };
+    /** Pre-filled values from a scanned payment-request QR. */
+    initialTo?: string;
+    initialAmount?: string;
+    initialMemo?: string;
     onClose: () => void;
     onTransfer: (to: string, amount: string, memo: string, manualKey?: string) => Promise<void>;
 }
@@ -45,29 +60,74 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     loading,
     success,
     colors,
+    initialTo,
+    initialAmount,
+    initialMemo,
     onClose,
     onTransfer,
 }) => {
-    const [to, setTo] = useState('');
-    const [amount, setAmount] = useState('');
-    const [memo, setMemo] = useState('');
+    const [to, setTo] = useState(initialTo ?? '');
+    const [amount, setAmount] = useState(initialAmount ?? '');
+    const [memo, setMemo] = useState(initialMemo ?? '');
     const [activeKeyInput, setActiveKeyInput] = useState('');
     const [error, setError] = useState('');
+    const [usernameLookupStatus, setUsernameLookupStatus] = useState<UsernameLookupStatus>('idle');
 
     useEffect(() => {
-        if (!visible) {
-            setTo('');
-            setAmount('');
-            setMemo('');
+        if (visible) {
+            // Picks up any new initial values from a fresh QR scan each time
+            // the modal (re)opens, rather than only on first mount.
+            setTo(initialTo ?? '');
+            setAmount(initialAmount ?? '');
+            setMemo(initialMemo ?? '');
             setActiveKeyInput('');
             setError('');
+            setUsernameLookupStatus('idle');
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visible]);
+
+    // Debounced real-time lookup — confirms the typed recipient is a real
+    // Hive account and shows their avatar, so a mistyped recipient is
+    // obvious before hitting Send rather than after (mirrors snapie-io's
+    // WalletModal).
+    useEffect(() => {
+        const trimmed = to.trim().replace(/^@/, '').toLowerCase();
+        if (!trimmed) {
+            setUsernameLookupStatus('idle');
+            return;
+        }
+        // Hive account names are capped at 16 chars — the RPC node throws
+        // for anything longer, which isn't a network hiccup, it's a
+        // definite "not a real account."
+        if (trimmed.length > 16) {
+            setUsernameLookupStatus('not-found');
+            return;
+        }
+        setUsernameLookupStatus('checking');
+        const timeoutId = setTimeout(async () => {
+            try {
+                const accounts = await client.database.getAccounts([trimmed]);
+                setUsernameLookupStatus(accounts.length > 0 ? 'found' : 'not-found');
+            } catch {
+                // Network hiccup — don't block sending on a failed check,
+                // just drop back to no verdict shown.
+                setUsernameLookupStatus('idle');
+            }
+        }, USERNAME_LOOKUP_DEBOUNCE_MS);
+        return () => clearTimeout(timeoutId);
+    }, [to]);
+
+    const recipientTrimmed = to.trim().replace(/^@/, '').toLowerCase();
+    const { avatarUrl: recipientAvatarUrl } = useAvatar(
+        usernameLookupStatus === 'found' ? recipientTrimmed : null
+    );
 
     const amountNum = parseFloat(amount);
     const hasValidPrecision = !amount.includes('.') || (amount.split('.')[1] ?? '').length <= 3;
     const isValid =
         to.trim().length > 0 &&
+        usernameLookupStatus !== 'not-found' &&
         !isNaN(amountNum) &&
         amountNum > 0 &&
         amountNum <= balance &&
@@ -77,7 +137,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     const handleConfirm = async (): Promise<void> => {
         setError('');
         try {
-            const recipient = to.trim().replace(/^@/, '');
+            const recipient = to.trim().replace(/^@/, '').toLowerCase();
             await onTransfer(recipient, amount, memo.trim(), hasStoredKey ? undefined : activeKeyInput.trim());
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Transfer failed');
@@ -126,16 +186,37 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                                 {/* Recipient */}
                                 <View style={styles.field}>
                                     <Text style={[styles.fieldLabel, { color: colors.text }]}>To</Text>
-                                    <TextInput
-                                        style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.bubble }]}
-                                        placeholder="@username"
-                                        placeholderTextColor={colors.textSecondary}
-                                        value={to}
-                                        onChangeText={setTo}
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                        editable={!loading}
-                                    />
+                                    <View style={styles.recipientRow}>
+                                        <TextInput
+                                            style={[
+                                                styles.input,
+                                                styles.recipientInput,
+                                                {
+                                                    color: colors.text,
+                                                    borderColor: usernameLookupStatus === 'not-found' ? (colors.error ?? '#E74C3C') : colors.inputBorder,
+                                                    backgroundColor: colors.bubble,
+                                                },
+                                            ]}
+                                            placeholder="@username"
+                                            placeholderTextColor={colors.textSecondary}
+                                            value={to}
+                                            onChangeText={setTo}
+                                            autoCapitalize="none"
+                                            autoCorrect={false}
+                                            editable={!loading}
+                                        />
+                                        {usernameLookupStatus === 'checking' && (
+                                            <ActivityIndicator size="small" color={colors.icon} />
+                                        )}
+                                        {usernameLookupStatus === 'found' && (
+                                            <ExpoImage source={{ uri: recipientAvatarUrl }} style={styles.recipientAvatar} />
+                                        )}
+                                    </View>
+                                    {usernameLookupStatus === 'not-found' && (
+                                        <Text style={[styles.errorText, { color: colors.error ?? '#E74C3C' }]}>
+                                            No Hive account found with this username.
+                                        </Text>
+                                    )}
                                 </View>
 
                                 {/* Amount */}
@@ -274,6 +355,9 @@ const styles = StyleSheet.create({
     balanceValue: { fontSize: 14, fontWeight: '600' },
     field: { marginBottom: 14 },
     fieldLabel: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
+    recipientRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    recipientInput: { flex: 1 },
+    recipientAvatar: { width: 32, height: 32, borderRadius: 16 },
     amountHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     maxButton: { fontSize: 12, fontWeight: '700' },
     input: {
