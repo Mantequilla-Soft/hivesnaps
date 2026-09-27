@@ -135,6 +135,12 @@ adding if this file gets touched again.
 (`getAvatarImageUrl`, the existing `images.hive.blog` deterministic-URL
 helper — same one the feed already uses) next to rank/username/points.
 
+**Correction — capped at the top 100.** The infinite-scroll pagination had
+no ceiling, so the list would keep growing unbounded as the userbase does.
+Capped at `MAX_ENTRIES = 100`: the initial/subsequent fetches now request
+only however many entries are still needed to reach 100, and `hasMore`
+forces `false` once the cap is hit even if the server would have more.
+
 ## ✅ Patrons feed filter
 
 Mirrors snapie-io's Patrons tab (`hooks/useSnaps.ts`'s `'patrons'` filter
@@ -540,6 +546,20 @@ fails, once a user's `not_enrolled` status is known).
    through the phases rather than pausing between them.
 
 In progress — sized as its own multi-phase implementation pass.
+
+**Correction — buying your own item was broken.** `pileService.ts` already
+had `claimOwnItem()` (a free unit for the creator of their own item,
+distinct from a paid `buyItem()`), but `PileMarketSection.tsx` never called
+it — every "Buy" press called `buyItem()` regardless of who created the
+item, which the server correctly rejects as `self_purchase` for a
+creator's own item. Caught by the user hitting a real purchase failure
+with a sufficient balance. Fixed by porting snapie-io's market page
+pattern exactly: `isOwnItem = currentUsername === item.creatorUsername`
+computed per item, routing the button to `handleClaim` (free) instead of
+`handleBuy` (paid) when true, with the button label/price display
+reflecting it ("Claim" / "Free (yours)" vs "Buy" / "N pts"). Also added
+balance-aware disabling ("Need more" when the shown balance can't cover
+the price) — snapie-io's page does this too and HiveSnaps' didn't before.
 
 ## 💤 CI/CD pipeline (noted, no action yet)
 

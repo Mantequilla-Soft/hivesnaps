@@ -9,6 +9,9 @@ import { fetchLeaderboard, LeaderboardEntry } from '../../services/pointsService
 import { getAvatarImageUrl } from '../../services/AvatarService';
 
 const PAGE_SIZE = 50;
+// Cap the leaderboard at the top 100 earners — otherwise this list can grow
+// unbounded as the userbase does, with no natural stopping point.
+const MAX_ENTRIES = 100;
 
 const PointsLeaderboardScreen = (): React.JSX.Element => {
   const theme = useTheme();
@@ -26,18 +29,19 @@ const PointsLeaderboardScreen = (): React.JSX.Element => {
       const page = await fetchLeaderboard(PAGE_SIZE, 0);
       if (cancelled) return;
       setEntries(page.entries);
-      setHasMore(page.hasMore);
+      setHasMore(page.hasMore && page.entries.length < MAX_ENTRIES);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore || entries.length >= MAX_ENTRIES) return;
     setLoadingMore(true);
-    const page = await fetchLeaderboard(PAGE_SIZE, entries.length);
-    setEntries(prev => [...prev, ...page.entries]);
-    setHasMore(page.hasMore);
+    const remaining = MAX_ENTRIES - entries.length;
+    const page = await fetchLeaderboard(Math.min(PAGE_SIZE, remaining), entries.length);
+    setEntries(prev => [...prev, ...page.entries].slice(0, MAX_ENTRIES));
+    setHasMore(page.hasMore && entries.length + page.entries.length < MAX_ENTRIES);
     setLoadingMore(false);
   }, [loadingMore, hasMore, entries.length]);
 

@@ -9,7 +9,7 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { listMarketItems, buyItem, NotEnrolledError } from '../../../services/pileService';
+import { listMarketItems, buyItem, claimOwnItem, NotEnrolledError } from '../../../services/pileService';
 import type { ItemDTO } from '../../../services/pileService';
 import { fetchPointsSummary } from '../../../services/pointsService';
 import { onPointsSpent, onPointsEarned } from '../../../utils/pointsEvents';
@@ -91,6 +91,9 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
             );
             break;
           case 'self_purchase':
+            // Shouldn't normally be reached — the "Claim" button below routes
+            // creator-owned items to handleClaim instead — but the server is
+            // the source of truth, so still handle it if it somehow occurs.
             Alert.alert(
               "Can't Buy Your Own Item",
               'Creators get a free unit of their own item instead of buying it.'
@@ -107,6 +110,48 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
         } else {
           Alert.alert(
             'Could Not Complete Purchase',
+            error instanceof Error ? error.message : 'Please try again.'
+          );
+        }
+      } finally {
+        setBusyItemId(null);
+      }
+    },
+    [currentUsername, busyItemId]
+  );
+
+  // Creators get a free unit of their own item instead of buying it —
+  // mirrors snapie-io's market page (isOwnItem -> claimOwnItem instead of
+  // buyItem). Calling buyItem for your own item is rejected server-side as
+  // 'self_purchase', which is exactly the failure this routes around.
+  const handleClaim = useCallback(
+    async (item: ItemDTO) => {
+      if (!currentUsername || busyItemId) return;
+
+      setBusyItemId(item.id);
+      try {
+        const result = await claimOwnItem(item.id);
+        switch (result.status) {
+          case 'claimed':
+            Alert.alert(
+              'Claimed!',
+              `${item.name} is now in your inventory — throw it from any snap.`
+            );
+            break;
+          case 'item_not_found':
+            Alert.alert('No Longer Available', 'This item may have been removed from the market.');
+            setItems(prev => (prev ? prev.filter(i => i.id !== item.id) : prev));
+            break;
+          case 'not_owner':
+            Alert.alert('Not Your Item', 'Only the creator of an item can claim a free unit.');
+            break;
+        }
+      } catch (error) {
+        if (error instanceof NotEnrolledError) {
+          Alert.alert('Not Available Yet', error.message);
+        } else {
+          Alert.alert(
+            'Could Not Complete Claim',
             error instanceof Error ? error.message : 'Please try again.'
           );
         }
@@ -144,6 +189,15 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
         >
           {items.map(item => {
             const isBusy = busyItemId === item.id;
+            // Hive usernames are always lowercase on-chain; normalize
+            // defensively before comparing.
+            const isOwnItem =
+              !!currentUsername &&
+              currentUsername.toLowerCase() === item.creatorUsername.toLowerCase();
+            const canAfford = balance === null || balance >= item.price;
+            const disabled = isBusy || (!isOwnItem && !canAfford);
+            const label = isOwnItem ? 'Claim' : canAfford ? 'Buy' : 'Need more';
+
             return (
               <View
                 key={item.id}
@@ -154,19 +208,26 @@ const PileMarketSection: React.FC<PileMarketSectionProps> = ({ currentUsername, 
                   {item.name}
                 </Text>
                 <Text style={[styles.itemPrice, { color: colors.textSecondary }]}>
-                  {item.price.toLocaleString()} pts
+                  {isOwnItem ? 'Free (yours)' : `${item.price.toLocaleString()} pts`}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.buyButton, { backgroundColor: colors.button }]}
-                  onPress={() => handleBuy(item)}
-                  disabled={isBusy}
+                  style={[
+                    styles.buyButton,
+                    { backgroundColor: disabled && !isBusy ? colors.textSecondary : colors.button },
+                  ]}
+                  onPress={() => (isOwnItem ? handleClaim(item) : handleBuy(item))}
+                  disabled={disabled}
                   accessibilityRole='button'
-                  accessibilityLabel={`Buy ${item.name} for ${item.price} points`}
+                  accessibilityLabel={
+                    isOwnItem
+                      ? `Claim your free unit of ${item.name}`
+                      : `Buy ${item.name} for ${item.price} points`
+                  }
                 >
                   {isBusy ? (
                     <ActivityIndicator size='small' color={colors.buttonText} />
                   ) : (
-                    <Text style={[styles.buyButtonText, { color: colors.buttonText }]}>Buy</Text>
+                    <Text style={[styles.buyButtonText, { color: colors.buttonText }]}>{label}</Text>
                   )}
                 </TouchableOpacity>
               </View>
