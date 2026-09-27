@@ -257,13 +257,23 @@ API's own shuffle-by-seed model), muted-account filtering (reusing
 and cross-page dedup (the API can plausibly repeat an item across pages
 since it's shuffled/paginated rather than cursor-based).
 
-**Caveat**: this dev environment's network policy blocks outbound requests
-to `checker.3speak.tv`, so the exact response envelope could not be verified
-against the live endpoint while writing the parser — it defensively accepts
-several plausible key names/shapes (mirroring the old BlacklistService's
-tolerant-parsing pattern). **Smoke-test against the real endpoint before
-relying on this in production** and tighten the parsing once the actual
-shape is confirmed.
+**Correction — shipped broken, then fixed**: this dev environment's network
+policy blocks outbound requests to `checker.3speak.tv`, so the first pass
+guessed the response shape instead of confirming it, and guessed wrong:
+`embed_url` was assumed to be a full `https://play.3speak.tv/embed?v=...`
+URL and parsed with `new URL()`, which throws on the real API's bare
+`"author/permlink"` string — every entry was silently dropped, so the feed
+came back empty in the user's own testing. Fixed by reading snapie-io's
+actual `hooks/useShorts.ts` source instead of inferring from other files:
+`embed_url` is split on the first `/` (optionally stripping a leading `@`),
+`hivePermlink` comes from that split while `permlink` (3Speak's own video
+permlink, used for playback) is a separate top-level field, and a missing
+author falls back to a top-level `owner` field — all confirmed against
+snapie-io's real parsing, not guessed tolerance. `page`/`totalPages` and
+the `data.shorts` wrapper key were already correct. Lesson: when a live
+endpoint can't be reached to verify a shape, reading the reference
+implementation's actual source beats writing "defensive" tolerance for
+shapes that were never confirmed to be plausible in the first place.
 
 **Viewing experience (Phase 2)**: `app/components/ShortVideoPlayer.tsx` is
 a new inline/looping/full-bleed presentation of the same
@@ -291,14 +301,14 @@ an in-place comment bottom sheet (v1 navigates to the full
 `useShorts` already exposes `removeAuthor` for this, just not wired to any
 UI yet).
 
-Covered by `services/__tests__/shortsService.test.ts` (7 tests: response-
-shape tolerance, malformed-entry handling, URL building) and
+Covered by `services/__tests__/shortsService.test.ts` (10 tests, rewritten
+against the confirmed real shape: bare-string embed_url parsing, the `@`-
+strip, the `owner` fallback, malformed-entry handling, `hasMore` math) and
 `hooks/__tests__/useShorts.test.tsx` (6 tests: mute filtering, dedup across
 pages, error handling, `removeAuthor`, refresh reshuffle). Verified: full
-suite now 274/274, `tsc --noEmit` still clean. Not yet verified: actual
+suite now 277/277, `tsc --noEmit` still clean. Not yet verified: actual
 playback/scrolling on a device, since this container cannot run the app —
-please test the real swipe/autoplay feel and the live shorts-API response
-shape before considering this done.
+please confirm the feed now populates and test the real swipe/autoplay feel.
 
 ## 🏗️ "The Pile" — item-throwing on posts/snaps
 

@@ -1,8 +1,11 @@
 /**
  * Tests for shortsService — parses 3Speak's checker.3speak.tv/shortssorted
- * response into ShortItem[]. The exact response envelope wasn't verifiable
- * live (network-restricted dev environment), so parsing tolerates several
- * plausible key names/shapes — these tests pin down that tolerance.
+ * response into ShortItem[]. Field names/shapes here (data.shorts, bare
+ * "author/permlink" embed_url, page/totalPages) are confirmed against
+ * snapie-io's own hooks/useShorts.ts source, not guessed — a first pass
+ * had assumed embed_url was a full URL, which silently dropped every
+ * entry against the real API. These tests pin down the corrected shape,
+ * plus some extra tolerance for plausible alternate key names.
  */
 
 import { fetchShortsPage } from '../shortsService';
@@ -23,12 +26,13 @@ describe('fetchShortsPage', () => {
     mockFetch.mockReset();
   });
 
-  it('parses a "shorts" keyed envelope with page/totalPages', async () => {
+  it('parses the real shape: data.shorts with a bare "author/permlink" embed_url', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
         shorts: [
           {
-            embed_url: 'https://play.3speak.tv/embed?v=alice/my-video',
+            embed_url: 'alice/my-video',
+            permlink: 'my-video',
             thumbnail_url: 'https://img.example/thumb.jpg',
             hive_title: 'My First Short',
             views: 42,
@@ -57,21 +61,39 @@ describe('fetchShortsPage', () => {
     expect(result.hasMore).toBe(true);
   });
 
+  it('strips a leading @ from embed_url before splitting on the first slash', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        shorts: [{ embed_url: '@bob/short-2', permlink: 'short-2', embed_title: 'Bob short' }],
+      })
+    );
+
+    const result = await fetchShortsPage(1, 'seed-1');
+    expect(result.items[0].author).toBe('bob');
+    expect(result.items[0].hivePermlink).toBe('short-2');
+  });
+
+  it('falls back to the top-level owner field when embed_url has no author segment', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        shorts: [{ embed_url: '', owner: 'carol', permlink: 'vid-3', title: 'Carol title' }],
+      })
+    );
+
+    const result = await fetchShortsPage(1, 'seed-1');
+    expect(result.items[0]).toMatchObject({ author: 'carol', permlink: 'vid-3' });
+  });
+
   it('falls back to a bare root array when there is no wrapper object', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse([
-        { embed_url: 'https://play.3speak.tv/embed?v=bob/short-2', embed_title: 'Bob short' },
-      ])
+      jsonResponse([{ embed_url: 'dave/vid-4', permlink: 'vid-4', embed_title: 'Dave short' }])
     );
 
     const result = await fetchShortsPage(1, 'seed-1');
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].author).toBe('bob');
-    expect(result.items[0].title).toBe('Bob short');
-    // No page/totalPages info to consult — a non-empty page is treated as
-    // "there might be more," stopping only once a page comes back empty.
-    expect(result.hasMore).toBe(true);
+    expect(result.items[0].author).toBe('dave');
+    expect(result.items[0].title).toBe('Dave short');
   });
 
   it('accepts alternate key names for common fields', async () => {
@@ -79,9 +101,10 @@ describe('fetchShortsPage', () => {
       jsonResponse({
         items: [
           {
-            embedUrl: 'https://play.3speak.tv/embed?v=carol/vid-3',
-            thumbnailUrl: 'https://img.example/carol.jpg',
-            title: 'Carol title',
+            embedUrl: 'erin/vid-5',
+            permlink: 'vid-5',
+            thumbnailUrl: 'https://img.example/erin.jpg',
+            title: 'Erin title',
             view_count: 7,
           },
         ],
@@ -90,32 +113,34 @@ describe('fetchShortsPage', () => {
 
     const result = await fetchShortsPage(1, 'seed-1');
     expect(result.items[0]).toMatchObject({
-      author: 'carol',
-      permlink: 'vid-3',
-      thumbnailUrl: 'https://img.example/carol.jpg',
-      title: 'Carol title',
+      author: 'erin',
+      permlink: 'vid-5',
+      thumbnailUrl: 'https://img.example/erin.jpg',
+      title: 'Erin title',
       views: 7,
     });
   });
 
-  it('drops entries with no usable embed URL rather than throwing', async () => {
+  it('drops entries with no author at all (no embed_url and no owner)', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        shorts: [{ thumbnail_url: 'https://img.example/orphan.jpg' }],
-      })
+      jsonResponse({ shorts: [{ permlink: 'vid-6', thumbnail_url: 'https://img.example/orphan.jpg' }] })
     );
 
     const result = await fetchShortsPage(1, 'seed-1');
     expect(result.items).toEqual([]);
   });
 
-  it('drops entries whose embed URL has no v= query param', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ shorts: [{ embed_url: 'https://play.3speak.tv/embed' }] })
-    );
+  it('drops entries with no 3Speak permlink, since there is nothing to play', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ shorts: [{ embed_url: 'frank/vid-7' }] }));
 
     const result = await fetchShortsPage(1, 'seed-1');
     expect(result.items).toEqual([]);
+  });
+
+  it('hasMore matches page < totalPages exactly, defaulting both to 1 when absent', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ shorts: [] }));
+    const result = await fetchShortsPage(1, 'seed-1');
+    expect(result.hasMore).toBe(false); // 1 < 1 is false, same as snapie-io's default
   });
 
   it('throws when the request fails', async () => {
