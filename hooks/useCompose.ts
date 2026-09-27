@@ -193,7 +193,10 @@ export function useCompose({
     const [state, dispatch] = useReducer(composeReducer, initialState);
 
     // Sub-hooks for specialized functionality
-    const video = useVideoUpload(state.currentUsername);
+    // Snap/reply/edit videos are shorts; blog-post videos aren't — matching
+    // snapie-io, where its blog composer forces isShort: false but its snap
+    // composer leaves the field unset (defaulting to true).
+    const video = useVideoUpload(state.currentUsername, mode !== 'blog');
     const reply = useReply(state.currentUsername, undefined, undefined);
     const edit = useEdit(state.currentUsername, undefined, undefined);
 

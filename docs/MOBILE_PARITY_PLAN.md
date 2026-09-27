@@ -231,6 +231,75 @@ Covered by `utils/__tests__/blogPostUtils.test.ts` (10 new tests, permlink
 slugification + tag parsing). Verified: full suite now 255/255,
 `tsc --noEmit` still clean.
 
+## 🏗️ Shorts — doomscroll video feed
+
+Mirrors snapie-io's `/shorts`: a full-screen, vertical, autoplaying short-
+video feed, entered from a new "Shorts" bottom-tab destination. Investigated
+first via a research spike before building (see the spike's findings for
+full detail); summary of what shipped:
+
+**Composer-side correction (Phase 0)**: snapie-io's blog composer forces
+`isShort: false` on 3Speak uploads; its snap composer leaves the field
+unset (defaults to `true`). HiveSnaps' composer used to leave it unset in
+*every* mode, meaning blog-post videos were accidentally being marked as
+shorts too. `hooks/useVideoUpload.ts` now takes an `isShort` param (default
+`true`); `hooks/useCompose.ts` passes `mode !== 'blog'`, so only snap/reply/
+edit-mode uploads are shorts, matching snapie-io's actual behavior.
+
+**Data source (Phase 1)**: like snapie-io, Shorts content comes from
+3Speak's own global aggregation API (`checker.3speak.tv/shortssorted`), not
+a Hive bridge query — there's no purpose-built "give me posts with videos"
+query on the Hive side, and this endpoint is exactly what populates
+snapie-io's own feed. `services/shortsService.ts` parses its response into
+`ShortItem[]`; `hooks/useShorts.ts` adds pagination (page+seed, matching the
+API's own shuffle-by-seed model), muted-account filtering (reusing
+`fetchMutedList` from the on-chain muting work above), avatar enrichment,
+and cross-page dedup (the API can plausibly repeat an item across pages
+since it's shuffled/paginated rather than cursor-based).
+
+**Caveat**: this dev environment's network policy blocks outbound requests
+to `checker.3speak.tv`, so the exact response envelope could not be verified
+against the live endpoint while writing the parser — it defensively accepts
+several plausible key names/shapes (mirroring the old BlacklistService's
+tolerant-parsing pattern). **Smoke-test against the real endpoint before
+relying on this in production** and tighten the parsing once the actual
+shape is confirmed.
+
+**Viewing experience (Phase 2)**: `app/components/ShortVideoPlayer.tsx` is
+a new inline/looping/full-bleed presentation of the same
+`react-native-video` + 3Speak HLS pipeline `ThreeSpeakEmbed.tsx` already
+uses for in-feed video — only the active slide plays, its two immediate
+neighbors mount muted (buffering ahead for a smooth swipe), everything else
+is an unmounted thumbnail, same windowing snapie-io's Swiper-based player
+uses. `app/components/ShortCard.tsx` adds the interaction rail: like
+(instant 100%-weight vote — a real broadcast, cross-referenced against
+`get_content` for actual vote/comment state once a card goes active),
+comment (opens the existing `ConversationScreen` thread), share (native
+share sheet via the same `buildSnapieUrl` snaps already use), and a mute
+toggle. `app/screens/ShortsScreen.tsx` is the vertical pager (`FlatList`
+with `pagingEnabled`/`snapToInterval`/`onViewableItemsChanged` driving which
+index is "active"), hiding all normal chrome (no header, no
+`BottomTabBar`) for full immersion, with just a back button. Registered as
+its own Stack screen (`app/_layout.tsx`) and reached via a new "Shorts" tab
+in `BottomTabBar.tsx`.
+
+**Deferred to a later phase** (present in snapie-io's own `ShortCard` but
+intentionally out of this pass, matching how Pile staged buy before
+throw-polish): long-press vote-weight slider (v1 is tap-only, fixed 100%),
+an in-place comment bottom sheet (v1 navigates to the full
+`ConversationScreen` instead), and a follow/mute-author overflow menu (v1's
+`useShorts` already exposes `removeAuthor` for this, just not wired to any
+UI yet).
+
+Covered by `services/__tests__/shortsService.test.ts` (7 tests: response-
+shape tolerance, malformed-entry handling, URL building) and
+`hooks/__tests__/useShorts.test.tsx` (6 tests: mute filtering, dedup across
+pages, error handling, `removeAuthor`, refresh reshuffle). Verified: full
+suite now 274/274, `tsc --noEmit` still clean. Not yet verified: actual
+playback/scrolling on a device, since this container cannot run the app —
+please test the real swipe/autoplay feel and the live shorts-API response
+shape before considering this done.
+
 ## 🏗️ "The Pile" — item-throwing on posts/snaps
 
 ### Mechanics (from the spike)

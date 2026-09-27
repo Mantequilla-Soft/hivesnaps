@@ -23,9 +23,10 @@ interface BottomTabBarProps {
 
 /**
  * Persistent bottom navigation, mirroring snapie.io's mobile tab bar shape:
- * destinations (Home/Blogs/Hangouts/Profile) plus an elevated center Compose
- * button, kept separate from the feed's content filters (Following/Newest/
- * Trending), which stay as pills under the header instead of living here.
+ * destinations (Home/Blogs/Shorts/Hangouts/Profile) plus an elevated center
+ * Compose button, kept separate from the feed's content filters (Following/
+ * Newest/Trending), which stay as pills under the header instead of living
+ * here.
  *
  * Rendered per-screen (currently just FeedScreen) rather than as a true
  * expo-router Tabs layout — the app's screens are a flat Stack, and
@@ -66,6 +67,13 @@ export default function BottomTabBar({
         active={activeFeed === 'blogs'}
         color={colors.text}
         onPress={onBlogsPress}
+      />
+      <Tab
+        icon='play-circle'
+        label='Shorts'
+        active={false}
+        color={colors.text}
+        onPress={() => router.push('/screens/ShortsScreen')}
       />
 
       <View style={styles.composeSlot}>
