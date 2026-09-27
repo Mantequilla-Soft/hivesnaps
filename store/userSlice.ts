@@ -122,7 +122,7 @@ export function userReducer(state: UserState, action: UserAction): UserState {
           ...state.mutedLists,
           [action.payload.username]: createCacheItem(
             action.payload.muted,
-            CACHE_DURATIONS.FOLLOWING_LIST
+            CACHE_DURATIONS.MUTED_LIST
           ),
         },
         errors: {

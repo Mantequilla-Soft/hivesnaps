@@ -3,6 +3,7 @@ import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
 import { accountStorageService } from '../services/AccountStorageService';
 import { useFollowCacheManagement } from '../store/context';
+import { clearMutedListCache } from '../services/HiveMuteService';
 
 const client = getClient();
 
@@ -245,6 +246,7 @@ export const useFollowManagement = (
       // Invalidate muted cache to trigger immediate refresh
       if (currentUsername) {
         invalidateMutedCache(currentUsername);
+        clearMutedListCache(currentUsername);
         console.log('🔇 Invalidated muted cache for:', currentUsername);
       }
       
@@ -295,6 +297,7 @@ export const useFollowManagement = (
       // Invalidate muted cache to trigger immediate refresh
       if (currentUsername) {
         invalidateMutedCache(currentUsername);
+        clearMutedListCache(currentUsername);
         console.log('🔇 Invalidated muted cache for:', currentUsername);
       }
       

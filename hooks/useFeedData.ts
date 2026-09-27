@@ -917,7 +917,7 @@ export function useFeedData(): UseFeedDataReturn {
       }
       try {
         setMutedLoading(true);
-        console.log('🔇 [fetchAndCacheMutedList] Fetching from HAFSQL API...');
+        console.log('🔇 [fetchAndCacheMutedList] Fetching from Hive bridge API...');
         const mutedSet = await fetchMutedList(username);
         const mutedArray = Array.from(mutedSet);
         console.log(

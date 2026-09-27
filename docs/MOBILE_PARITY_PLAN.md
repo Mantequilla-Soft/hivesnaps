@@ -147,6 +147,46 @@ row now has the space this used to share with the "Blogs" chip before that
 moved to `BottomTabBar`. Covered by `hooks/__tests__/usePatronList.test.tsx`.
 Verified: full suite now 245/245 (3 new), `tsc --noEmit` still clean.
 
+## ✅ On-chain muted accounts (dropped the flaky backend)
+
+HiveSnaps' feed-level muting used to depend on HiveSnaps' own backend: a
+JWT-authenticated `/muted/` call plus a proprietary `/blacklisted` call
+(`services/BlacklistService.ts`, now deleted), cached only in-memory for 5
+minutes with no persistence and, critically, **failing open** on any error
+(`return []` / `return new Set()`) — silently disabling muting rather than
+erring on the side of filtering too much. There was even a design doc
+(`docs/muted-list-fallback-implementation.md`, now removed as superseded)
+describing this exact symptom.
+
+Switched to snapie-io's approach instead: `services/HiveMuteService.ts`
+now unions two on-chain sources directly via Hive's own bridge API —
+`bridge.list_community_roles` (community-level muted members) and
+`bridge.get_follow_list` with `follow_type: 'muted'` (the viewer's personal
+mute/ignore relationship) — with no backend call at all. Caches the union
+for 24h (module-level `Map`, in-memory), and **fails closed**: any refetch
+error falls back to the last known cached result instead of an empty set,
+so a flaky moment over-filters rather than under-filters. `fetchMutedList`
+keeps its existing signature (`(username: string) => Promise<Set<string>>`),
+so every consumer (`hooks/useFeedData.ts`, `hooks/useNotifications.ts`,
+`app/screens/FeedScreen.tsx`, `app/screens/ConversationScreen.tsx`,
+`app/screens/HivePostScreen.tsx`) needed no changes beyond stale comments.
+`hooks/useFollowManagement.ts`'s mute/unmute handlers now also call the new
+`clearMutedListCache` (alongside the existing app-store cache invalidation)
+so a fresh mute/unmute is reflected immediately rather than waiting out the
+24h cache. The app-wide store's own muted-list cache (`store/userSlice.ts`)
+got a dedicated `CACHE_DURATIONS.MUTED_LIST` (24h, was reusing the 5-minute
+`FOLLOWING_LIST` constant) so it stops invalidating faster than the data
+actually changes.
+
+The proprietary team blacklist was dropped rather than kept as a third
+source — full parity with snapie-io, which has no equivalent concept, per
+an explicit call to prefer that over retaining a backend dependency.
+
+Covered by `services/__tests__/HiveMuteService.test.ts` (6 new tests:
+union/dedup/lowercasing, cache hit, stale-cache-on-error fallback, empty
+input, never-throws). Verified: full suite now 261/261, `tsc --noEmit`
+still clean.
+
 ## ✅ Blog composer (repurposed from the snap composer)
 
 Mirrors snapie-io: on the Blogs tab, the center FAB opens a blog composer

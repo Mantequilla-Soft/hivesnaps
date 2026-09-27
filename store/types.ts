@@ -206,6 +206,11 @@ export const CACHE_DURATIONS = {
   NOTIFICATIONS: 2 * 60 * 1000, // 2 minutes
   HIVE_POSTS: 1 * 60 * 1000, // 1 minute
   HIVE_DATA: 2 * 60 * 1000, // 2 minutes
+  // Muted accounts (community-muted + personally-muted) rarely change and
+  // are now sourced directly from Hive's bridge API, which already caches
+  // this same data for 24h internally (services/HiveMuteService.ts) — this
+  // outer cache just needs to not invalidate more often than that.
+  MUTED_LIST: 24 * 60 * 60 * 1000, // 24 hours
 } as const;
 
 // Utility type helpers
