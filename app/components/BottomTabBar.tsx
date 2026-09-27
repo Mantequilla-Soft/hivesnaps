@@ -12,7 +12,6 @@ interface BottomTabBarProps {
   onHomePress: () => void;
   onBlogsPress: () => void;
   username: string | null;
-  hangoutsCount: number;
   colors: {
     background: string;
     text: string;
@@ -23,10 +22,12 @@ interface BottomTabBarProps {
 
 /**
  * Persistent bottom navigation, mirroring snapie.io's mobile tab bar shape:
- * destinations (Home/Blogs/Shorts/Hangouts/Profile) plus an elevated center
- * Compose button, kept separate from the feed's content filters (Following/
- * Newest/Trending), which stay as pills under the header instead of living
- * here.
+ * destinations (Home/Blogs/Shorts/Profile) plus an elevated center Compose
+ * button, kept separate from the feed's content filters (Following/Newest/
+ * Trending), which stay as pills under the header instead of living here.
+ * Deliberately 2 destinations on each side of the FAB so it sits dead
+ * center — Hangouts lives in the feed's top bar instead (next to search),
+ * its original home, rather than as a 5th tab here unbalancing the FAB.
  *
  * Rendered per-screen (currently just FeedScreen) rather than as a true
  * expo-router Tabs layout — the app's screens are a flat Stack, and
@@ -37,7 +38,6 @@ export default function BottomTabBar({
   onHomePress,
   onBlogsPress,
   username,
-  hangoutsCount,
   colors,
 }: BottomTabBarProps) {
   const router = useRouter();
@@ -68,13 +68,6 @@ export default function BottomTabBar({
         color={colors.text}
         onPress={onBlogsPress}
       />
-      <Tab
-        icon='play-circle'
-        label='Shorts'
-        active={false}
-        color={colors.text}
-        onPress={() => router.push('/screens/ShortsScreen')}
-      />
 
       <View style={styles.composeSlot}>
         <TouchableOpacity
@@ -92,12 +85,11 @@ export default function BottomTabBar({
       </View>
 
       <Tab
-        icon='microphone'
-        label='Hangouts'
+        icon='play-circle'
+        label='Shorts'
         active={false}
         color={colors.text}
-        badgeCount={hangoutsCount}
-        onPress={() => router.push('/screens/HangoutsLobbyScreen')}
+        onPress={() => router.push('/screens/ShortsScreen')}
       />
       <Tab
         icon='user'

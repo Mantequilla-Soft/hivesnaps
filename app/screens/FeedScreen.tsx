@@ -906,6 +906,24 @@ const FeedScreenRefactored = () => {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
               style={[styles.searchBtn, { marginRight: 12 }]}
+              onPress={() => router.push('/screens/HangoutsLobbyScreen')}
+              accessibilityLabel='Open Hangouts'
+              accessibilityRole='button'
+              accessibilityHint='Navigates to the Hangouts lobby'
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={{ position: 'relative' }}>
+                <FontAwesome name='microphone' size={22} color={colors.icon} />
+                <NotificationBadge
+                  count={hangoutsCount}
+                  size='small'
+                  color='#22c55e'
+                  visible={hangoutsCount > 0}
+                />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.searchBtn, { marginRight: 12 }]}
               onPress={() => setIsSearchModalVisible(true)}
               accessibilityLabel='Search posts and users'
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1520,7 +1538,6 @@ const FeedScreenRefactored = () => {
         }}
         onBlogsPress={() => setActiveFeed('blogs')}
         username={username}
-        hangoutsCount={hangoutsCount}
         colors={colors}
       />
     </View>

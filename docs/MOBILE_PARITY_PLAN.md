@@ -78,6 +78,15 @@ the search/bell `View` direct children of `styles.topBar`, which already
 had the right properties and (via its `SafeAreaView` parent) the full
 screen width to work with.
 
+**Correction — Hangouts moved back to the top bar, FAB rebalanced.** Once
+Shorts was added as a 5th `BottomTabBar` destination (see the Shorts
+section below), the bar was Home/Blogs/Shorts (3) · FAB · Hangouts/Profile
+(2) — visibly off-center, caught by the user on-device. Moved Hangouts
+back to the feed's top bar (next to search, its original spot before Phase
+2 — same `useHangoutsCount()` polling hook and green `NotificationBadge`,
+unchanged, just relocated) and rebalanced the remaining 4 bottom
+destinations 2-and-2 around the FAB: Home/Blogs · FAB · Shorts/Profile.
+
 ## ✅ Notifications rework
 
 Was capped at a hard 50 with no pagination, and read-status was a local
