@@ -727,7 +727,7 @@ export default function ComposeScreen() {
                   opacity: 0.6,
                   marginTop: 8
                 }}>
-                  One video per snap • Max 100 MB
+                  One video per snap
                 </Text>
               )}
             </View>
