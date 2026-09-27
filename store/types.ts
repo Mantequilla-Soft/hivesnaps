@@ -166,7 +166,7 @@ export type UserAction =
   | { type: 'USER_SET_PROFILE'; payload: { username: string; profile: UserProfile } }
   | { type: 'USER_SET_FOLLOWING_LIST'; payload: { username: string; following: string[] } }
   | { type: 'USER_SET_FOLLOWER_LIST'; payload: { username: string; followers: string[] } }
-  | { type: 'USER_SET_MUTED_LIST'; payload: { username: string; muted: string[] } }
+  | { type: 'USER_SET_MUTED_LIST'; payload: { username: string; muted: string[]; cacheDurationMs?: number } }
   | { type: 'USER_SET_LOADING'; payload: { type: keyof UserState['loading']; username: string; loading: boolean } }
   | { type: 'USER_SET_ERROR'; payload: { type: keyof UserState['errors']; username: string; error: string | null } }
   | { type: 'USER_CLEAR_CACHE'; payload?: { username?: string; type?: keyof UserState['loading'] } }
@@ -206,6 +206,15 @@ export const CACHE_DURATIONS = {
   NOTIFICATIONS: 2 * 60 * 1000, // 2 minutes
   HIVE_POSTS: 1 * 60 * 1000, // 1 minute
   HIVE_DATA: 2 * 60 * 1000, // 2 minutes
+  // Muted accounts (community-muted + personally-muted) rarely change and
+  // are now sourced directly from Hive's bridge API, which already caches
+  // this same data for 24h internally (services/HiveMuteService.ts) — this
+  // outer cache just needs to not invalidate more often than that.
+  MUTED_LIST: 24 * 60 * 60 * 1000, // 24 hours
+  // Used instead of MUTED_LIST when fetchMutedList's own fetch failed (see
+  // services/HiveMuteService.ts's didLastMutedListFetchFail) — a failure
+  // shouldn't be cached as if it were a confirmed empty list for a full day.
+  MUTED_LIST_RETRY: 60 * 1000, // 1 minute
 } as const;
 
 // Utility type helpers

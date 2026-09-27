@@ -116,7 +116,13 @@ function videoUploadReducer(state: VideoUploadState, action: VideoUploadAction):
     }
 }
 
-export function useVideoUpload(currentUsername: string | null) {
+/**
+ * @param isShort - Marks the upload as a 3Speak "short" (default true, matching
+ * snapie-io: snap-composer videos are shorts, blog-composer videos aren't).
+ * Feeds directly into 3Speak's own `short` upload metadata, which is what
+ * populates their shorts discovery API — not just a HiveSnaps-side label.
+ */
+export function useVideoUpload(currentUsername: string | null, isShort: boolean = true) {
     const [state, dispatch] = useReducer(videoUploadReducer, initialState);
     const uploadControllerRef = useRef<AbortController | null>(null);
     const cancelRequestedRef = useRef(false);
@@ -196,6 +202,7 @@ export function useVideoUpload(currentUsername: string | null) {
                 asset,
                 metadata: {
                     owner: currentUsername || undefined,
+                    short: isShort,
                 },
                 signal: controller.signal,
                 onProgress: progress => {
@@ -254,7 +261,7 @@ export function useVideoUpload(currentUsername: string | null) {
             cancelRequestedRef.current = false;
             thumbnailUploadPromiseRef.current = null;
         }
-    }, [currentUsername]);
+    }, [currentUsername, isShort]);
 
     /**
      * Add video from the given source (camera or gallery).

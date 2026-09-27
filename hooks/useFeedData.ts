@@ -3,7 +3,9 @@ import { getClient } from '../services/HiveClient';
 import { useFollowingList, useMutedList, useCurrentUser } from '../store/context';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
-import { fetchMutedList } from '../services/HiveMuteService';
+import { fetchMutedList, didLastMutedListFetchFail } from '../services/HiveMuteService';
+import { CACHE_DURATIONS } from '../store/types';
+import { usePatronList } from './usePatronList';
 import type { ActiveVote } from '../services/ModerationService';
 
 /**
@@ -79,7 +81,7 @@ export interface Snap {
   [key: string]: any;
 }
 
-export type FeedFilter = 'following' | 'newest' | 'trending' | 'my';
+export type FeedFilter = 'following' | 'newest' | 'trending' | 'patrons';
 
 // Container metadata with ordered dictionary structure
 interface ContainerMetadata {
@@ -319,17 +321,23 @@ export function useFeedData(): UseFeedDataReturn {
     setError: setMutedError,
   } = useMutedList(username || '');
 
+  // Patrons list — global (not per-viewer), so it's a plain hook rather
+  // than shared-store state; see usePatronList.ts.
+  const { patronSet } = usePatronList();
+
   const followingListRef = useRef(followingList);
   const needsFollowingRefreshRef = useRef(needsFollowingRefresh);
   const mutedListRef = useRef(mutedList);
   const needsMutedRefreshRef = useRef(needsMutedRefresh);
+  const patronSetRef = useRef(patronSet);
 
   useEffect(() => {
     followingListRef.current = followingList;
     needsFollowingRefreshRef.current = needsFollowingRefresh;
     mutedListRef.current = mutedList;
     needsMutedRefreshRef.current = needsMutedRefresh;
-  }, [followingList, needsFollowingRefresh, mutedList, needsMutedRefresh]);
+    patronSetRef.current = patronSet;
+  }, [followingList, needsFollowingRefresh, mutedList, needsMutedRefresh, patronSet]);
 
   // Debug: Track username changes
   const prevUsernameRef = useRef<string | null | undefined>(undefined);
@@ -353,7 +361,8 @@ export function useFeedData(): UseFeedDataReturn {
       snaps: Snap[],
       filter: FeedFilter,
       followingList: string[],
-      currentUsername: string | null
+      currentUsername: string | null,
+      patronSet: Set<string>
     ): Snap[] => {
       console.log(
         `🔍 [applyFilter] Applying filter "${filter}" to ${snaps.length} snaps`
@@ -369,15 +378,6 @@ export function useFeedData(): UseFeedDataReturn {
           filteredSnaps = snaps.filter(snap => followingSet.has(snap.author));
           console.log(
             `🔍 [applyFilter] Following filter: ${snaps.length} → ${filteredSnaps.length} snaps`
-          );
-          break;
-
-        case 'my':
-          // Filter by current user - use passed parameter directly
-          console.log('🔍 [applyFilter] Current user:', currentUsername);
-          filteredSnaps = snaps.filter(snap => snap.author === currentUsername);
-          console.log(
-            `🔍 [applyFilter] My snaps filter: ${snaps.length} → ${filteredSnaps.length} snaps`
           );
           break;
 
@@ -404,6 +404,15 @@ export function useFeedData(): UseFeedDataReturn {
           });
           console.log(
             `🔍 [applyFilter] Trending filter: ${snaps.length} snaps sorted by payout`
+          );
+          break;
+
+        case 'patrons':
+          // Snaps from accounts on the patrons list (people who support the
+          // creator monthly) — same Set-membership shape as 'following'.
+          filteredSnaps = snaps.filter(snap => patronSet.has(snap.author));
+          console.log(
+            `🔍 [applyFilter] Patrons filter: ${snaps.length} → ${filteredSnaps.length} snaps`
           );
           break;
 
@@ -612,7 +621,8 @@ export function useFeedData(): UseFeedDataReturn {
             allSnaps,
             prev.currentFilter,
             followingListRef.current || [],
-            username
+            username,
+            patronSetRef.current
           );
           // Immediate enrichment for first paint
           const authors = Array.from(new Set(filteredSnaps.map(s => s.author)));
@@ -721,7 +731,8 @@ export function useFeedData(): UseFeedDataReturn {
           allSnaps,
           prev.currentFilter,
           followingListRef.current || [],
-          username
+          username,
+          patronSetRef.current
         );
         // Immediate enrichment on refresh
         const authors = Array.from(new Set(filteredSnaps.map(s => s.author)));
@@ -907,7 +918,7 @@ export function useFeedData(): UseFeedDataReturn {
       }
       try {
         setMutedLoading(true);
-        console.log('🔇 [fetchAndCacheMutedList] Fetching from HAFSQL API...');
+        console.log('🔇 [fetchAndCacheMutedList] Fetching from Hive bridge API...');
         const mutedSet = await fetchMutedList(username);
         const mutedArray = Array.from(mutedSet);
         console.log(
@@ -915,7 +926,14 @@ export function useFeedData(): UseFeedDataReturn {
           mutedArray.length,
           'muted users from blockchain'
         );
-        setMutedList(mutedArray);
+        // A failed fetch (even one that fell back to stale/empty data)
+        // shouldn't be cached here as if it were confirmed for a full day —
+        // use a short retry lifetime instead so connectivity recovering
+        // gets picked up soon.
+        setMutedList(
+          mutedArray,
+          didLastMutedListFetchFail(username) ? CACHE_DURATIONS.MUTED_LIST_RETRY : undefined
+        );
         setMutedError(null);
         return mutedArray;
       } catch (error) {
@@ -1024,7 +1042,8 @@ export function useFeedData(): UseFeedDataReturn {
       allSnaps,
       state.currentFilter,
       followingListRef.current || [],
-      username
+      username,
+      patronSet
     );
 
     console.log(
@@ -1032,7 +1051,7 @@ export function useFeedData(): UseFeedDataReturn {
     );
 
     return filteredSnaps;
-  }, [state.containerMap, state.currentFilter, followingList, username, applyFilter]);
+  }, [state.containerMap, state.currentFilter, followingList, username, patronSet, applyFilter]);
 
   // Memoize enriched snaps to avoid re-processing avatars when filter result is the same
   const memoizedEnrichedSnaps = useMemo(() => {
@@ -1057,6 +1076,39 @@ export function useFeedData(): UseFeedDataReturn {
     return enrichedSnaps;
   }, [memoizedFilteredSnaps]);
 
+  // If the user selects Patrons before getPatronsMap() resolves, setFilter
+  // below filters with an empty patronSet and writes that empty result into
+  // state.snaps (the value this hook actually returns — memoizedFilteredSnaps/
+  // memoizedEnrichedSnaps above are otherwise unused). Once the real
+  // patronSet arrives, re-apply the filter so the feed doesn't stay stuck
+  // empty for the rest of the session.
+  const appliedPatronSetRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (state.currentFilter !== 'patrons') return;
+    if (appliedPatronSetRef.current === patronSet) return;
+    appliedPatronSetRef.current = patronSet;
+
+    setState(prev => {
+      if (prev.currentFilter !== 'patrons') return prev;
+      const allSnaps = prev.containerMap.getAllSnaps();
+      const filteredSnaps = applyFilter(
+        allSnaps,
+        'patrons',
+        followingListRef.current || [],
+        username,
+        patronSet
+      );
+      const enrichedSnaps = filteredSnaps.map(snap => ({
+        ...snap,
+        avatarUrl:
+          snap.avatarUrl ||
+          avatarService.getCachedAvatarUrl(snap.author) ||
+          `https://images.hive.blog/u/${snap.author}/avatar/original`,
+      }));
+      return { ...prev, snaps: enrichedSnaps };
+    });
+  }, [patronSet, state.currentFilter, applyFilter, username]);
+
   const setFilter = useCallback(
     (filter: FeedFilter) => {
       console.log('🎯 [useFeedData] setFilter called:', filter);
@@ -1079,7 +1131,8 @@ export function useFeedData(): UseFeedDataReturn {
           allSnaps,
           filter,
           followingListRef.current || [],
-          username
+          username,
+          patronSetRef.current
         );
 
         const enrichedSnaps = filteredSnaps.map(snap => ({
@@ -1104,7 +1157,7 @@ export function useFeedData(): UseFeedDataReturn {
         return { ...newState, snaps: enrichedSnaps };
       });
     },
-    [applyFilter, username, followingList, fetchSnaps]
+    [applyFilter, username, followingList, patronSet, fetchSnaps]
   );
 
   // Add a function to check if we can fetch more containers (internal only)

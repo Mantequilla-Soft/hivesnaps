@@ -133,7 +133,6 @@ export async function makeAuthenticatedRequest(
 export function isAuthenticatedEndpoint(path: string): boolean {
   const authenticatedPaths = [
     '/report',           // Report submission
-    '/blacklisted',        // Blacklist access
     '/auth/challenge',   // Challenge request (actually doesn't need auth)
     '/auth/verify',      // Signature verification (actually doesn't need auth)
   ];

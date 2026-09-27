@@ -5,7 +5,6 @@ import { Upload, DetailedError } from 'tus-js-client';
 import { THREE_SPEAK_API_KEY } from '../app/config/env';
 
 const THREE_SPEAK_UPLOAD_ENDPOINT = 'https://embed.3speak.tv/uploads';
-const MAX_VIDEO_FILE_BYTES = 100 * 1024 * 1024; // 100 MB limit enforced by 3Speak shorts API
 const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB chunks keep memory usage predictable on mobile
 const DEFAULT_RETRY_DELAYS = [0, 2000, 5000, 10000];
 const DEFAULT_FRONTEND_APP = 'snapie-mobile';
@@ -109,12 +108,6 @@ export async function prepareLocalVideoAsset(
   const sizeBytes = typeof info.size === 'number' ? info.size : 0;
   if (sizeBytes === 0) {
     throw new Error('Video file has a size of 0 bytes.');
-  }
-
-  if (sizeBytes > MAX_VIDEO_FILE_BYTES) {
-    throw new Error(
-      `Video file is too large (${(sizeBytes / (1024 * 1024)).toFixed(1)} MB). Videos are limited to 100 MB for 3Speak uploads.`
-    );
   }
 
   const filename = options.filename || uri.split('/').pop() || `snapie-video-${Date.now()}.mp4`;

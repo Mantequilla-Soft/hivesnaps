@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../store/context';
 import { fetchLeaderboard, LeaderboardEntry } from '../../services/pointsService';
+import { getAvatarImageUrl } from '../../services/AvatarService';
 
 const PAGE_SIZE = 50;
+// Cap the leaderboard at the top 100 earners — otherwise this list can grow
+// unbounded as the userbase does, with no natural stopping point.
+const MAX_ENTRIES = 100;
 
 const PointsLeaderboardScreen = (): React.JSX.Element => {
   const theme = useTheme();
@@ -25,18 +29,19 @@ const PointsLeaderboardScreen = (): React.JSX.Element => {
       const page = await fetchLeaderboard(PAGE_SIZE, 0);
       if (cancelled) return;
       setEntries(page.entries);
-      setHasMore(page.hasMore);
+      setHasMore(page.hasMore && page.entries.length < MAX_ENTRIES);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore || entries.length >= MAX_ENTRIES) return;
     setLoadingMore(true);
-    const page = await fetchLeaderboard(PAGE_SIZE, entries.length);
-    setEntries(prev => [...prev, ...page.entries]);
-    setHasMore(page.hasMore);
+    const remaining = MAX_ENTRIES - entries.length;
+    const page = await fetchLeaderboard(Math.min(PAGE_SIZE, remaining), entries.length);
+    setEntries(prev => [...prev, ...page.entries].slice(0, MAX_ENTRIES));
+    setHasMore(page.hasMore && entries.length + page.entries.length < MAX_ENTRIES);
     setLoadingMore(false);
   }, [loadingMore, hasMore, entries.length]);
 
@@ -51,6 +56,10 @@ const PointsLeaderboardScreen = (): React.JSX.Element => {
         ]}
       >
         <Text style={[styles.rank, { color: theme.textSecondary }]}>#{item.rank}</Text>
+        <Image
+          source={{ uri: getAvatarImageUrl(item.username) }}
+          style={styles.avatar}
+        />
         <Text style={[styles.username, { color: theme.text }]} numberOfLines={1}>@{item.username}</Text>
         <Text style={[styles.points, { color: theme.text }]}>{item.lifetimeEarned}</Text>
       </View>
@@ -116,6 +125,11 @@ const styles = StyleSheet.create({
     width: 40,
     fontSize: 14,
     fontWeight: '600',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   username: {
     flex: 1,

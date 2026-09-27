@@ -58,3 +58,11 @@ export async function getPatronTier(account: string): Promise<PatronTier | null>
   const map = await loadPatrons();
   return map.get(account) ?? null;
 }
+
+/** Whole patrons map — for the "Patrons" feed filter, which needs to test
+ *  every snap's author rather than look one up at a time. Shares the same
+ *  cache/backoff as getPatronTier (same loadPatrons() call), so using both
+ *  on the same screen never double-fetches. */
+export async function getPatronsMap(): Promise<Map<string, PatronTier>> {
+  return loadPatrons();
+}

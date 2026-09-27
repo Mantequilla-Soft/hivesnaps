@@ -64,6 +64,7 @@ import { linkifyMentions } from '../../utils/linkifyMentions';
 import { linkifyUrls } from '../../utils/linkifyUrls';
 import { detectLanguage, translateText, getLanguageName } from '../../services/translationService';
 import { getPatronTier, PatronTier } from '../../services/patronService';
+import PileTray from './PileTray';
 
 interface SnapProps {
   snap: SnapData;
@@ -256,7 +257,10 @@ const Snap: React.FC<SnapProps> = ({
         beforeMatch.lastIndexOf('<a') > beforeMatch.lastIndexOf('</a>') &&
         afterMatch.includes('</a>');
       if (insideHtmlAnchor) return match;
-      return `${prefix}[#${hashtag}](hashtag://${hashtag})`;
+      // Hive hashtags are always lowercase on-chain; normalize both the
+      // displayed text and the link target so #Foo and #foo resolve the same.
+      const normalizedHashtag = hashtag.toLowerCase();
+      return `${prefix}[#${normalizedHashtag}](hashtag://${normalizedHashtag})`;
     });
   }
   const colorScheme = useColorScheme() || 'light';
@@ -1370,6 +1374,17 @@ const Snap: React.FC<SnapProps> = ({
               </TouchableOpacity>
             )}
           </View>
+        )}
+
+        {/* The Pile — thrown items, top-level snaps only for now (Phase 1:
+            read display only, see docs/MOBILE_PARITY_PLAN.md) */}
+        {!compactMode && !isReply && permlink && (
+          <PileTray
+            author={author}
+            permlink={permlink}
+            currentUsername={currentUsername}
+            colors={colors}
+          />
         )}
 
         {/* Hive Post Previews - Footer Style */}

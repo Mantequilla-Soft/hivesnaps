@@ -89,7 +89,9 @@ export default function LoginScreen() {
     try {
       // Use a test posting key for the username 'appstoret' for easier testing
       const testPostingKey = '5K4xkL1sdkqV5NFHQDtx61gVGcXqZRNDAHVFLbQbQ5W96Vy8cDy';
-      const cleanUsername = username.trim().replace(/^@/, '');
+      // Hive usernames are always lowercase on-chain; normalize here so the
+      // app's global currentUser state matches what's stored/authenticated.
+      const cleanUsername = username.trim().replace(/^@/, '').toLowerCase();
       const postingWif = cleanUsername !== 'appstoret' ? postingKey.trim() : testPostingKey;
 
       // Step 1: Store account (validates posting key against blockchain internally)

@@ -39,7 +39,7 @@ export default function ComposeScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
   const params = useLocalSearchParams<{
-    mode?: 'compose' | 'reply' | 'edit';
+    mode?: 'compose' | 'reply' | 'edit' | 'blog';
     parentAuthor?: string;
     parentPermlink?: string;
     initialText?: string;
@@ -266,6 +266,10 @@ export default function ComposeScreen() {
   const createPreviewSnapData = (): SnapData => {
     let body = compose.state.text.trim();
 
+    if (mode === 'blog' && compose.state.title.trim()) {
+      body = `# ${compose.state.title.trim()}\n\n${body}`;
+    }
+
     if (compose.state.images.length > 0) {
       compose.state.images.forEach((imageUrl, index) => {
         body += `\n![image${index + 1}](${imageUrl})`;
@@ -323,7 +327,9 @@ export default function ComposeScreen() {
                 ? 'Reply'
                 : mode === 'edit'
                   ? 'Edit Snap'
-                  : 'New Snap'}
+                  : mode === 'blog'
+                    ? 'New Blog Post'
+                    : 'New Snap'}
             </Text>
             {mode === 'reply' && parentAuthor && parentAuthor !== 'peak.snaps' && (
               <Text style={[styles.headerSubtitle, { color: colors.info }]}>
@@ -351,7 +357,7 @@ export default function ComposeScreen() {
               <Text
                 style={[styles.headerButtonText, { color: colors.buttonText }]}
               >
-                {mode === 'edit' ? 'Save' : 'Post'}
+                {mode === 'edit' ? 'Save' : mode === 'blog' ? 'Publish' : 'Post'}
               </Text>
             )}
           </TouchableOpacity>
@@ -381,6 +387,25 @@ export default function ComposeScreen() {
             </Text>
           </View>
 
+          {/* Title input (blog posts only) */}
+          {mode === 'blog' && (
+            <TextInput
+              style={[
+                styles.titleInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.inputBorder,
+                },
+              ]}
+              value={compose.state.title}
+              onChangeText={compose.setTitle}
+              placeholder='Title'
+              placeholderTextColor={colors.info}
+              maxLength={255}
+            />
+          )}
+
           {/* Text input */}
           <TextInput
             ref={textInputRef}
@@ -395,31 +420,57 @@ export default function ComposeScreen() {
             value={compose.state.text}
             onChangeText={compose.setText}
             onSelectionChange={handleSelectionChange}
-            placeholder="What's happening?"
+            placeholder={mode === 'blog' ? 'Tell your story...' : "What's happening?"}
             placeholderTextColor={colors.info}
             multiline
             textAlignVertical='top'
-            maxLength={280}
+            maxLength={mode === 'blog' ? undefined : 280}
           />
 
-          {/* Character count */}
-          <View style={styles.charCountRow}>
-            <Text
-              style={[
-                styles.charCount,
-                {
-                  color:
-                    compose.state.text.length > 260
-                      ? colors.error
-                      : compose.state.text.length > 240
-                        ? colors.warning
-                        : colors.info,
-                },
-              ]}
-            >
-              {compose.state.text.length}/280
-            </Text>
-          </View>
+          {/* Tags input (blog posts only) */}
+          {mode === 'blog' && (
+            <>
+              <TextInput
+                style={[
+                  styles.tagsInput,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.inputBorder,
+                  },
+                ]}
+                value={compose.state.tags}
+                onChangeText={compose.setTags}
+                placeholder='Add tags (space separated)'
+                placeholderTextColor={colors.info}
+                autoCapitalize='none'
+              />
+              <Text style={[styles.tagsHint, { color: colors.info }]}>
+                e.g. photography travel hive — posted to the HiveSnaps community
+              </Text>
+            </>
+          )}
+
+          {/* Character count (snaps only — blog posts have no hard cap) */}
+          {mode !== 'blog' && (
+            <View style={styles.charCountRow}>
+              <Text
+                style={[
+                  styles.charCount,
+                  {
+                    color:
+                      compose.state.text.length > 260
+                        ? colors.error
+                        : compose.state.text.length > 240
+                          ? colors.warning
+                          : colors.info,
+                  },
+                ]}
+              >
+                {compose.state.text.length}/280
+              </Text>
+            </View>
+          )}
 
           {/* Images preview */}
           {compose.state.images.length > 0 && (
@@ -676,7 +727,7 @@ export default function ComposeScreen() {
                   opacity: 0.6,
                   marginTop: 8
                 }}>
-                  One video per snap • Max 100 MB
+                  One video per snap
                 </Text>
               )}
             </View>

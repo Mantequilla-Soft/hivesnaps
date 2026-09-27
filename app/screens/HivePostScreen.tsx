@@ -63,7 +63,7 @@ const HivePostScreen = () => {
     updateComment,
   } = useHivePostData(author, permlink, currentUsername);
 
-  // Get muted list for filtering comments (includes personal mutes + global blacklist)
+  // Get muted list for filtering comments (community-muted + personally-muted accounts)
   const { mutedList } = useMutedList(currentUsername || '');
 
   // Create wrapper functions for useUpvote that match expected signatures
@@ -158,7 +158,7 @@ const HivePostScreen = () => {
 
   const postMediaInfo = useMemo(() => detectMediaInBody(post?.body ?? ''), [post?.body]);
 
-  // Filter comments to exclude muted users (includes personal mutes + global blacklist)
+  // Filter comments to exclude muted users (community-muted + personally-muted accounts)
   const filteredComments = useMemo(() => {
     if (!comments || !mutedList) return comments;
 

@@ -24,7 +24,7 @@ interface AppContextType {
   setUserProfile: (username: string, profile: UserProfile) => void;
   setFollowingList: (username: string, following: string[]) => void;
   setFollowerList: (username: string, followers: string[]) => void;
-  setMutedList: (username: string, muted: string[]) => void;
+  setMutedList: (username: string, muted: string[], cacheDurationMs?: number) => void;
   setUserLoading: (type: keyof AppState['user']['loading'], username: string, loading: boolean) => void;
   setUserError: (type: keyof AppState['user']['errors'], username: string, error: string | null) => void;
   invalidateFollowingCache: (username: string) => void;
@@ -175,8 +175,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dispatch({ type: 'USER_SET_FOLLOWER_LIST', payload: { username, followers } });
   }, []);
 
-  const setMutedList = useCallback((username: string, muted: string[]) => {
-    dispatch({ type: 'USER_SET_MUTED_LIST', payload: { username, muted } });
+  const setMutedList = useCallback((username: string, muted: string[], cacheDurationMs?: number) => {
+    dispatch({ type: 'USER_SET_MUTED_LIST', payload: { username, muted, cacheDurationMs } });
   }, []);
 
   const setUserLoading = useCallback((type: keyof AppState['user']['loading'], username: string, loading: boolean) => {
@@ -394,7 +394,7 @@ export function useMutedList(username: string) {
   const { selectors, setMutedList, setUserLoading, setUserError } = useAppStore();
 
   // Memoize the setters so their reference never changes for a given username
-  const stableSetMutedList = React.useCallback((muted: string[]) => setMutedList(username, muted), [setMutedList, username]);
+  const stableSetMutedList = React.useCallback((muted: string[], cacheDurationMs?: number) => setMutedList(username, muted, cacheDurationMs), [setMutedList, username]);
   const stableSetLoading = React.useCallback((loading: boolean) => setUserLoading('muted', username, loading), [setUserLoading, username]);
   const stableSetError = React.useCallback((error: string | null) => setUserError('muted', username, error), [setUserError, username]);
 

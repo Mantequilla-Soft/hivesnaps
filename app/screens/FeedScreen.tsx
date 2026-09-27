@@ -18,10 +18,7 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import ImageView from 'react-native-image-viewing';
@@ -43,6 +40,7 @@ import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
 import { useResourceCredits } from '../../hooks/useResourceCredits';
 import { useUserProfile } from '../../hooks/useUserProfile';
+import { usePatronList } from '../../hooks/usePatronList';
 import { formatVotingPower } from '../../utils/calculateVotingPower';
 
 // Shared state management
@@ -52,8 +50,7 @@ import { useAppStore, useCurrentUser, useAppDebug, useFollowCacheManagement } fr
 import Snap from '../components/Snap';
 import { BlogCard } from '../components/BlogCard';
 import NotificationBadge from '../components/NotificationBadge';
-import SmallButton from '../../components/SmallButton';
-import StaticContentModal from '../../components/StaticContentModal';
+import BottomTabBar from '../components/BottomTabBar';
 import UpvoteModal from '../../components/UpvoteModal';
 import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
@@ -65,35 +62,6 @@ type FeedTab = {
   label: string;
   icon: ComponentProps<typeof FontAwesome>['name'];
   feed: 'blogs' | 'snaps';
-};
-
-// Modal content constants
-const VP_MODAL_CONTENT = {
-  title: 'What is Voting Power (VP)?',
-  content: `Voting Power (VP) is a measure of your ability to upvote posts and comments on the Hive blockchain. The higher your VP, the more influence your votes have.
-
-- VP decreases each time you upvote.
-- VP regenerates automatically over time (about 20% per day).
-- Keeping your VP high means your votes have more impact.
-
-You can see your current VP in the top bar. After upvoting, your VP will drop slightly and recharge over time.`,
-};
-
-const RC_MODAL_CONTENT = {
-  title: 'What are Resource Credits (RC)?',
-  content: `Resource Credits are like digital fuel. You need them to do things on Hive, like posting, voting, or making transactions. Every account has them, and using the network costs a small amount each time.
-
-How can I get more?
-
-• Power Up Hive: The more Hive Power you have, the more RC you get.
-
-• Ask for a Delegation: A friend or community can temporarily boost your RC by delegating Hive Power.
-
-• Use a Faucet or Service: Some apps or websites offer small amounts of RC for free.
-
-Don't worry—RC recharges over time!
-
-Even if you're out of credits, just wait a bit. Your RC will slowly refill, and you'll be able to use Hive again without doing anything else.`,
 };
 
 // Loading footer style constants
@@ -110,16 +78,15 @@ const EMPTY_STATE_LINE_HEIGHT = 24;
 
 // Empty state messages by filter
 const EMPTY_STATE_MESSAGES = {
-  my: "You've been too quiet lately... Why don't you share a little?",
   following: "No snaps from people you follow yet. Check back soon!",
   trending: "Nothing trending right now. Be the first to create something!",
   newest: "No snaps to display.",
+  patrons: "No snaps from patrons yet. Check back soon!",
 } as const;
 
 const FeedScreenRefactored = () => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // Shared state integration
@@ -138,6 +105,7 @@ const FeedScreenRefactored = () => {
     icon: theme.icon,
     bubble: theme.bubble,
     success: theme.success,
+    border: theme.border,
   };
 
   // Initialize styles
@@ -212,6 +180,10 @@ const FeedScreenRefactored = () => {
     loadMore: loadMoreWaves,
   } = useWavesFeed(username);
 
+  // Needed here (not just inside useFeedData) so the Patrons filter can
+  // also restrict which waves get interleaved below.
+  const { patronSet } = usePatronList();
+
   // Trending/resurrected snaps (snapie.io discovery engine) — fetched once per
   // session (not paginated) and promoted to the top of the Newest feed; see
   // splice step below.
@@ -281,13 +253,15 @@ const FeedScreenRefactored = () => {
     // Same muted-author filter filteredSnaps already applies to native snaps.
     let eligibleWaves = waves.filter(w => !mutedList || !mutedList.includes(w.author));
     // On the Following tab, only splice in waves from authors the user actually follows —
-    // otherwise "Following" stops meaning following.
+    // otherwise "Following" stops meaning following. Same idea for Patrons.
     if (currentFilter === 'following') {
       eligibleWaves = eligibleWaves.filter(w => followingList?.includes(w.author));
+    } else if (currentFilter === 'patrons') {
+      eligibleWaves = eligibleWaves.filter(w => patronSet.has(w.author));
     }
     if (eligibleWaves.length === 0) return feedWithTrending;
     return interleave(feedWithTrending, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
-  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, mutedList]);
+  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, patronSet, mutedList]);
 
   // Apply the same muted-list filter to blog posts
   const filteredBlogPosts = useMemo(() => {
@@ -335,8 +309,6 @@ const FeedScreenRefactored = () => {
   const hangoutsCount = useHangoutsCount();
 
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
-  const [vpInfoModalVisible, setVpInfoModalVisible] = useState(false);
-  const [rcInfoModalVisible, setRcInfoModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [modalImages, setModalImages] = useState<Array<{ uri: string }>>([]);
   const [modalImageIndex, setModalImageIndex] = useState(0);
@@ -701,7 +673,9 @@ const FeedScreenRefactored = () => {
       const hashtag = searchTerm.startsWith('#')
         ? searchTerm.slice(1)
         : searchTerm;
-      const cleanHashtag = hashtag.trim();
+      // Hive hashtags are always lowercase on-chain; normalize before saving
+      // to recents or navigating so #Foo and #foo are treated identically.
+      const cleanHashtag = hashtag.trim().toLowerCase();
 
       if (cleanHashtag) {
         await saveToRecentHashtags(cleanHashtag);
@@ -862,157 +836,80 @@ const FeedScreenRefactored = () => {
         onClose={closeUpvoteModal}
         onConfirm={confirmUpvote}
         onVoteWeightChange={setVoteWeight}
+        votingPower={votingPower}
         colors={colors}
       />
 
-      {/* Top bar */}
+      {/* Top bar — condensed: avatar + search + bell only. VP/RC now live on
+          the profile page; Compose and Hangouts moved to BottomTabBar. */}
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              position: 'relative',
+          <Pressable
+            onPress={() => {
+              if (username) {
+                console.log('Navigating to profile for username:', username);
+                router.push(`/screens/ProfileScreen?username=${username}` as any);
+              } else {
+                console.log(
+                  'Cannot navigate to profile: username is undefined'
+                );
+              }
             }}
+            style={({ pressed }) => [
+              {
+                opacity: pressed ? 0.7 : 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                flexShrink: 1,
+              },
+            ]}
+            accessibilityRole='button'
+            accessibilityLabel={`View your profile`}
           >
-            <Pressable
-              onPress={() => {
-                if (username) {
-                  console.log('Navigating to profile for username:', username);
-                  router.push(`/screens/ProfileScreen?username=${username}` as any);
-                } else {
-                  console.log(
-                    'Cannot navigate to profile: username is undefined'
-                  );
-                }
-              }}
-              style={({ pressed }) => [
-                {
-                  opacity: pressed ? 0.7 : 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                },
-              ]}
-              accessibilityRole='button'
-              accessibilityLabel={`View your profile`}
-            >
-              {userLoading ? (
-                <ActivityIndicator
-                  size='small'
-                  color={colors.text}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={{ position: 'relative' }}>
-                  <Image
-                    source={
-                      avatarUrl
-                        ? { uri: avatarUrl }
-                        : require('../../assets/images/generic-avatar.png')
-                    }
-                    style={styles.avatar}
-                  />
-                  {hasUnclaimedRewards && (
-                    <View
-                      style={[
-                        styles.rewardIndicator,
-                        {
-                          position: 'absolute',
-                          top: -2,
-                          right: -2,
-                          backgroundColor: '#FFD700',
-                          borderWidth: 1,
-                          borderColor: colors.background,
-                        },
-                      ]}
-                    >
-                      <FontAwesome name='dollar' size={8} color='#FFF' />
-                    </View>
-                  )}
-                </View>
-              )}
-              <Text style={[styles.username, { color: colors.text }]}>
-                {username && username.length > 8
-                  ? username.slice(0, 8) + '...'
-                  : username}
-              </Text>
-            </Pressable>
-
-            {username && (vpLoading || rcLoading) ? (
+            {userLoading ? (
               <ActivityIndicator
                 size='small'
-                color={colors.button}
-                style={styles.creditsIcon}
+                color={colors.text}
+                style={styles.avatar}
               />
-            ) : username ? (
-              <View style={styles.creditsContainer}>
-                {/* Voting Power */}
-                <SmallButton
-                  label='VP:'
-                  value={
-                    votingPower !== null
-                      ? formatVotingPower(votingPower)
-                      : '--'
+            ) : (
+              <View style={{ position: 'relative' }}>
+                <Image
+                  source={
+                    avatarUrl
+                      ? { uri: avatarUrl }
+                      : require('../../assets/images/generic-avatar.png')
                   }
-                  unit='%'
-                  colors={colors}
-                  onPress={() => setVpInfoModalVisible(true)}
-                  accessibilityLabel='Show Voting Power info'
-                  accessibilityRole='button'
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.avatar}
                 />
-
-                {/* Separator */}
-                <Text style={styles.creditsSeparator}>|</Text>
-
-                {/* Resource Credits */}
-                <SmallButton
-                  label='RC:'
-                  value={
-                    resourceCredits !== null ? resourceCredits.toFixed(1) : '--'
-                  }
-                  unit='%'
-                  colors={colors}
-                  onPress={() => setRcInfoModalVisible(true)}
-                  accessibilityLabel='Show Resource Credits info'
-                  accessibilityRole='button'
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                />
+                {hasUnclaimedRewards && (
+                  <View
+                    style={[
+                      styles.rewardIndicator,
+                      {
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        backgroundColor: '#FFD700',
+                        borderWidth: 1,
+                        borderColor: colors.background,
+                      },
+                    ]}
+                  >
+                    <FontAwesome name='dollar' size={8} color='#FFF' />
+                  </View>
+                )}
               </View>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Info Modals */}
-        <StaticContentModal
-          visible={vpInfoModalVisible}
-          onClose={() => setVpInfoModalVisible(false)}
-          title={VP_MODAL_CONTENT.title}
-          content={VP_MODAL_CONTENT.content}
-          colors={colors}
-          closeButtonAccessibilityLabel='Close Voting Power info'
-        />
-
-        <StaticContentModal
-          visible={rcInfoModalVisible}
-          onClose={() => setRcInfoModalVisible(false)}
-          title={RC_MODAL_CONTENT.title}
-          content={RC_MODAL_CONTENT.content}
-          colors={colors}
-          closeButtonAccessibilityLabel='Close Resource Credits info'
-        />
-
-        {/* Slogan row */}
-        <View style={styles.sloganRow}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => router.push('/screens/ComposeScreen')}
-            accessibilityLabel='Create new snap (slogan)'
-          >
-            <Text style={[styles.slogan, { color: colors.text }]}>
-              What's snappening today?
+            )}
+            <Text
+              style={[styles.username, { color: colors.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode='tail'
+            >
+              {username}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
+
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
               style={[styles.searchBtn, { marginRight: 12 }]}
@@ -1027,7 +924,7 @@ const FeedScreenRefactored = () => {
                 <NotificationBadge
                   count={hangoutsCount}
                   size='small'
-                  color={colors.success}
+                  color='#22c55e'
                   visible={hangoutsCount > 0}
                 />
               </View>
@@ -1066,15 +963,12 @@ const FeedScreenRefactored = () => {
             style={styles.filterScrollView}
           >
             {(([
-              { key: 'blogs', label: 'Blogs', icon: 'newspaper-o', feed: 'blogs' },
               { key: 'following', label: 'Following', icon: 'users', feed: 'snaps' },
               { key: 'newest', label: 'Newest', icon: 'clock-o', feed: 'snaps' },
               { key: 'trending', label: 'Trending', icon: 'fire', feed: 'snaps' },
-              { key: 'my', label: 'My Snaps', icon: 'user', feed: 'snaps' },
+              { key: 'patrons', label: 'Patrons', icon: 'star', feed: 'snaps' },
             ]) as FeedTab[]).map((filter, index) => {
-              const isActive = filter.key === 'blogs'
-                ? activeFeed === 'blogs'
-                : activeFeed === 'snaps' && currentFilter === filter.key;
+              const isActive = activeFeed === 'snaps' && currentFilter === filter.key;
               return (
                 <TouchableOpacity
                   key={filter.key}
@@ -1086,12 +980,8 @@ const FeedScreenRefactored = () => {
                     },
                   ]}
                   onPress={() => {
-                    if (filter.key === 'blogs') {
-                      setActiveFeed('blogs');
-                    } else {
-                      setActiveFeed('snaps');
-                      handleFilterPress(filter.key as FeedFilter);
-                    }
+                    setActiveFeed('snaps');
+                    handleFilterPress(filter.key as FeedFilter);
                   }}
                   activeOpacity={0.7}
                   accessibilityRole="tab"
@@ -1260,6 +1150,7 @@ const FeedScreenRefactored = () => {
               return (
                 <Snap
                   snap={snapData}
+                  currentUsername={username}
                   onUpvotePress={() =>
                     handleUpvotePress({
                       author: item.author,
@@ -1319,24 +1210,6 @@ const FeedScreenRefactored = () => {
           />
         )}
       </View>
-
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={[
-          styles.fab,
-          {
-            backgroundColor: colors.button,
-            shadowColor: colorScheme === 'dark' ? '#000' : '#1DA1F2',
-            bottom: insets.bottom + 24,
-            right: insets.right + 24,
-          },
-        ]}
-        activeOpacity={0.8}
-        onPress={() => router.push('/screens/ComposeScreen' as any)}
-        accessibilityLabel='Create new snap'
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
 
       {/* Image Modal */}
       <ImageView
@@ -1664,6 +1537,17 @@ const FeedScreenRefactored = () => {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <BottomTabBar
+        activeFeed={activeFeed}
+        onHomePress={() => {
+          setActiveFeed('snaps');
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }}
+        onBlogsPress={() => setActiveFeed('blogs')}
+        username={username}
+        colors={colors}
+      />
     </View>
   );
 };

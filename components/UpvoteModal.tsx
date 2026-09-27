@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, Pressable, ActivityIndicator } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { FontAwesome } from '@expo/vector-icons';
+import { formatVotingPower } from '../utils/calculateVotingPower';
 
 interface UpvoteModalProps {
   visible: boolean;
@@ -13,6 +14,11 @@ interface UpvoteModalProps {
   onClose: () => void;
   onConfirm: () => void;
   onVoteWeightChange: (weight: number) => void;
+  /** Current voting power (0-100), shown alongside the weight slider so the
+   *  cost of this vote is visible at the moment it's actually decided — VP
+   *  no longer has a permanent spot in the feed header. Optional/omitted
+   *  while it's still loading. */
+  votingPower?: number | null;
   colors: {
     background: string;
     text: string;
@@ -33,6 +39,7 @@ const UpvoteModal: React.FC<UpvoteModalProps> = ({
   onClose,
   onConfirm,
   onVoteWeightChange,
+  votingPower,
   colors,
 }) => {
   return (
@@ -70,9 +77,22 @@ const UpvoteModal: React.FC<UpvoteModalProps> = ({
           >
             Upvote Snap
           </Text>
-          <Text style={{ color: colors.text, fontSize: 15, marginBottom: 16 }}>
-            Vote Weight: {voteWeight}%
-          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 15 }}>
+              Vote Weight: {voteWeight}%
+            </Text>
+            {votingPower !== null && votingPower !== undefined && (
+              <Text style={{ color: colors.text, fontSize: 15, opacity: 0.7 }}>
+                VP: {formatVotingPower(votingPower)}%
+              </Text>
+            )}
+          </View>
 
           {voteWeightLoading ? (
             <ActivityIndicator
