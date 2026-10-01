@@ -4,22 +4,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { CuarentaView, type GameEvent } from '@mantequilla-soft/cuarenta';
-import { getTheme } from '../../constants/Colors';
-import { useColorScheme } from '../../components/useColorScheme';
+import { getTheme } from '../../../constants/Colors';
+import { useColorScheme } from '../../../components/useColorScheme';
 
-export default function GameScreen() {
+export default function CuarentaScreen() {
   const colorScheme = useColorScheme() || 'light';
   const theme = getTheme(colorScheme);
   const router = useRouter();
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
 
   const closeGame = () => {
-    router.canGoBack() ? router.back() : router.replace('/screens/FeedScreen');
+    router.canGoBack() ? router.back() : router.replace('/screens/GamesHubScreen');
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <Text style={[styles.title, { color: theme.text }]}>Cuarenta</Text>
+      <Text style={[styles.title, { color: theme.text }]}>40</Text>
       <CuarentaView
         color={theme.success}
         style={styles.game}

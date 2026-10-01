@@ -29,14 +29,16 @@ authentication to install even for public packages:
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Each developer (and CI) needs a `GITHUB_TOKEN` env var set locally with at least
+Each developer needs a `GITHUB_TOKEN` env var set locally, and EAS/CI builds need the same
+value as a secret (e.g. `eas secret:create --name GITHUB_TOKEN`), otherwise `npm install`
+fails with a 401. Each developer (and CI) needs a `GITHUB_TOKEN` env var set locally with at least
 `read:packages` scope on a GitHub PAT. **Never commit the literal token** — only the
 `${GITHUB_TOKEN}` placeholder belongs in the repo.
 
 ## 2. Link the native code
 
 ```
-cd ios && pod install
+npx expo prebuild --platform ios   # generates ios/ and runs pod install
 ```
 
 Autolinking (via `expo-modules-autolinking`, which wraps standard RN community
@@ -67,6 +69,18 @@ import { CuarentaView } from '@mantequilla-soft/cuarenta';
 
 <CuarentaView color={theme.success} style={{ width: 200, height: 200 }} />
 ```
+
+## Adding a game to the Games hub
+
+Games are listed in `config/games.ts` and reached from the Games hub
+(`app/screens/GamesHubScreen.tsx`, opened from the feed header). To add one:
+
+1. Create its route under `app/screens/games/` and register it in `app/_layout.tsx`.
+2. Add an entry to `GAMES` with the route and the `platforms` that have a working native
+   implementation. The hub greys out games unavailable on the current platform, and the
+   header icon is hidden if none are available.
+
+Currently Cuarenta (`40`) is iOS-only: its Android view is an empty stub.
 
 ## Developing against an unpublished library (local `file:` dependency)
 
