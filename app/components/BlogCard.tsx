@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { postBodySummary } from '@ecency/render-helper';
 import { getTheme } from '../../constants/Colors';
 import type { BlogPost } from '../../hooks/useBlogFeed';
-import { stripImageTags, stripHtmlTags, stripHtmlEntities } from '../../utils/contentProcessing';
-import { removeVideoUrls } from '../../utils/extractVideoInfo';
 
 interface BlogCardProps {
   post: BlogPost;
@@ -19,16 +19,22 @@ interface BlogCardProps {
   onAuthorPress: (username: string) => void;
 }
 
-/** Strip markdown/HTML and embedded video URLs, returning a plain-text excerpt */
+/**
+ * Plain-text excerpt of the post body. postBodySummary (from @ecency/render-helper
+ * — the same library Ecency's own mobile app uses for this exact purpose) already
+ * strips markdown, HTML tags/entities, and embedded video URLs in one pass.
+ *
+ * It truncates on spaces, so text without spaces (CJK prose, a long hashtag)
+ * summarizes to "". Mirror Ecency's own fallback for that case: take the
+ * untruncated plain text and cut it by code point instead, so such a body still
+ * yields a bounded excerpt.
+ */
 function buildExcerpt(body: string, maxLen = 140): string {
-  const stripped = stripHtmlEntities(stripHtmlTags(stripImageTags(removeVideoUrls(body))))
-    .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // links → text
-    .replace(/#{1,6}\s*/g, '')          // headings
-    .replace(/[*_~`>]/g, '')            // emphasis/code/quote
-    .replace(/\n+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-  return stripped.length > maxLen ? stripped.slice(0, maxLen).trimEnd() + '…' : stripped;
+  const platform = Platform.OS as 'ios' | 'android';
+  const summary = postBodySummary(body, maxLen, platform);
+  if (summary) return summary;
+  const plain = postBodySummary(body, 0, platform);
+  return plain ? Array.from(plain as string).slice(0, maxLen).join('') : '';
 }
 
 function formatPayout(pendingPayout: string, totalPayout: string): string {
