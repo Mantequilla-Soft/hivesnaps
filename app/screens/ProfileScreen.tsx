@@ -376,23 +376,44 @@ const ProfileScreen = () => {
               colors={colors}
             />
 
-            {/* Snapie Points Section */}
-            <PointsSection
-              isOwnProfile={isOwnProfile}
-              profileUsername={profile.username}
-              viewerUsername={currentUsername}
-              colors={colors}
-            />
-
-            {/* Wallet Section — only shown when active key stored AND device auth available */}
-            <WalletSection
-              isOwnProfile={isOwnProfile}
-              isWalletAccessible={walletAccessible}
-              hive={profile?.hive}
-              hbd={profile?.hbd}
-              hivePower={profile?.hivePower}
-              colors={colors}
-            />
+            {/* Snapie Points + Wallet — side by side when the wallet card is shown */}
+            {isOwnProfile && walletAccessible ? (
+              <View style={{ flexDirection: 'row', gap: 12, marginHorizontal: 16, marginBottom: 12 }}>
+                <PointsSection
+                  isOwnProfile={isOwnProfile}
+                  profileUsername={profile.username}
+                  viewerUsername={currentUsername}
+                  colors={colors}
+                  halfWidth
+                />
+                <WalletSection
+                  isOwnProfile={isOwnProfile}
+                  isWalletAccessible={walletAccessible}
+                  hive={profile?.hive}
+                  hbd={profile?.hbd}
+                  hivePower={profile?.hivePower}
+                  colors={colors}
+                  halfWidth
+                />
+              </View>
+            ) : (
+              <>
+                <PointsSection
+                  isOwnProfile={isOwnProfile}
+                  profileUsername={profile.username}
+                  viewerUsername={currentUsername}
+                  colors={colors}
+                />
+                <WalletSection
+                  isOwnProfile={isOwnProfile}
+                  isWalletAccessible={walletAccessible}
+                  hive={profile?.hive}
+                  hbd={profile?.hbd}
+                  hivePower={profile?.hivePower}
+                  colors={colors}
+                />
+              </>
+            )}
 
             {/* Additional Info */}
             {(profile.location || profile.website) && (
