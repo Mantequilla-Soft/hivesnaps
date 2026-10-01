@@ -12,6 +12,10 @@ import {
   removeVideoUrls,
 } from '../../utils/extractVideoInfo';
 import {
+  extractRawImageUrls,
+  removeRawImageUrls,
+} from '../../utils/rawImageUrls';
+import {
   preprocessForMarkdown,
   checkForLeftoverHtmlTags,
 } from '../../utils/htmlPreprocessing';
@@ -39,12 +43,18 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
   // Extract video information from original body
   const videoInfo = useMemo(() => extractVideoInfo(body), [body]);
 
-  // Strip embedded video URLs from the body text since they're rendered
-  // separately as embeds (e.g. ThreeSpeakEmbed) above the text content.
-  const cleanedBody = useMemo(
-    () => (videoInfo ? removeVideoUrls(body) : body),
-    [body, videoInfo]
-  );
+  // Bare image URLs (not wrapped in markdown/HTML image syntax) are rendered
+  // as images below, same as Snap.tsx already does for the Snaps feed.
+  const rawImageUrls = useMemo(() => extractRawImageUrls(body), [body]);
+
+  // Strip embedded video URLs and raw image URLs from the body text since
+  // they're rendered separately as embeds/images, not as link text.
+  const cleanedBody = useMemo(() => {
+    let result = body;
+    if (videoInfo) result = removeVideoUrls(result);
+    if (rawImageUrls.length > 0) result = removeRawImageUrls(result);
+    return result;
+  }, [body, videoInfo, rawImageUrls]);
 
   // Use Ecency's renderHiveToHtml to process the content
   const processedHtml = useMemo(() => {
@@ -185,6 +195,23 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             ) : null}
           </View>
         )}
+        {rawImageUrls.map(url => (
+          <ExpoImage
+            key={url}
+            source={{ uri: proxyImageUrl(url) }}
+            style={{
+              width: '100%',
+              height: 220,
+              borderRadius: 12,
+              backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
+              marginVertical: 8,
+            }}
+            contentFit='cover'
+            transition={0}
+            cachePolicy='memory-disk'
+            accessibilityLabel='image'
+          />
+        ))}
         <Markdown
           style={getMarkdownStyles(colors, isDark)}
           rules={{
@@ -233,6 +260,24 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
           ) : null}
         </View>
       )}
+
+      {rawImageUrls.map(url => (
+        <ExpoImage
+          key={url}
+          source={{ uri: proxyImageUrl(url) }}
+          style={{
+            width: '100%',
+            height: 220,
+            borderRadius: 12,
+            backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
+            marginVertical: 8,
+          }}
+          contentFit='cover'
+          transition={0}
+          cachePolicy='memory-disk'
+          accessibilityLabel='image'
+        />
+      ))}
 
       {/* Content */}
       {!shouldUseMarkdown ? (
