@@ -17,14 +17,17 @@ interface BlogCardProps {
   onAuthorPress: (username: string) => void;
 }
 
-/** Strip markdown and return a plain-text excerpt */
+/** Strip markdown/HTML and return a plain-text excerpt */
 function buildExcerpt(body: string, maxLen = 140): string {
   const stripped = body
+    .replace(/<[^>]+>/g, ' ')           // HTML tags (e.g. 3Speak's <center><div>...</div></center> wrapper)
+    .replace(/&[a-z]+;|&#\d+;/gi, ' ')  // HTML entities (e.g. &emsp;, &nbsp;)
     .replace(/!\[.*?\]\(.*?\)/g, '')   // images
     .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // links → text
     .replace(/#{1,6}\s*/g, '')          // headings
     .replace(/[*_~`>]/g, '')            // emphasis/code/quote
     .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
     .trim();
   return stripped.length > maxLen ? stripped.slice(0, maxLen).trimEnd() + '…' : stripped;
 }
