@@ -39,33 +39,40 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
   // Extract video information from original body
   const videoInfo = useMemo(() => extractVideoInfo(body), [body]);
 
+  // Strip embedded video URLs from the body text since they're rendered
+  // separately as embeds (e.g. ThreeSpeakEmbed) above the text content.
+  const cleanedBody = useMemo(
+    () => (videoInfo ? removeVideoUrls(body) : body),
+    [body, videoInfo]
+  );
+
   // Use Ecency's renderHiveToHtml to process the content
   const processedHtml = useMemo(() => {
     try {
-      return renderHiveToHtml(body, { breaks: true, proxifyImages: true });
+      return renderHiveToHtml(cleanedBody, { breaks: true, proxifyImages: true });
     } catch (error) {
       console.warn('[PostBody] Error processing HTML:', error);
-      return body; // Fallback to original body
+      return cleanedBody; // Fallback to cleaned body
     }
-  }, [body]);
+  }, [cleanedBody]);
 
   // Smart HTML detection - check if original content has HTML tags
   const hasComplexHtml = useMemo(() => {
     return (
-      body.includes('<div') ||
-      body.includes('<p') ||
-      body.includes('<span') ||
-      body.includes('<img') ||
-      body.includes('<a') ||
-      body.includes('<h') ||
-      body.includes('<ul') ||
-      body.includes('<ol') ||
-      body.includes('<li') ||
-      body.includes('<br') ||
-      body.includes('<hr') ||
-      body.includes('<center')
+      cleanedBody.includes('<div') ||
+      cleanedBody.includes('<p') ||
+      cleanedBody.includes('<span') ||
+      cleanedBody.includes('<img') ||
+      cleanedBody.includes('<a') ||
+      cleanedBody.includes('<h') ||
+      cleanedBody.includes('<ul') ||
+      cleanedBody.includes('<ol') ||
+      cleanedBody.includes('<li') ||
+      cleanedBody.includes('<br') ||
+      cleanedBody.includes('<hr') ||
+      cleanedBody.includes('<center')
     ); // Add center tag detection
-  }, [body]);
+  }, [cleanedBody]);
 
   // Use HTML renderer for complex HTML, markdown for simple content
   const isHtml = hasComplexHtml;
@@ -74,7 +81,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
   const contentToRender =
     isHtml && processedHtml && processedHtml.trim().length > 0
       ? processedHtml
-      : body;
+      : cleanedBody;
 
   // If HTML processing failed but we detected HTML, force markdown rendering
   const shouldUseMarkdown =
@@ -204,7 +211,7 @@ const PostBody: React.FC<PostBodyProps> = ({ body, colors, isDark }) => {
             },
           }}
         >
-          {preprocessForMarkdown(linkifyMentions(body))}
+          {preprocessForMarkdown(linkifyMentions(cleanedBody))}
         </Markdown>
       </View>
     );
