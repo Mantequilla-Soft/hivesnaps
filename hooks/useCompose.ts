@@ -855,6 +855,12 @@ export function useCompose({
             const permlink = generatePostPermlink(title);
 
             const allMedia = [...state.images, ...state.gifs];
+            // Video posts without a separate picture would otherwise have no
+            // metadata image, collapsing their preview card in the blog feed.
+            // Fall back to the auto-generated video thumbnail in that case.
+            if (allMedia.length === 0 && video.thumbnailUrl) {
+                allMedia.push(video.thumbnailUrl);
+            }
             const json_metadata = JSON.stringify({
                 app: 'hivesnaps/1.0',
                 format: 'markdown',
