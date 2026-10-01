@@ -19,6 +19,8 @@ interface WalletSectionProps {
         button: string;
         buttonText: string;
     };
+    /** Render as a half-width card (used when placed side-by-side with PointsSection). */
+    halfWidth?: boolean;
 }
 
 export const WalletSection: React.FC<WalletSectionProps> = ({
@@ -28,6 +30,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
     hbd,
     hivePower,
     colors,
+    halfWidth,
 }) => {
     const router = useRouter();
 
@@ -40,29 +43,29 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
     ];
 
     return (
-        <View style={[localStyles.container, { backgroundColor: colors.bubble, borderColor: colors.border }]}>
+        <View style={[localStyles.container, halfWidth && localStyles.containerHalfWidth, { backgroundColor: colors.bubble, borderColor: colors.border }]}>
             {/* Header */}
             <View style={localStyles.headerRow}>
                 <FontAwesome name="credit-card" size={13} color={colors.textSecondary} />
-                <Text style={[localStyles.sectionTitle, { color: colors.textSecondary }]}>WALLET</Text>
+                <Text style={[localStyles.sectionTitle, { color: colors.textSecondary }]} numberOfLines={1}>WALLET</Text>
             </View>
 
             {/* Balance rows */}
             {rows.map(({ label, value }) => (
                 <View key={label} style={localStyles.balanceRow}>
-                    <Text style={[localStyles.balanceLabel, { color: colors.textSecondary }]}>{label}</Text>
-                    <Text style={[localStyles.balanceValue, { color: colors.text }]}>{value}</Text>
+                    <Text style={[localStyles.balanceLabel, halfWidth && localStyles.balanceLabelCompact, { color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
+                    <Text style={[localStyles.balanceValue, halfWidth && localStyles.balanceValueCompact, { color: colors.text }]}>{value}</Text>
                 </View>
             ))}
 
             {/* Open Wallet button */}
             <TouchableOpacity
-                style={[localStyles.walletButton, { backgroundColor: colors.button }]}
+                style={[localStyles.walletButton, halfWidth && localStyles.walletButtonCompact, { backgroundColor: colors.button }]}
                 onPress={() => router.push('/screens/WalletScreen' as Href)}
                 accessibilityRole="button"
                 accessibilityLabel="Open wallet"
             >
-                <Text style={[localStyles.walletButtonText, { color: colors.buttonText }]}>Open Wallet</Text>
+                <Text style={[localStyles.walletButtonText, { color: colors.buttonText }]} numberOfLines={1}>Open Wallet</Text>
                 <FontAwesome name="chevron-right" size={11} color={colors.buttonText} />
             </TouchableOpacity>
         </View>
@@ -76,6 +79,12 @@ const localStyles = StyleSheet.create({
         padding: 16,
         marginHorizontal: 16,
         marginBottom: 12,
+    },
+    containerHalfWidth: {
+        flex: 1,
+        marginHorizontal: 0,
+        marginBottom: 0,
+        padding: 12,
     },
     headerRow: {
         flexDirection: 'row',
@@ -98,9 +107,15 @@ const localStyles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '500',
     },
+    balanceLabelCompact: {
+        fontSize: 13,
+    },
     balanceValue: {
         fontSize: 15,
         fontWeight: '700',
+    },
+    balanceValueCompact: {
+        fontSize: 13,
     },
     walletButton: {
         flexDirection: 'row',
@@ -111,6 +126,10 @@ const localStyles = StyleSheet.create({
         paddingHorizontal: 24,
         borderRadius: 8,
         marginTop: 12,
+    },
+    walletButtonCompact: {
+        paddingVertical: 10,
+        paddingHorizontal: 12,
     },
     walletButtonText: {
         fontSize: 14,
