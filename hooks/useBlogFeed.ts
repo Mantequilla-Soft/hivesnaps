@@ -60,7 +60,8 @@ function extractThumbnail(item: RawBlogPost): string | null {
       600,
       500
     ) ?? null;
-  } catch {
+  } catch (error) {
+    console.error('[useBlogFeed] extractThumbnail threw for', item.author, item.permlink, error);
     return null;
   }
 }
