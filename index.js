@@ -11,6 +11,14 @@ if (typeof global.DOMException === 'undefined') {
   };
 }
 
+// Buffer is a Node global not available in Hermes. A few files already import
+// it explicitly from the 'buffer' package, but third-party library internals
+// (e.g. @ecency/render-helper's catchPostImage, via its multihashes
+// dependency) reference the ambient global directly and crash without it.
+if (typeof global.Buffer === 'undefined') {
+  global.Buffer = require('buffer').Buffer;
+}
+
 // Register WebRTC globals required by @livekit/react-native before any
 // LiveKit module is imported by Expo Router's eager file scan.
 const { registerGlobals } = require('@livekit/react-native');
