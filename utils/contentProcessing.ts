@@ -16,6 +16,21 @@ export const stripImageTags = (text: string): string => {
 };
 
 /**
+ * Strips HTML tags from text content (e.g. 3Speak's auto-generated
+ * <center><div>...</div></center> caption wrapper)
+ */
+export const stripHtmlTags = (text: string): string => {
+  return text.replace(/<[^>]+>/g, ' ');
+};
+
+/**
+ * Decodes/strips common HTML entities (e.g. &emsp;, &nbsp;) from text content
+ */
+export const stripHtmlEntities = (text: string): string => {
+  return text.replace(/&[a-z]+;|&#\d+;/gi, ' ');
+};
+
+/**
  * Preserves paragraph spacing in markdown content
  */
 export const preserveParagraphSpacing = (text: string): string => {

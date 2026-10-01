@@ -10,6 +10,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import { getTheme } from '../../constants/Colors';
 import type { BlogPost } from '../../hooks/useBlogFeed';
+import { stripImageTags, stripHtmlTags, stripHtmlEntities } from '../../utils/contentProcessing';
 
 interface BlogCardProps {
   post: BlogPost;
@@ -19,10 +20,7 @@ interface BlogCardProps {
 
 /** Strip markdown/HTML and return a plain-text excerpt */
 function buildExcerpt(body: string, maxLen = 140): string {
-  const stripped = body
-    .replace(/<[^>]+>/g, ' ')           // HTML tags (e.g. 3Speak's <center><div>...</div></center> wrapper)
-    .replace(/&[a-z]+;|&#\d+;/gi, ' ')  // HTML entities (e.g. &emsp;, &nbsp;)
-    .replace(/!\[.*?\]\(.*?\)/g, '')   // images
+  const stripped = stripHtmlEntities(stripHtmlTags(stripImageTags(body)))
     .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // links → text
     .replace(/#{1,6}\s*/g, '')          // headings
     .replace(/[*_~`>]/g, '')            // emphasis/code/quote
