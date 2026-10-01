@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { catchPostImage } from '@ecency/render-helper';
 import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 
@@ -12,6 +13,7 @@ interface RawBlogPost {
   body?: string;
   json_metadata?: string;
   created: string;
+  updated?: string;
   pending_payout_value?: string;
   total_payout_value?: string;
   net_votes?: number;
@@ -33,16 +35,34 @@ export interface BlogPost {
   avatarUrl: string;
 }
 
-/** Extract first image URL from json_metadata or body */
-function extractThumbnail(jsonMeta: string, body: string): string | null {
+/**
+ * Extract a thumbnail image from a post, via @ecency/render-helper's
+ * catchPostImage — the same function Ecency's own mobile app uses for this.
+ * Checks json_metadata.image (string or array) first, falling back to the
+ * first image found in the body (markdown or a bare image URL), with GIF
+ * thumbnails left unresized so they don't lose their animation.
+ *
+ * catchPostImage caches its result keyed by author+permlink+last_update, so
+ * author/permlink (and updated, in case of an edit) must be passed through —
+ * without them every post in the feed collides on the same cache key and
+ * silently reuses the first post's thumbnail for every other one.
+ */
+function extractThumbnail(item: RawBlogPost): string | null {
   try {
-    const meta = JSON.parse(jsonMeta);
-    if (Array.isArray(meta.image) && meta.image.length > 0 && typeof meta.image[0] === 'string') {
-      return meta.image[0];
-    }
-  } catch { /* ignore */ }
-  const match = body.match(/!\[.*?\]\((https?:\/\/[^)]+)\)/);
-  return match ? match[1] : null;
+    return catchPostImage(
+      {
+        author: item.author,
+        permlink: item.permlink,
+        last_update: item.updated,
+        json_metadata: item.json_metadata ?? '{}',
+        body: item.body ?? '',
+      },
+      600,
+      500
+    ) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface UseBlogFeedResult {
@@ -98,7 +118,7 @@ export function useBlogFeed(): UseBlogFeedResult {
       total_payout_value: item.total_payout_value ?? '0.000 HBD',
       net_votes: item.net_votes ?? 0,
       children: item.children ?? 0,
-      thumbnailUrl: extractThumbnail(item.json_metadata ?? '{}', item.body ?? ''),
+      thumbnailUrl: extractThumbnail(item),
       avatarUrl: '',
     }));
   }, []);
