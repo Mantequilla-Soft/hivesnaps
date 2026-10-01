@@ -11,6 +11,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { getTheme } from '../../constants/Colors';
 import type { BlogPost } from '../../hooks/useBlogFeed';
 import { stripImageTags, stripHtmlTags, stripHtmlEntities } from '../../utils/contentProcessing';
+import { removeVideoUrls } from '../../utils/extractVideoInfo';
 
 interface BlogCardProps {
   post: BlogPost;
@@ -18,9 +19,9 @@ interface BlogCardProps {
   onAuthorPress: (username: string) => void;
 }
 
-/** Strip markdown/HTML and return a plain-text excerpt */
+/** Strip markdown/HTML and embedded video URLs, returning a plain-text excerpt */
 function buildExcerpt(body: string, maxLen = 140): string {
-  const stripped = stripHtmlEntities(stripHtmlTags(stripImageTags(body)))
+  const stripped = stripHtmlEntities(stripHtmlTags(stripImageTags(removeVideoUrls(body))))
     .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // links → text
     .replace(/#{1,6}\s*/g, '')          // headings
     .replace(/[*_~`>]/g, '')            // emphasis/code/quote
