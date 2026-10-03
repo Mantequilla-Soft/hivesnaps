@@ -2,7 +2,7 @@
 
 HiveSnaps is a cutting-edge React Native mobile app built with Expo and TypeScript that brings the power of the Hive blockchain to short-form social media content. Think Twitter meets Instagram, but decentralized and powered by Web3.
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)
 ![Expo](https://img.shields.io/badge/Expo-~53.0.12-black.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-~5.8.3-blue.svg)
 ![Hive](https://img.shields.io/badge/Blockchain-Hive-red.svg)
