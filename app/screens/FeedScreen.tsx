@@ -55,6 +55,7 @@ import UpvoteModal from '../../components/UpvoteModal';
 import { addPromiseIfValid } from '../../utils/promiseUtils';
 import { subscribeGlobalRefresh } from '../../utils/globalEvents';
 import { getTheme } from '../../constants/Colors';
+import { hasAvailableGames } from '../../config/games';
 
 
 type FeedTab = {
@@ -929,6 +930,18 @@ const FeedScreenRefactored = () => {
                 />
               </View>
             </TouchableOpacity>
+            {hasAvailableGames() && (
+              <TouchableOpacity
+                style={[styles.searchBtn, { marginRight: 12 }]}
+                onPress={() => router.push('/screens/GamesHubScreen')}
+                accessibilityLabel='Open Games'
+                accessibilityRole='button'
+                accessibilityHint='Navigates to the games hub'
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <FontAwesome name='gamepad' size={22} color={colors.icon} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.searchBtn, { marginRight: 12 }]}
               onPress={() => setIsSearchModalVisible(true)}
