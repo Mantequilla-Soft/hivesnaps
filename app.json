@@ -3,12 +3,9 @@
     "name": "hivesnaps",
     "owner": "menobass",
     "slug": "hivesnaps",
-    "version": "1.1.3",
+    "version": "1.3.1",
     "orientation": "portrait",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "icon": "./assets/images/appicon.png",
     "scheme": "hivesnaps",
     "userInterfaceStyle": "automatic",
@@ -21,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jose.antonio.mena.hivesnaps",
-      "buildNumber": "1.1.3",
+      "buildNumber": "1.3.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app uses the camera to take photos, record videos, and scan payment QR codes.",
@@ -42,9 +39,7 @@
       "intentFilters": [
         {
           "action": "android.intent.action.SEND",
-          "category": [
-            "android.intent.category.DEFAULT"
-          ],
+          "category": ["android.intent.category.DEFAULT"],
           "data": [
             {
               "mimeType": "image/*"
@@ -59,9 +54,7 @@
         },
         {
           "action": "android.intent.action.SEND_MULTIPLE",
-          "category": [
-            "android.intent.category.DEFAULT"
-          ],
+          "category": ["android.intent.category.DEFAULT"],
           "data": [
             {
               "mimeType": "image/*"
