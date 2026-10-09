@@ -15,6 +15,8 @@ import { removeVideoUrls } from '../../utils/extractVideoInfo';
 
 interface BlogCardProps {
   post: BlogPost;
+  /** Whether the logged-in user has upvoted this post — mirrors Snap's hasUpvoted */
+  hasUpvoted?: boolean;
   onPress: () => void;
   onAuthorPress: (username: string) => void;
 }
@@ -51,7 +53,7 @@ function formatTimeAgo(created: string): string {
   return `${days}d`;
 }
 
-export const BlogCard: React.FC<BlogCardProps> = ({ post, onPress, onAuthorPress }) => {
+export const BlogCard: React.FC<BlogCardProps> = ({ post, hasUpvoted = false, onPress, onAuthorPress }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = useMemo(() => getTheme(isDark ? 'dark' : 'light'), [isDark]);
@@ -126,8 +128,14 @@ export const BlogCard: React.FC<BlogCardProps> = ({ post, onPress, onAuthorPress
           <View style={styles.stats}>
             <Text style={[styles.stat, { color: theme.payout }]}>{payout}</Text>
             <View style={styles.statItem}>
-              <FontAwesome name="heart-o" size={11} color={theme.textSecondary} />
-              <Text style={[styles.stat, { color: theme.textSecondary }]}>{post.net_votes}</Text>
+              <FontAwesome
+                name={hasUpvoted ? 'heart' : 'heart-o'}
+                size={11}
+                color={hasUpvoted ? '#8e44ad' : theme.textSecondary}
+              />
+              <Text style={[styles.stat, { color: hasUpvoted ? '#8e44ad' : theme.textSecondary }]}>
+                {post.net_votes}
+              </Text>
             </View>
             <View style={styles.statItem}>
               <FontAwesome name="comment-o" size={11} color={theme.textSecondary} />

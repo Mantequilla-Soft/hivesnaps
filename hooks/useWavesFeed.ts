@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { fetchWaveItems, WaveItem } from '../services/wavesFeedService';
 import { avatarService } from '../services/AvatarService';
+import { hasUserVoted } from '../utils/votes';
 import { SnapData } from './useConversationData';
 import { normalizeToUtcTimestamp } from '../utils/time';
 
@@ -46,8 +47,7 @@ export function useWavesFeed(username: string | null): UseWavesFeedResult {
           avatarUrl = undefined;
         }
 
-        const hasUpvoted = Array.isArray(item.active_votes) && !!username &&
-          item.active_votes.some(v => v.voter === username && v.percent > 0);
+        const hasUpvoted = hasUserVoted(item.active_votes, username);
 
         return {
           author: item.author,

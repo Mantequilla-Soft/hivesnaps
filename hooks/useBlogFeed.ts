@@ -2,6 +2,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { catchPostImage } from '@ecency/render-helper';
 import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
+import type { ActiveVote } from '../services/ModerationService';
+import { deriveNetVotes, hasUserVoted } from '../utils/votes';
+import { subscribePostVoted } from '../utils/globalEvents';
 
 export const SNAPIE_COMMUNITY = 'hive-178315';
 const PAGE_SIZE = 20;
@@ -18,6 +21,10 @@ interface RawBlogPost {
   total_payout_value?: string;
   net_votes?: number;
   children?: number;
+  // bridge.get_ranked_posts returns the voter list (as {voter, rshares} pairs —
+  // no `percent`, see utils/votes.ts) but never `net_votes`, despite the
+  // field being declared optional here for API-shape completeness.
+  active_votes?: ActiveVote[];
 }
 
 export interface BlogPost {
@@ -33,6 +40,7 @@ export interface BlogPost {
   children: number;
   thumbnailUrl: string | null;
   avatarUrl: string;
+  active_votes: ActiveVote[];
 }
 
 /**
@@ -93,6 +101,34 @@ export function useBlogFeed(): UseBlogFeedResult {
     return () => { isMountedRef.current = false; };
   }, []);
 
+  // Vote freshness: the blog feed fetches once per session, so without this
+  // a vote cast on HivePostScreen would never show up when the user returns.
+  // useUpvote emits globally after a successful broadcast; patch just the
+  // matching post in place (keeps scroll position and pagination intact —
+  // a refetch would reset both).
+  useEffect(() => {
+    const unsub = subscribePostVoted(({ author, permlink, voter, percent }) => {
+      if (!isMountedRef.current) return;
+      setPosts(prev => {
+        const index = prev.findIndex(p => p.author === author && p.permlink === permlink);
+        if (index === -1) return prev;
+        const post = prev[index];
+        const wasUpvoted = hasUserVoted(post.active_votes, voter);
+        const withoutVoter = post.active_votes.filter(v => v.voter !== voter);
+        const nextVotes = [...withoutVoter, { voter, percent, rshares: 0 }];
+        const next = [...prev];
+        next[index] = {
+          ...post,
+          active_votes: nextVotes,
+          // net_votes only grows if this wasn't already an upvote by the same voter
+          net_votes: post.net_votes + (wasUpvoted ? 0 : 1),
+        };
+        return next;
+      });
+    });
+    return () => unsub();
+  }, []);
+
   const enrichWithAvatars = useCallback(async (rawPosts: BlogPost[]): Promise<BlogPost[]> => {
     const enriched = await Promise.all(
       rawPosts.map(async (post) => {
@@ -108,20 +144,26 @@ export function useBlogFeed(): UseBlogFeedResult {
   }, []);
 
   const parseRawPosts = useCallback((raw: RawBlogPost[]): BlogPost[] => {
-    return raw.map((item) => ({
-      author: item.author,
-      permlink: item.permlink,
-      title: item.title ?? '',
-      body: item.body ?? '',
-      json_metadata: item.json_metadata ?? '{}',
-      created: item.created,
-      pending_payout_value: item.pending_payout_value ?? '0.000 HBD',
-      total_payout_value: item.total_payout_value ?? '0.000 HBD',
-      net_votes: item.net_votes ?? 0,
-      children: item.children ?? 0,
-      thumbnailUrl: extractThumbnail(item),
-      avatarUrl: '',
-    }));
+    return raw.map((item) => {
+      const active_votes = Array.isArray(item.active_votes) ? item.active_votes : [];
+      return {
+        author: item.author,
+        permlink: item.permlink,
+        title: item.title ?? '',
+        body: item.body ?? '',
+        json_metadata: item.json_metadata ?? '{}',
+        created: item.created,
+        pending_payout_value: item.pending_payout_value ?? '0.000 HBD',
+        total_payout_value: item.total_payout_value ?? '0.000 HBD',
+        // bridge.get_ranked_posts omits net_votes entirely — derive it from
+        // the voter list so the card doesn't permanently show 0 votes.
+        net_votes: typeof item.net_votes === 'number' ? item.net_votes : deriveNetVotes(active_votes),
+        children: item.children ?? 0,
+        thumbnailUrl: extractThumbnail(item),
+        avatarUrl: '',
+        active_votes,
+      };
+    });
   }, []);
 
   const fetchPosts = useCallback(async (): Promise<void> => {

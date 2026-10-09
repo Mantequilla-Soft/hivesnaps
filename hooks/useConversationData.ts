@@ -3,6 +3,7 @@ import { sortByPayoutRecursive } from '../utils/sortRepliesByPayout';
 import { getClient } from '../services/HiveClient';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
 import { avatarService } from '../services/AvatarService';
+import { hasUserVoted } from '../utils/votes';
 
 const client = getClient();
 
@@ -79,10 +80,10 @@ export const useConversationData = (
   const avatarProfileCache: Record<string, string | undefined> = {};
 
   // Helper function to check if current user has upvoted
-  const checkHasUpvoted = useCallback((activeVotes: any[]): boolean => {
-    if (!currentUsername || !Array.isArray(activeVotes)) return false;
-    return activeVotes.some((v: any) => v.voter === currentUsername && v.percent > 0);
-  }, [currentUsername]);
+  const checkHasUpvoted = useCallback(
+    (activeVotes: any[]): boolean => hasUserVoted(activeVotes, currentUsername),
+    [currentUsername]
+  );
 
   // Recursively fetch replies, ensuring each reply has full content
   const fetchRepliesTreeWithContent = useCallback(
