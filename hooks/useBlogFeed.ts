@@ -3,8 +3,8 @@ import { catchPostImage } from '@ecency/render-helper';
 import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import type { ActiveVote } from '../services/ModerationService';
-import { deriveNetVotes, hasUserVoted } from '../utils/votes';
-import { subscribePostVoted } from '../utils/globalEvents';
+import { activeVoteNet, deriveNetVotes } from '../utils/votes';
+import { subscribePostVoted, type PostVotedEvent } from '../utils/globalEvents';
 
 export const SNAPIE_COMMUNITY = 'hive-178315';
 const PAGE_SIZE = 20;
@@ -95,39 +95,72 @@ export function useBlogFeed(): UseBlogFeedResult {
   const hasMoreRef = useRef(true);
   const isFetchingRef = useRef(false);
   const isMountedRef = useRef(true);
+  // Successful local votes the chain may not yet reflect in a subsequent
+  // fetch (hivemind indexing lag, or a fetch already in flight when the vote
+  // lands). Kept so reconciled fetches never clobber the optimistic state.
+  const pendingVotesRef = useRef<Map<string, PostVotedEvent>>(new Map());
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
 
+  const voteKey = useCallback(
+    (author: string, permlink: string) => `${author}/${permlink}`,
+    []
+  );
+
+  /**
+   * Apply one successful local vote onto a post list. Idempotent: the
+   * voter's entry is replaced (never duplicated), and net_votes moves by the
+   * exact delta between the old and new entry (+1 new, 0 re-vote, +2
+   * downvote→upvote — the app only broadcasts upvotes).
+   */
+  const applyVote = useCallback(
+    (posts: BlogPost[], vote: PostVotedEvent): BlogPost[] => {
+      const { author, permlink, voter, percent } = vote;
+      const index = posts.findIndex(p => p.author === author && p.permlink === permlink);
+      if (index === -1) return posts;
+      const post = posts[index];
+      const withoutVoter = post.active_votes.filter(v => v.voter !== voter);
+      const previous = post.active_votes.find(v => v.voter === voter);
+      const next = [...posts];
+      next[index] = {
+        ...post,
+        active_votes: [...withoutVoter, { voter, percent, rshares: 0 }],
+        net_votes: post.net_votes - activeVoteNet(previous) + 1,
+      };
+      return next;
+    },
+    []
+  );
+
+  /** Fold every pending local vote onto freshly fetched posts. */
+  const reconcilePendingVotes = useCallback(
+    (posts: BlogPost[]): BlogPost[] => {
+      let next = posts;
+      for (const vote of pendingVotesRef.current.values()) {
+        next = applyVote(next, vote);
+      }
+      return next;
+    },
+    [applyVote]
+  );
+
   // Vote freshness: the blog feed fetches once per session, so without this
   // a vote cast on HivePostScreen would never show up when the user returns.
   // useUpvote emits globally after a successful broadcast; patch just the
   // matching post in place (keeps scroll position and pagination intact —
-  // a refetch would reset both).
+  // a refetch would reset both), and remember it in pendingVotesRef so a
+  // fetch landing mid-flight can't clobber it (see reconcilePendingVotes).
   useEffect(() => {
-    const unsub = subscribePostVoted(({ author, permlink, voter, percent }) => {
+    const unsub = subscribePostVoted((vote) => {
       if (!isMountedRef.current) return;
-      setPosts(prev => {
-        const index = prev.findIndex(p => p.author === author && p.permlink === permlink);
-        if (index === -1) return prev;
-        const post = prev[index];
-        const wasUpvoted = hasUserVoted(post.active_votes, voter);
-        const withoutVoter = post.active_votes.filter(v => v.voter !== voter);
-        const nextVotes = [...withoutVoter, { voter, percent, rshares: 0 }];
-        const next = [...prev];
-        next[index] = {
-          ...post,
-          active_votes: nextVotes,
-          // net_votes only grows if this wasn't already an upvote by the same voter
-          net_votes: post.net_votes + (wasUpvoted ? 0 : 1),
-        };
-        return next;
-      });
+      pendingVotesRef.current.set(voteKey(vote.author, vote.permlink), vote);
+      setPosts(prev => applyVote(prev, vote));
     });
     return () => unsub();
-  }, []);
+  }, [applyVote, voteKey]);
 
   const enrichWithAvatars = useCallback(async (rawPosts: BlogPost[]): Promise<BlogPost[]> => {
     const enriched = await Promise.all(
@@ -188,7 +221,10 @@ export function useBlogFeed(): UseBlogFeedResult {
       const enriched = await enrichWithAvatars(parsed);
 
       if (!isMountedRef.current) return;
-      setPosts(enriched);
+      // A successful local vote may have landed while this fetch was in
+      // flight (or hivemind may not have indexed it yet) — fold those back
+      // on so the response never clobbers the optimistic voted state.
+      setPosts(reconcilePendingVotes(enriched));
       hasMoreRef.current = enriched.length === PAGE_SIZE;
       if (enriched.length > 0) {
         const last = enriched[enriched.length - 1];
@@ -202,7 +238,7 @@ export function useBlogFeed(): UseBlogFeedResult {
       if (isMountedRef.current) setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [parseRawPosts, enrichWithAvatars]);
+  }, [parseRawPosts, enrichWithAvatars, reconcilePendingVotes]);
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (isFetchingRef.current || !hasMoreRef.current || !cursorRef.current) return;
@@ -226,7 +262,7 @@ export function useBlogFeed(): UseBlogFeedResult {
       const enriched = await enrichWithAvatars(parsed);
 
       if (!isMountedRef.current) return;
-      setPosts((prev) => [...prev, ...enriched]);
+      setPosts((prev) => reconcilePendingVotes([...prev, ...enriched]));
       hasMoreRef.current = enriched.length === PAGE_SIZE;
       if (enriched.length > 0) {
         const last = enriched[enriched.length - 1];
@@ -240,7 +276,7 @@ export function useBlogFeed(): UseBlogFeedResult {
       if (isMountedRef.current) setLoadingMore(false);
       isFetchingRef.current = false;
     }
-  }, [parseRawPosts, enrichWithAvatars]);
+  }, [parseRawPosts, enrichWithAvatars, reconcilePendingVotes]);
 
   const refresh = useCallback(async (): Promise<void> => {
     await fetchPosts();

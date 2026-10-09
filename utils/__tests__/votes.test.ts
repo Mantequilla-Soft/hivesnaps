@@ -43,7 +43,14 @@ describe('hasUserVoted', () => {
   it('returns false for a null/undefined/non-array vote list', () => {
     expect(hasUserVoted(null, 'alice')).toBe(false);
     expect(hasUserVoted(undefined, 'alice')).toBe(false);
-    expect(hasUserVoted('not-an-array' as any, 'alice')).toBe(false);
+    // Malformed input must hit the non-array guard (not crash);
+    // `as unknown as` keeps the runtime value a plain string.
+    expect(
+      hasUserVoted(
+        'not-an-array' as unknown as Parameters<typeof hasUserVoted>[0],
+        'alice'
+      )
+    ).toBe(false);
   });
 
   it('does not count a 0-percent entry as a vote', () => {

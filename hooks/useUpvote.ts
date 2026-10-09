@@ -191,6 +191,18 @@ export const useUpvote = (
         postingKey
       );
 
+      // Notify mounted feeds (e.g. the blog feed, which fetches once per
+      // session) so they can optimistically show the voted state without a
+      // full refetch — placed here, immediately after the awaited broadcast:
+      // the AsyncStorage/haptics/points bookkeeping below may reject, and a
+      // failure there must not swallow a successful vote's notification.
+      emitPostVoted({
+        author: upvoteTarget.author,
+        permlink: upvoteTarget.permlink,
+        voter: username,
+        percent: weight,
+      });
+
       if (isPointsEnabled(username)) {
         awardPoints('vote', username, upvoteTarget.author, upvoteTarget.permlink);
       }
@@ -203,16 +215,6 @@ export const useUpvote = (
 
       setUpvoteLoading(false);
       setUpvoteSuccess(true);
-
-      // Notify mounted feeds (e.g. the blog feed, which fetches once per
-      // session) so they can optimistically show the voted state without a
-      // full refetch — see utils/globalEvents.ts.
-      emitPostVoted({
-        author: upvoteTarget.author,
-        permlink: upvoteTarget.permlink,
-        voter: username,
-        percent: weight,
-      });
 
       // Update the snap/reply optimistically if update functions are provided
       if (upvoteTarget && upvoteTarget.snap) {

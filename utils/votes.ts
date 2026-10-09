@@ -16,7 +16,10 @@
  */
 import type { ActiveVote } from '../services/ModerationService';
 
-/** Net contribution of a single vote entry: +1 up, -1 down, 0 neutral. */
+/**
+ * Net contribution of a single vote entry (+1 up, −1 down, 0 neutral).
+ * Exported so callers can compute vote-count deltas against a previous entry.
+ */
 export function activeVoteNet(vote: ActiveVote | null | undefined): number {
   if (!vote) return 0;
   // Prefer percent when present — it's authoritative even if rshares lags

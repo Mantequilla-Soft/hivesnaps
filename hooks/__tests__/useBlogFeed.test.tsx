@@ -109,6 +109,40 @@ describe('useBlogFeed', () => {
     expect(hook.result.posts[0].net_votes).toBe(0);
   });
 
+  it('reconciles a vote that lands while a refetch is in flight', async () => {
+    let resolveCall!: (value: unknown[]) => void;
+    mockCall.mockImplementationOnce(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          resolveCall = resolve;
+        })
+    );
+
+    const hook = renderUseBlogFeed();
+    const fetchPromise = hook.result.fetchPosts();
+
+    // A successful vote lands while the API response is still pending
+    act(() => {
+      emitPostVoted({
+        author: 'paultactico2',
+        permlink: 'retrogaming-fighting-in-the-73',
+        voter: 'carol',
+        percent: 10000,
+      });
+    });
+
+    // The in-flight fetch returns a stale payload missing carol's vote
+    await act(async () => {
+      resolveCall([rawBridgePost()]);
+      await fetchPromise;
+    });
+
+    // The stale commit must not clobber the optimistic vote patch
+    const post = hook.result.posts[0];
+    expect(post.active_votes.some(v => v.voter === 'carol')).toBe(true);
+    expect(post.net_votes).toBe(3);
+  });
+
   it('patches the matching post in place when a post-voted event fires', async () => {
     mockCall.mockResolvedValueOnce([rawBridgePost()]);
 
