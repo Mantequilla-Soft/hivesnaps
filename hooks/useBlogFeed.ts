@@ -4,7 +4,7 @@ import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import type { ActiveVote } from '../services/ModerationService';
 import { activeVoteNet, deriveNetVotes } from '../utils/votes';
-import { subscribePostVoted, type PostVotedEvent } from '../utils/globalEvents';
+import { subscribePostVoted, postVoteKey, POST_VOTED_TTL_MS, type PostVotedEvent } from '../utils/globalEvents';
 
 export const SNAPIE_COMMUNITY = 'hive-178315';
 const PAGE_SIZE = 20;
@@ -98,17 +98,12 @@ export function useBlogFeed(): UseBlogFeedResult {
   // Successful local votes the chain may not yet reflect in a subsequent
   // fetch (hivemind indexing lag, or a fetch already in flight when the vote
   // lands). Kept so reconciled fetches never clobber the optimistic state.
-  const pendingVotesRef = useRef<Map<string, PostVotedEvent>>(new Map());
+  const pendingVotesRef = useRef<Map<string, { vote: PostVotedEvent; at: number }>>(new Map());
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
-
-  const voteKey = useCallback(
-    (author: string, permlink: string) => `${author}/${permlink}`,
-    []
-  );
 
   /**
    * Apply one successful local vote onto a post list. Idempotent: the
@@ -139,8 +134,11 @@ export function useBlogFeed(): UseBlogFeedResult {
   const reconcilePendingVotes = useCallback(
     (posts: BlogPost[]): BlogPost[] => {
       let next = posts;
-      for (const vote of pendingVotesRef.current.values()) {
-        next = applyVote(next, vote);
+      const now = Date.now();
+      for (const [key, { vote, at }] of Array.from(pendingVotesRef.current)) {
+        // Past the TTL the chain has had time to catch up; stop overriding it.
+        if (now - at > POST_VOTED_TTL_MS) pendingVotesRef.current.delete(key);
+        else next = applyVote(next, vote);
       }
       return next;
     },
@@ -156,11 +154,11 @@ export function useBlogFeed(): UseBlogFeedResult {
   useEffect(() => {
     const unsub = subscribePostVoted((vote) => {
       if (!isMountedRef.current) return;
-      pendingVotesRef.current.set(voteKey(vote.author, vote.permlink), vote);
+      pendingVotesRef.current.set(postVoteKey(vote.author, vote.permlink), { vote, at: Date.now() });
       setPosts(prev => applyVote(prev, vote));
     });
     return () => unsub();
-  }, [applyVote, voteKey]);
+  }, [applyVote]);
 
   const enrichWithAvatars = useCallback(async (rawPosts: BlogPost[]): Promise<BlogPost[]> => {
     const enriched = await Promise.all(

@@ -43,12 +43,27 @@ export interface PostVotedEvent {
 type PostVotedCallback = (event: PostVotedEvent) => void;
 const postVotedSubscribers = new Set<PostVotedCallback>();
 
+// A vote can be cast before a feed mounts (e.g. straight into HivePostScreen)
+// and the indexer may still lag on the first fetch, so recent votes are
+// replayed to new subscribers. Latest vote per post; expires after
+// POST_VOTED_TTL_MS, which is also how long feeds keep re-applying it.
+export const POST_VOTED_TTL_MS = 2 * 60 * 1000;
+const recentVotes = new Map<string, { event: PostVotedEvent; at: number }>();
+
+export const postVoteKey = (author: string, permlink: string): string => `${author}/${permlink}`;
+
 export function subscribePostVoted(cb: PostVotedCallback): () => void {
   postVotedSubscribers.add(cb);
+  const now = Date.now();
+  for (const [key, { event, at }] of Array.from(recentVotes)) {
+    if (now - at > POST_VOTED_TTL_MS) recentVotes.delete(key);
+    else cb(event);
+  }
   return () => postVotedSubscribers.delete(cb);
 }
 
 export function emitPostVoted(event: PostVotedEvent): void {
+  recentVotes.set(postVoteKey(event.author, event.permlink), { event, at: Date.now() });
   for (const cb of Array.from(postVotedSubscribers)) {
     try {
       cb(event);

@@ -24,7 +24,7 @@ import { act, create } from 'react-test-renderer';
 import { useBlogFeed, UseBlogFeedResult, BlogPost } from '../useBlogFeed';
 import { getClient } from '../../services/HiveClient';
 import { avatarService } from '../../services/AvatarService';
-import { emitPostVoted } from '../../utils/globalEvents';
+import { emitPostVoted, POST_VOTED_TTL_MS } from '../../utils/globalEvents';
 
 const mockCall = jest.fn();
 (getClient as jest.Mock).mockReturnValue({ call: mockCall });
@@ -60,8 +60,14 @@ function rawBridgePost(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+// Fake clock: each test starts far past the replay TTL so votes emitted by
+// earlier tests (module-level replay buffer) have expired.
+let now = 0;
+jest.spyOn(Date, 'now').mockImplementation(() => now);
+
 describe('useBlogFeed', () => {
   beforeEach(() => {
+    now += 10 * POST_VOTED_TTL_MS;
     jest.clearAllMocks();
     mockGetAvatarUrl.mockResolvedValue({ url: 'https://images.hive.blog/u/x/avatar', fromCache: false, source: 'fallback' });
   });
@@ -202,5 +208,47 @@ describe('useBlogFeed', () => {
     });
 
     expect(hook.result.posts).toBe(before); // same reference — no state churn
+  });
+
+  const carolVote = {
+    author: 'paultactico2',
+    permlink: 'retrogaming-fighting-in-the-73',
+    voter: 'carol',
+    percent: 10000,
+  };
+
+  it('applies a vote cast before the feed mounted, even if the fetch omits it', async () => {
+    act(() => { emitPostVoted(carolVote); });
+    mockCall.mockResolvedValueOnce([rawBridgePost()]);
+
+    const hook = renderUseBlogFeed();
+    await act(async () => { await hook.result.fetchPosts(); });
+
+    expect(hook.result.posts[0].active_votes.some(v => v.voter === 'carol')).toBe(true);
+    expect(hook.result.posts[0].net_votes).toBe(3);
+  });
+
+  it('does not replay a vote older than the TTL to a new feed', async () => {
+    act(() => { emitPostVoted(carolVote); });
+    now += POST_VOTED_TTL_MS + 1;
+    mockCall.mockResolvedValueOnce([rawBridgePost()]);
+
+    const hook = renderUseBlogFeed();
+    await act(async () => { await hook.result.fetchPosts(); });
+
+    expect(hook.result.posts[0].net_votes).toBe(2);
+  });
+
+  it('stops re-applying a pending vote on refresh once the TTL passes', async () => {
+    mockCall.mockResolvedValue([rawBridgePost()]);
+    const hook = renderUseBlogFeed();
+    await act(async () => { await hook.result.fetchPosts(); });
+    act(() => { emitPostVoted(carolVote); });
+    await act(async () => { await hook.result.fetchPosts(); });
+    expect(hook.result.posts[0].net_votes).toBe(3); // still within TTL
+
+    now += POST_VOTED_TTL_MS + 1;
+    await act(async () => { await hook.result.fetchPosts(); });
+    expect(hook.result.posts[0].net_votes).toBe(2); // chain data wins
   });
 });
