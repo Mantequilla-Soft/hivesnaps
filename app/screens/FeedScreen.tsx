@@ -30,6 +30,8 @@ import { useAuth } from '../../store/context';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
 import { useBlogFeed } from '../../hooks/useBlogFeed';
 import { useWavesFeed } from '../../hooks/useWavesFeed';
+import { useMutedTags } from '../../hooks/useMutedTags';
+import { hasMutedTag } from '../../utils/mutedTags';
 import { useTrendingFeed } from '../../hooks/useTrendingFeed';
 import { interleave, promoteToTopOrMerge } from '../../utils/interleave';
 import { useUpvote } from '../../hooks/useUpvote';
@@ -213,10 +215,15 @@ const FeedScreenRefactored = () => {
   }
 
   // Memoize filtered snaps to avoid re-filtering on every render
-  const filteredSnaps = useMemo(() => {
-    const filtered = snaps.filter((item) => !mutedList || !mutedList.includes(item.author));
-    return filtered;
-  }, [snaps, mutedList]);
+  const { mutedTags } = useMutedTags();
+  // Single hide rule for every feed source: muted author OR muted hashtag.
+  const isVisible = useCallback(
+    (item: { author: string; json_metadata?: string | Record<string, unknown> }) =>
+      !mutedList?.includes(item.author) && !hasMutedTag(item.json_metadata, mutedTags),
+    [mutedList, mutedTags]
+  );
+
+  const filteredSnaps = useMemo(() => snaps.filter(isVisible), [snaps, isVisible]);
 
   // Surface trending/resurrected snaps in the Newest feed without letting them
   // dominate the top: one gets a small "shelf" right at the front, the rest
@@ -227,7 +234,7 @@ const FeedScreenRefactored = () => {
   const TRENDING_SPLICE_CADENCE = 15;
   const feedWithTrending = useMemo(() => {
     if (activeFeed !== 'snaps' || currentFilter !== 'newest' || trending.length === 0) return filteredSnaps;
-    const eligibleTrending = trending.filter(t => !mutedList || !mutedList.includes(t.author));
+    const eligibleTrending = trending.filter(isVisible);
     if (eligibleTrending.length === 0) return filteredSnaps;
     // A trending snap is real recent content — it may already be organically visible
     // in filteredSnaps. promoteToTopOrMerge badges it in place instead of dropping the
@@ -241,7 +248,7 @@ const FeedScreenRefactored = () => {
     // Remaining trending items (already merged or promoted above) are deduped
     // out automatically by interleave — this only splices in what's left.
     return interleave(promoted, eligibleTrending, { every: TRENDING_SPLICE_CADENCE }) as typeof filteredSnaps;
-  }, [filteredSnaps, trending, activeFeed, currentFilter, mutedList]);
+  }, [filteredSnaps, trending, activeFeed, currentFilter, isVisible]);
 
   // Splice waves into the (now trending-promoted) snaps feed. Independent
   // fetch/failure from the Hive-native path above — if snapie.io is
@@ -250,8 +257,8 @@ const FeedScreenRefactored = () => {
   const WAVES_SPLICE_CADENCE = 8;
   const snapsWithWaves = useMemo(() => {
     if (activeFeed !== 'snaps' || waves.length === 0) return feedWithTrending;
-    // Same muted-author filter filteredSnaps already applies to native snaps.
-    let eligibleWaves = waves.filter(w => !mutedList || !mutedList.includes(w.author));
+    // Same hide rule filteredSnaps already applies to native snaps.
+    let eligibleWaves = waves.filter(isVisible);
     // On the Following tab, only splice in waves from authors the user actually follows —
     // otherwise "Following" stops meaning following. Same idea for Patrons.
     if (currentFilter === 'following') {
@@ -261,14 +268,10 @@ const FeedScreenRefactored = () => {
     }
     if (eligibleWaves.length === 0) return feedWithTrending;
     return interleave(feedWithTrending, eligibleWaves, { every: WAVES_SPLICE_CADENCE }) as typeof filteredSnaps;
-  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, patronSet, mutedList]);
+  }, [feedWithTrending, waves, activeFeed, currentFilter, followingList, patronSet, isVisible]);
 
-  // Apply the same muted-list filter to blog posts
-  const filteredBlogPosts = useMemo(() => {
-    if (!mutedList || mutedList.length === 0) return blogPosts;
-    const mutedSet = new Set(mutedList);
-    return blogPosts.filter((post) => !mutedSet.has(post.author));
-  }, [blogPosts, mutedList]);
+  // Apply the same hide rule filter to blog posts
+  const filteredBlogPosts = useMemo(() => blogPosts.filter(isVisible), [blogPosts, isVisible]);
 
   const { medianPrice, rewardFund } = useHiveData();
 
