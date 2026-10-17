@@ -82,6 +82,7 @@ interface SnapProps {
     body: string;
   }) => void; // NEW: handler for edit button
   onResnapPress?: (author: string, permlink: string) => void; // NEW: handler for resnap button
+  onSnapCastPress?: () => void; // Open the thread in live (Snap-Cast) mode
   currentUsername?: string | null; // NEW: current user to check if they can edit
   posting?: boolean; // To disable buttons during reply posting
   editing?: boolean; // To disable buttons during edit submission
@@ -193,6 +194,7 @@ const Snap: React.FC<SnapProps> = ({
   onReplyPress,
   onEditPress,
   onResnapPress,
+  onSnapCastPress,
   currentUsername,
   posting = false, // Default to false
   editing = false, // Default to false
@@ -1273,6 +1275,16 @@ const Snap: React.FC<SnapProps> = ({
             <Text style={[styles.replyCount, { color: colors.text }]}>
               {replyCount}
             </Text>
+            {onSnapCastPress && (
+              <Pressable
+                onPress={onSnapCastPress}
+                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, marginLeft: 12, padding: 4 }]}
+                accessibilityRole='button'
+                accessibilityLabel='Open as Snap-Cast (live)'
+              >
+                <FontAwesome name='signal' size={18} color={colors.icon} />
+              </Pressable>
+            )}
             {/* Resnap button */}
             {onResnapPress && permlink && canBeResnapped({ author, permlink }) && (
               <Pressable

@@ -61,6 +61,8 @@ import {
   SnapData,
   ReplyData,
 } from '../../hooks/useConversationData';
+import { useSnapCast } from '../../hooks/useSnapCast';
+import SnapCastBar from '../components/SnapCastBar';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
 // useReply and useEdit removed - now using ComposeScreen for reply/edit
@@ -97,6 +99,11 @@ const ConversationScreenRefactored = () => {
     updateSnap,
     updateReply,
   } = useConversationData(author, permlink, currentUsername);
+
+  // Snap-Cast: follow the thread live (opened via the feed's broadcast button
+  // or the in-thread toggle).
+  const [live, setLive] = useState(params.snapcast === '1');
+  const snapCast = useSnapCast({ author, permlink, enabled: live, refresh: checkForNewContent });
 
   const { medianPrice, rewardFund } = useHiveData();
 
@@ -171,9 +178,10 @@ const ConversationScreenRefactored = () => {
       // Coming back from another screen - do a full refresh to get new replies
       if (author && permlink) {
         console.log('[ConversationScreen] Screen focused, refreshing conversation...');
+        snapCast.markOwnReply();
         refreshConversation();
       }
-    }, [author, permlink, refreshConversation])
+    }, [author, permlink, refreshConversation, snapCast.markOwnReply])
   );
 
   const handlePullToRefresh = async () => {
@@ -674,8 +682,12 @@ const ConversationScreenRefactored = () => {
 
   // Memoize filtered replies to avoid re-filtering on every render
   const filteredReplies = useMemo(() => {
-    return flattenReplies(replies).filter(reply => !mutedList || !mutedList.includes(reply.author));
-  }, [replies, mutedList]);
+    const visible = flattenReplies(replies).filter(reply => !mutedList || !mutedList.includes(reply.author));
+    // Live threads read like a chat: flat, newest on top (normal threads are payout-sorted and nested).
+    return live
+      ? visible.map(r => ({ ...r, visualLevel: 0 })).sort((a, b) => b.created.localeCompare(a.created))
+      : visible;
+  }, [replies, mutedList, live]);
 
   // DEPRECATED: renderReplyTree function - Now using flattened approach instead
   const renderReplyTree = (reply: ReplyData, level = 0) => {
@@ -1372,6 +1384,11 @@ const ConversationScreenRefactored = () => {
           </View>
         ) : (
           <ScrollView
+            ref={snapCast.scrollRef}
+            onScroll={snapCast.onScroll}
+            scrollEventThrottle={100}
+            // While live, the parent snap (e.g. the livestream embed) stays pinned above the replies.
+            stickyHeaderIndices={live ? [0] : undefined}
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: 32 }}
             refreshControl={
@@ -1386,6 +1403,15 @@ const ConversationScreenRefactored = () => {
             {/* Blockchain Processing Indicator removed - now handled in ComposeScreen */}
 
             {snap && (
+              <View style={{ backgroundColor: colors.background }}>
+              <SnapCastBar
+                live={live}
+                onToggle={() => setLive(l => !l)}
+                sound={snapCast.sound}
+                onToggleSound={snapCast.toggleSound}
+                colors={colors}
+              />
+              <ScrollView style={live ? { maxHeight: '45%' } : undefined} nestedScrollEnabled>
               <Snap
                 snap={snap}
                 onUpvotePress={() =>
@@ -1428,6 +1454,8 @@ const ConversationScreenRefactored = () => {
                 currentUsername={currentUsername}
               // posting and editing props removed - now handled in ComposeScreen
               />
+              </ScrollView>
+              </View>
             )}
             <View style={ConversationScreenStyles.repliesList}>
               {filteredReplies.map(reply => (
@@ -1454,6 +1482,17 @@ const ConversationScreenRefactored = () => {
               ))}
             </View>
           </ScrollView>
+        )}
+        {live && snapCast.newCount > 0 && (
+          <TouchableOpacity
+            style={{ position: 'absolute', top: insets.top + 120, alignSelf: 'center', backgroundColor: colors.icon, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 }}
+            onPress={snapCast.scrollToTop}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>
+              ↑ {snapCast.newCount} new {snapCast.newCount === 1 ? 'snap' : 'snaps'}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Modals would go here - simplified for brevity */}

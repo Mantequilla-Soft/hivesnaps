@@ -1169,6 +1169,12 @@ const FeedScreenRefactored = () => {
                       params: { author: item.author, permlink: item.permlink },
                     });
                   }}
+                  onSnapCastPress={() => {
+                    router.push({
+                      pathname: '/screens/ConversationScreen',
+                      params: { author: item.author, permlink: item.permlink, snapcast: '1' },
+                    });
+                  }}
                   onUserPress={username => {
                     router.push(`/screens/ProfileScreen?username=${username}` as any);
                   }}
