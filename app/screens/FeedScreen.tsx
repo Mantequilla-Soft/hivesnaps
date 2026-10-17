@@ -34,6 +34,7 @@ import { useMutedTags } from '../../hooks/useMutedTags';
 import { hasMutedTag } from '../../utils/mutedTags';
 import { useTrendingFeed } from '../../hooks/useTrendingFeed';
 import { interleave, promoteToTopOrMerge } from '../../utils/interleave';
+import { hasUserVoted } from '../../utils/votes';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
@@ -1035,6 +1036,7 @@ const FeedScreenRefactored = () => {
               renderItem={({ item }) => (
                 <BlogCard
                   post={item}
+                  hasUpvoted={hasUserVoted(item.active_votes, username)}
                   onPress={() => router.push({
                     pathname: '/screens/HivePostScreen',
                     params: { author: item.author, permlink: item.permlink },
@@ -1137,10 +1139,7 @@ const FeedScreenRefactored = () => {
                     : '0'
                 ),
                 permlink: item.permlink,
-                hasUpvoted: Array.isArray(item.active_votes) &&
-                  item.active_votes.some(
-                    (v: any) => v.voter === username && v.percent > 0
-                  ),
+                hasUpvoted: hasUserVoted(item.active_votes, username),
                 community: typeof (item as any).category === 'string' && /^hive-\d+$/i.test((item as any).category) ? (item as any).category : undefined,
                 // Include metadata fields needed for HiveSnaps badge detection
                 json_metadata: item.json_metadata,

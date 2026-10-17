@@ -24,6 +24,7 @@ import { accountStorageService } from '../../services/AccountStorageService';
 import { awardPoints } from '../../services/pointsService';
 import { isPointsEnabled } from '../../utils/pointsConfig';
 import { buildSnapieUrl } from '../../utils/snapieUrlBuilder';
+import { hasUserVoted } from '../../utils/votes';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const client = getClient();
@@ -65,10 +66,7 @@ export default function ShortCard({
       .then((post: any) => {
         if (cancelled || !post) return;
         const votes = Array.isArray(post.active_votes) ? post.active_votes : [];
-        setHasVoted(
-          !!currentUsername &&
-            votes.some((v: any) => v.voter === currentUsername && v.percent > 0)
-        );
+        setHasVoted(hasUserVoted(votes, currentUsername));
         setCommentCount(typeof post.children === 'number' ? post.children : null);
       })
       .catch(() => {

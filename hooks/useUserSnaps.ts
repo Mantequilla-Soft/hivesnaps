@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { getClient } from '../services/HiveClient';
 import { useOptimisticUpdates } from './useOptimisticUpdates';
 import { avatarService } from '../services/AvatarService';
+import { hasUserVoted } from '../utils/votes';
 
 // User snap interface for profile bubbles
 export interface UserSnap {
@@ -204,12 +205,8 @@ export const useUserSnaps = (username: string | undefined) => {
 
   // Check if current user has upvoted a snap
   const hasUserUpvoted = useCallback(
-    (snap: UserSnap, currentUsername: string | null): boolean => {
-      if (!currentUsername || !snap.active_votes) return false;
-      return snap.active_votes.some(
-        (vote: any) => vote.voter === currentUsername && vote.percent > 0
-      );
-    },
+    (snap: UserSnap, currentUsername: string | null): boolean =>
+      hasUserVoted(snap.active_votes, currentUsername),
     []
   );
 

@@ -3,6 +3,7 @@ import { sortByPayoutRecursive } from '../utils/sortRepliesByPayout';
 import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
+import { hasUserVoted } from '../utils/votes';
 
 const client = getClient();
 
@@ -84,10 +85,10 @@ export const useHivePostData = (
   const avatarProfileCache = useRef<Record<string, string | undefined>>({});
 
   // Helper function to check if current user has upvoted
-  const checkHasUpvoted = useCallback((activeVotes: any[]): boolean => {
-    if (!currentUsername || !Array.isArray(activeVotes)) return false;
-    return activeVotes.some((v: any) => v.voter === currentUsername && v.percent > 0);
-  }, [currentUsername]);
+  const checkHasUpvoted = useCallback(
+    (activeVotes: any[]): boolean => hasUserVoted(activeVotes, currentUsername),
+    [currentUsername]
+  );
 
   // Resolve avatar using avatarService with immediate deterministic URL and background warm
   const fetchAvatar = useCallback(async (authorName: string): Promise<string | undefined> => {
@@ -241,11 +242,8 @@ export const useHivePostData = (
       }
 
       // Create a local version of checkHasUpvoted using the captured username
-      const checkHasUpvotedLocal = (activeVotes: any[]): boolean => {
-        if (!userAtFetchTime || !Array.isArray(activeVotes)) return false;
-        const hasUpvoted = activeVotes.some((v: any) => v.voter === userAtFetchTime && v.percent > 0);
-        return hasUpvoted;
-      };
+      const checkHasUpvotedLocal = (activeVotes: any[]): boolean =>
+        hasUserVoted(activeVotes, userAtFetchTime);
 
       // Improved fallback title logic
       let computedTitle = postData.title;
@@ -336,10 +334,8 @@ export const useHivePostData = (
       const commentsTree = await fetchCommentsTreeWithContent(author, permlink);
 
       // Create a local version of checkHasUpvoted using the captured username
-      const checkHasUpvotedLocal = (activeVotes: any[]): boolean => {
-        if (!userAtFetchTime || !Array.isArray(activeVotes)) return false;
-        return activeVotes.some((v: any) => v.voter === userAtFetchTime && v.percent > 0);
-      };
+      const checkHasUpvotedLocal = (activeVotes: any[]): boolean =>
+        hasUserVoted(activeVotes, userAtFetchTime);
 
       // Recursively update hasUpvoted for all comments
       const updateCommentsHasUpvoted = (comments: any[]): any[] => {

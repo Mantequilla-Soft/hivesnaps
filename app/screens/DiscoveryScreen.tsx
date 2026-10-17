@@ -11,6 +11,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarService } from '../../services/AvatarService';
+import { hasUserVoted } from '../../utils/votes';
 import { useHiveData } from '../../hooks/useHiveData';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -155,12 +156,6 @@ const DiscoveryScreen = () => {
 
       // Attach avatarUrl and hasUpvoted to each snap
       const snapsWithAvatars = limitedSnaps.map(snap => {
-        const hasUpvoted =
-          Array.isArray(snap.active_votes) &&
-          currentUsername &&
-          snap.active_votes.some(
-            (v: any) => v.voter === currentUsername && v.percent > 0
-          );
         const chosenUrl = newCache[snap.author]?.url || getAvatarUrl(snap.author);
         try {
           console.log(
@@ -170,7 +165,7 @@ const DiscoveryScreen = () => {
         return {
           ...snap,
           avatarUrl: chosenUrl,
-          hasUpvoted: !!hasUpvoted,
+          hasUpvoted: hasUserVoted(snap.active_votes, currentUsername),
         };
       });
       setSnaps(snapsWithAvatars);
