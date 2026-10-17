@@ -27,13 +27,14 @@ export function useMutedTags() {
       AsyncStorage.getItem(MUTED_TAGS_KEY)
         .then(val => {
           const parsed = val ? JSON.parse(val) : [];
-          if (!loaded) current = Array.isArray(parsed) ? parsed : [];
-        })
-        .catch(() => { })
-        .finally(() => {
+          const stored: string[] = Array.isArray(parsed) ? parsed : [];
+          // Keep tags added while the read was pending.
+          current = [...new Set([...stored, ...current])];
           loaded = true;
-          listeners.forEach(l => l(current));
-        });
+          publish(current);
+        })
+        // Leave `loaded` false so a later mount retries.
+        .catch(err => console.error('Error loading muted tags:', err));
     }
     return () => { listeners.delete(setMutedTags); };
   }, []);

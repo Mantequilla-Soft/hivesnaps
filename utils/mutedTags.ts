@@ -5,7 +5,7 @@ type JsonMetadata = string | Record<string, unknown> | null | undefined;
 /** Canonical form of a hashtag: no leading '#', trimmed, lowercase. Used by
  *  both the tag editor and the matcher so they can never disagree. */
 export function normalizeTag(tag: string): string {
-  return tag.trim().replace(/^#+/, '').toLowerCase();
+  return tag.trim().replace(/^#+/, '').trim().toLowerCase();
 }
 
 /** True when the metadata's `tags` include any of `mutedTags`. Never throws:
@@ -13,14 +13,15 @@ export function normalizeTag(tag: string): string {
 export function hasMutedTag(jsonMetadata: JsonMetadata, mutedTags: string[]): boolean {
   if (!jsonMetadata || mutedTags.length === 0) return false;
 
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = typeof jsonMetadata === 'string' ? JSON.parse(jsonMetadata) : jsonMetadata;
   } catch {
     return false;
   }
-  if (!Array.isArray(parsed?.tags)) return false;
+  const tags = (parsed as { tags?: unknown } | null)?.tags;
+  if (!Array.isArray(tags)) return false;
 
   const muted = new Set(mutedTags.map(normalizeTag));
-  return parsed.tags.some((t: unknown) => muted.has(normalizeTag(String(t))));
+  return tags.some((t: unknown) => muted.has(normalizeTag(String(t))));
 }

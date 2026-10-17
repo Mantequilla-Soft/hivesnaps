@@ -8,11 +8,11 @@ interface Props {
 }
 
 /** Chip editor for hashtags the user never wants to see in feeds. */
-export default function MutedTagsEditor({ colors }: Props) {
+export default function MutedTagsEditor({ colors }: Props): React.JSX.Element {
   const { mutedTags, addTag, removeTag } = useMutedTags();
   const [draft, setDraft] = useState('');
 
-  const submit = () => {
+  const submit = (): void => {
     addTag(draft);
     setDraft('');
   };

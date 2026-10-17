@@ -32,3 +32,9 @@ describe('hasMutedTag', () => {
     expect(hasMutedTag({ tags: 'x' }, ['x'])).toBe(false);
   });
 });
+
+describe('normalizeTag spacing', () => {
+  it('trims whitespace left after the #', () => {
+    expect(normalizeTag('# foo')).toBe('foo');
+  });
+});
