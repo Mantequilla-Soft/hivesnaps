@@ -135,7 +135,7 @@ export interface PurchaseResult {
   balance: number;
 }
 
-const PENDING_PURCHASE_KEY = 'hivesnaps_pending_points_purchase';
+const PENDING_PURCHASE_KEY = 'hivesnaps_pending_points_purchases';
 // Matches snapie.io's own localStorage pending-purchase TTL.
 const PENDING_PURCHASE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -145,54 +145,62 @@ interface PendingPurchase {
   createdAt: number;
 }
 
-async function readPendingPurchase(): Promise<PendingPurchase | null> {
+// A LIST keyed by txid, not a single slot — a single slot silently loses an
+// earlier unverified txid (real HBD already sent) the moment a second
+// purchase is recorded, e.g. the user retries after an 'unverified' result.
+// That transfer becomes untracked and only a support request recovers it.
+async function readPendingPurchases(): Promise<PendingPurchase[]> {
   try {
     const raw = await AsyncStorage.getItem(PENDING_PURCHASE_KEY);
-    return raw ? (JSON.parse(raw) as PendingPurchase) : null;
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as PendingPurchase[]) : [];
   } catch {
-    return null;
+    return [];
   }
 }
 
-async function writePendingPurchase(pending: PendingPurchase | null): Promise<void> {
+async function writePendingPurchases(list: PendingPurchase[]): Promise<void> {
   try {
-    if (pending) await AsyncStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(pending));
+    if (list.length > 0) await AsyncStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(list));
     else await AsyncStorage.removeItem(PENDING_PURCHASE_KEY);
   } catch (err) {
-    console.error('[pointsService] Error persisting pending purchase:', err);
+    console.error('[pointsService] Error persisting pending purchases:', err);
   }
 }
 
 /** Records a broadcast transfer's txid BEFORE calling verifyPointsPurchase,
  *  so a crash/app-kill between broadcast and verification — with real HBD
  *  already having left the wallet — still leaves a record to resume from on
- *  next launch, mirroring snapie.io's own buy-points page. */
+ *  next launch, mirroring snapie.io's own buy-points page. Keyed by txid
+ *  alongside any other still-unresolved purchase, never replacing one. */
 export async function recordPendingPurchase(username: string, txid: string): Promise<void> {
-  await writePendingPurchase({ txid, username, createdAt: Date.now() });
+  const list = await readPendingPurchases();
+  await writePendingPurchases([...list.filter(p => p.txid !== txid), { txid, username, createdAt: Date.now() }]);
 }
 
-export async function clearPendingPurchase(): Promise<void> {
-  await writePendingPurchase(null);
+/** Removes a single resolved purchase, leaving any other pending ones intact. */
+export async function clearPendingPurchase(txid: string): Promise<void> {
+  const list = await readPendingPurchases();
+  await writePendingPurchases(list.filter(p => p.txid !== txid));
 }
 
-/** The pending txid for `username`, if any (ignores another account's
- *  leftover record, and drops one older than PENDING_PURCHASE_MAX_AGE_MS). */
-export async function getPendingPurchaseTxid(username: string): Promise<string | null> {
-  const pending = await readPendingPurchase();
-  if (!pending || pending.username !== username) return null;
-  if (Date.now() - pending.createdAt > PENDING_PURCHASE_MAX_AGE_MS) {
-    await clearPendingPurchase();
-    return null;
-  }
-  return pending.txid;
+/** All pending txids for `username` (ignores other accounts' records on a
+ *  shared device), dropping — and persisting the drop of — any older than
+ *  PENDING_PURCHASE_MAX_AGE_MS. */
+export async function getPendingPurchaseTxids(username: string): Promise<string[]> {
+  const list = await readPendingPurchases();
+  const fresh = list.filter(p => Date.now() - p.createdAt <= PENDING_PURCHASE_MAX_AGE_MS);
+  if (fresh.length !== list.length) await writePendingPurchases(fresh);
+  return fresh.filter(p => p.username === username).map(p => p.txid);
 }
 
 /** Posts a broadcast transfer's txid for independent on-chain verification
  *  and crediting — the server never trusts a client-supplied amount, so
- *  this only reports what it decided. Clears the pending-purchase record on
- *  any resolved outcome except 'unverified' (that one means "still
- *  propagating, try again"), and emits pointsPurchased on a real credit so
- *  any live balance display (e.g. PointsSection) updates immediately. */
+ *  this only reports what it decided. Clears that txid's pending-purchase
+ *  record on any resolved outcome except 'unverified' (that one means
+ *  "still propagating, try again"), and emits pointsPurchased on a real
+ *  credit so any live balance display (e.g. PointsSection) updates
+ *  immediately. */
 export async function verifyPointsPurchase(username: string, txid: string): Promise<PurchaseResult> {
   const token = await getPointsAuthToken();
   if (!token) throw new Error('Could not verify the purchase — please sign in again.');
@@ -216,7 +224,7 @@ export async function verifyPointsPurchase(username: string, txid: string): Prom
 
   const result = (await res.json()) as PurchaseResult;
   if (result.status !== 'unverified') {
-    await clearPendingPurchase();
+    await clearPendingPurchase(txid);
   }
   if (result.status === 'credited') {
     emitPointsPurchased({ pointsCredited: result.pointsCredited, balance: result.balance });
@@ -224,17 +232,21 @@ export async function verifyPointsPurchase(username: string, txid: string): Prom
   return result;
 }
 
-/** Call on BuyPointsScreen mount — resumes a purchase that broadcast
- *  successfully on a previous app session but never finished verifying
- *  (app killed, network dropped, right after real HBD left the wallet).
- *  Returns null when there's nothing to resume, or verification is still
- *  unresolved (left in place for the next resume attempt). */
-export async function resumePendingPurchase(username: string): Promise<PurchaseResult | null> {
-  const txid = await getPendingPurchaseTxid(username);
-  if (!txid) return null;
-  try {
-    return await verifyPointsPurchase(username, txid);
-  } catch {
-    return null;
+/** Call on BuyPointsScreen mount (and from its "Retry verification" action)
+ *  — resumes every purchase for `username` that broadcast successfully on a
+ *  previous app session but never finished verifying (app killed, network
+ *  dropped, right after real HBD left the wallet). A txid whose attempt
+ *  throws (no token, network error) is left pending for the next attempt
+ *  and simply omitted from the result, rather than counted as resolved. */
+export async function resumePendingPurchases(username: string): Promise<PurchaseResult[]> {
+  const txids = await getPendingPurchaseTxids(username);
+  const results: PurchaseResult[] = [];
+  for (const txid of txids) {
+    try {
+      results.push(await verifyPointsPurchase(username, txid));
+    } catch {
+      // Still unresolved — left in AsyncStorage for the next attempt.
+    }
   }
+  return results;
 }

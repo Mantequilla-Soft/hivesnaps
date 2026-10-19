@@ -21,8 +21,8 @@ import { usePointsSummary } from '../../hooks/usePointsSummary';
 import { AuthCancelledError } from '../../services/LocalAuthService';
 import {
     recordPendingPurchase,
-    getPendingPurchaseTxid,
-    resumePendingPurchase,
+    getPendingPurchaseTxids,
+    resumePendingPurchases,
     verifyPointsPurchase,
     PurchaseResult,
 } from '../../services/pointsService';
@@ -70,42 +70,73 @@ const BuyPointsScreen = (): React.JSX.Element => {
     const [selectedPreset, setSelectedPreset] = useState<number | null>(PURCHASE_PRESETS_HBD[0] ?? null);
     const [customAmount, setCustomAmount] = useState('');
     const [stage, setStage] = useState<Stage>('idle');
-    const [pendingTxid, setPendingTxid] = useState<string | null>(null);
+    // Every txid still awaiting verification — a list, not a single slot, so
+    // retrying never silently drops an earlier unverified purchase (real HBD
+    // already sent) the moment another one is recorded.
+    const [pendingTxids, setPendingTxids] = useState<string[]>([]);
     const [isResuming, setIsResuming] = useState(false);
 
     useEffect(() => {
         checkStoredKeyAvailable().then(setHasStoredKey);
     }, [checkStoredKeyAvailable]);
 
-    // Resumes a purchase that broadcast successfully on a previous app
-    // session but never finished verifying (app killed, network dropped,
-    // right after real HBD left the wallet).
+    const refreshPendingTxids = async (): Promise<void> => {
+        if (!currentUsername) return;
+        setPendingTxids(await getPendingPurchaseTxids(currentUsername));
+    };
+
+    // Resumes every purchase that broadcast successfully on a previous app
+    // session (or earlier in this one) but never finished verifying (app
+    // killed, network dropped, right after real HBD left the wallet).
+    // Also used by the "Retry verification" action below.
+    const resumeAndReport = async (): Promise<void> => {
+        if (!currentUsername) return;
+        setIsResuming(true);
+        try {
+            const results = await resumePendingPurchases(currentUsername);
+            const resolved = results.filter(r => r.status !== 'unverified');
+            if (resolved.length > 0) {
+                const title = resolved.length === 1 ? describeResult(resolved[0]).title : 'Pending purchases resolved';
+                const message = resolved.map(r => describeResult(r).message).join('\n');
+                Alert.alert(title, message);
+            }
+        } finally {
+            await refreshPendingTxids();
+            setIsResuming(false);
+        }
+    };
+
     useEffect(() => {
         if (!currentUsername) return;
         let cancelled = false;
         (async () => {
-            const existing = await getPendingPurchaseTxid(currentUsername);
-            if (!existing || cancelled) return;
-
-            setPendingTxid(existing);
-            setIsResuming(true);
-            const result = await resumePendingPurchase(currentUsername);
+            const existing = await getPendingPurchaseTxids(currentUsername);
             if (cancelled) return;
-            if (result && result.status !== 'unverified') {
-                const { title, message } = describeResult(result);
-                Alert.alert(title, message);
-                setPendingTxid(null);
-            }
-            setIsResuming(false);
+            setPendingTxids(existing);
+            if (existing.length > 0) await resumeAndReport();
         })();
         return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentUsername]);
 
+    const handleRetryVerification = (): void => { void resumeAndReport(); };
+
     const isBusy = stage !== 'idle' || isResuming;
-    const hbdAmount = customAmount ? parseFloat(customAmount) : selectedPreset ?? 0;
+    // A comma decimal (locale keyboards), trailing junk ("5abc"), or
+    // scientific notation ("1e2") must never silently change what gets
+    // transferred — parseFloat accepts all three. The 3-decimal cap also
+    // keeps this preview equal to what toFixed(3) actually sends.
+    const normalizedCustom = customAmount.trim().replace(',', '.');
+    const hbdAmount = customAmount
+        ? (/^\d+(\.\d{1,3})?$/.test(normalizedCustom) ? Number(normalizedCustom) : NaN)
+        : selectedPreset ?? 0;
     const isValidAmount = Number.isFinite(hbdAmount) && hbdAmount >= MIN_PURCHASE_HBD && hbdAmount <= MAX_PURCHASE_HBD;
     const pointsPreview = useMemo(() => (isValidAmount ? hbdToPoints(hbdAmount) : 0), [isValidAmount, hbdAmount]);
-    const canSubmit = isValidAmount && !isBusy && hasStoredKey !== null && (hasStoredKey || activeKeyInput.trim().length > 0);
+    // Blocked while any purchase is still pending verification — letting a
+    // new one through here is exactly how an earlier unverified txid used
+    // to get buried.
+    const canSubmit =
+        isValidAmount && !isBusy && pendingTxids.length === 0 && hasStoredKey !== null && (hasStoredKey || activeKeyInput.trim().length > 0);
 
     const pickPreset = (hbd: number): void => {
         setSelectedPreset(hbd);
@@ -113,9 +144,13 @@ const BuyPointsScreen = (): React.JSX.Element => {
     };
 
     const handleBuy = async (): Promise<void> => {
-        if (!currentUsername || !isValidAmount || isBusy) return;
+        if (!currentUsername || !isValidAmount || isBusy || pendingTxids.length > 0) return;
 
         setStage('broadcasting');
+        // Tracked separately from `stage` so the catch block below can tell
+        // "broadcast never happened, safe to say try again" apart from
+        // "HBD already left the wallet, do not say try again".
+        let broadcastTxid: string | null = null;
         try {
             const txid = await transfer(
                 POINTS_RECEIVING_ACCOUNT,
@@ -124,30 +159,41 @@ const BuyPointsScreen = (): React.JSX.Element => {
                 PURCHASE_MEMO,
                 hasStoredKey ? undefined : activeKeyInput.trim()
             );
+            broadcastTxid = txid;
 
             // Persisted BEFORE verification so a crash/kill between here and
             // the result below still leaves a record we can resume from.
             await recordPendingPurchase(currentUsername, txid);
-            setPendingTxid(txid);
+            await refreshPendingTxids();
 
             setStage('verifying');
             const result = await verifyPointsPurchase(currentUsername, txid);
+            await refreshPendingTxids();
 
             if (result.status === 'unverified') {
                 Alert.alert(
-                    'Could not verify the transfer',
-                    "We'll keep trying automatically. If it never confirms, contact support with your transaction ID."
+                    'Could not verify the transfer yet',
+                    'Reopen this screen or tap Retry verification below to check again. If it never confirms, contact support with your transaction ID.'
                 );
             } else {
                 const { title, message } = describeResult(result);
                 Alert.alert(title, message);
-                setPendingTxid(null);
                 setCustomAmount('');
                 setActiveKeyInput('');
             }
         } catch (err) {
             if (err instanceof AuthCancelledError) return;
-            Alert.alert('Purchase failed', err instanceof Error ? err.message : 'Please try again.');
+            if (broadcastTxid) {
+                // The transfer already broadcast — HBD already left the
+                // wallet — so this must never read as "nothing happened,
+                // try again" or it invites a second, separate payment.
+                Alert.alert(
+                    'Transfer sent — verification pending',
+                    `Your HBD transfer broadcast successfully (txid: ${broadcastTxid}) but couldn't be verified yet. Do not pay again — tap Retry verification below to check again.`
+                );
+            } else {
+                Alert.alert('Purchase failed', err instanceof Error ? err.message : 'Please try again.');
+            }
         } finally {
             setStage('idle');
         }
@@ -172,14 +218,21 @@ const BuyPointsScreen = (): React.JSX.Element => {
                         Current balance: {summary ? summary.balance.toLocaleString() : '—'} points
                     </Text>
 
-                    {pendingTxid && (
+                    {pendingTxids.length > 0 && (
                         <View style={[styles.noticeBox, { backgroundColor: theme.infoBoxBackground }]}>
                             <FontAwesome name="exclamation-triangle" size={14} color={theme.icon} />
-                            <Text style={[styles.noticeText, { color: theme.text }]}>
-                                {isResuming
-                                    ? 'Finishing a purchase from earlier — confirming your transfer…'
-                                    : `We couldn't confirm a recent transfer yet (txid: ${pendingTxid}). We'll keep retrying. If HBD left your wallet and this doesn't clear, contact support with that transaction ID.`}
-                            </Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.noticeText, { color: theme.text }]}>
+                                    {isResuming
+                                        ? 'Confirming your transfer…'
+                                        : `We couldn't confirm ${pendingTxids.length > 1 ? `${pendingTxids.length} recent transfers` : 'a recent transfer'} yet. Reopen this screen later, or retry now below. If HBD left your wallet and this doesn't clear, contact support with ${pendingTxids.length > 1 ? 'these transaction IDs' : 'this transaction ID'}: ${pendingTxids.join(', ')}.`}
+                                </Text>
+                                {!isResuming && (
+                                    <Pressable onPress={handleRetryVerification} disabled={isBusy} accessibilityRole="button" accessibilityLabel="Retry verification">
+                                        <Text style={[styles.retryText, { color: theme.button }]}>Retry verification</Text>
+                                    </Pressable>
+                                )}
+                            </View>
                         </View>
                     )}
 
@@ -297,7 +350,8 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 13, marginBottom: 4 },
     balanceText: { fontSize: 12, marginBottom: 16 },
     noticeBox: { flexDirection: 'row', gap: 8, borderRadius: 10, padding: 12, marginBottom: 16 },
-    noticeText: { flex: 1, fontSize: 12, lineHeight: 17 },
+    noticeText: { fontSize: 12, lineHeight: 17 },
+    retryText: { fontSize: 13, fontWeight: '700', marginTop: 8 },
     card: { borderRadius: 16, borderWidth: 1, padding: 16 },
     cardLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 10 },
     presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },

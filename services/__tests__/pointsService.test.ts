@@ -219,60 +219,116 @@ describe('pointsService', () => {
       const [, storedJson] = AsyncStorage.setItem.mock.calls[0];
       AsyncStorage.getItem.mockResolvedValue(storedJson);
 
-      expect(await pointsService.getPendingPurchaseTxid('alice')).toBe('txid-1');
+      expect(await pointsService.getPendingPurchaseTxids('alice')).toEqual(['txid-1']);
 
-      await pointsService.clearPendingPurchase();
+      await pointsService.clearPendingPurchase('txid-1');
       expect(AsyncStorage.removeItem).toHaveBeenCalled();
     });
 
-    it('ignores a pending purchase recorded for a different username', async () => {
+    it('does not drop an earlier unresolved txid when a second purchase is recorded', async () => {
+      // The bug this guards: a single-slot "pending purchase" meant recording
+      // a second real transfer silently buried the first one's txid — with
+      // real HBD already sent and no way back to it except a support request.
       await pointsService.recordPendingPurchase('alice', 'txid-1');
-      const [, storedJson] = AsyncStorage.setItem.mock.calls[0];
-      AsyncStorage.getItem.mockResolvedValue(storedJson);
+      AsyncStorage.getItem.mockResolvedValue(AsyncStorage.setItem.mock.calls[0][1]);
 
-      expect(await pointsService.getPendingPurchaseTxid('bob')).toBeNull();
+      await pointsService.recordPendingPurchase('alice', 'txid-2');
+      AsyncStorage.getItem.mockResolvedValue(AsyncStorage.setItem.mock.calls[1][1]);
+
+      const txids = await pointsService.getPendingPurchaseTxids('alice');
+      expect(txids).toEqual(expect.arrayContaining(['txid-1', 'txid-2']));
+      expect(txids).toHaveLength(2);
     });
 
-    it('drops and clears a pending purchase older than the max age', async () => {
-      const stale = JSON.stringify({ txid: 'txid-1', username: 'alice', createdAt: Date.now() - 25 * 60 * 60 * 1000 });
-      AsyncStorage.getItem.mockResolvedValue(stale);
+    it('replaces rather than duplicates a re-recorded txid', async () => {
+      await pointsService.recordPendingPurchase('alice', 'txid-1');
+      AsyncStorage.getItem.mockResolvedValue(AsyncStorage.setItem.mock.calls[0][1]);
 
-      expect(await pointsService.getPendingPurchaseTxid('alice')).toBeNull();
-      expect(AsyncStorage.removeItem).toHaveBeenCalled();
+      await pointsService.recordPendingPurchase('alice', 'txid-1');
+      AsyncStorage.getItem.mockResolvedValue(AsyncStorage.setItem.mock.calls[1][1]);
+
+      expect(await pointsService.getPendingPurchaseTxids('alice')).toEqual(['txid-1']);
     });
 
-    it('returns null when there is nothing pending', async () => {
-      expect(await pointsService.getPendingPurchaseTxid('alice')).toBeNull();
+    it('ignores another username\'s pending purchase but keeps it in storage', async () => {
+      await pointsService.recordPendingPurchase('alice', 'txid-1');
+      AsyncStorage.getItem.mockResolvedValue(AsyncStorage.setItem.mock.calls[0][1]);
+
+      expect(await pointsService.getPendingPurchaseTxids('bob')).toEqual([]);
+      expect(await pointsService.getPendingPurchaseTxids('alice')).toEqual(['txid-1']);
+    });
+
+    it('drops only a stale entry, keeping a fresh one for the same user', async () => {
+      const list = [
+        { txid: 'stale', username: 'alice', createdAt: Date.now() - 25 * 60 * 60 * 1000 },
+        { txid: 'fresh', username: 'alice', createdAt: Date.now() },
+      ];
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(list));
+
+      expect(await pointsService.getPendingPurchaseTxids('alice')).toEqual(['fresh']);
+      expect(AsyncStorage.setItem).toHaveBeenCalled(); // persists the pruned list
+    });
+
+    it('returns an empty list when there is nothing pending', async () => {
+      expect(await pointsService.getPendingPurchaseTxids('alice')).toEqual([]);
     });
   });
 
-  describe('resumePendingPurchase', () => {
-    it('returns null when there is no pending purchase', async () => {
-      const result = await pointsService.resumePendingPurchase('alice');
+  describe('resumePendingPurchases', () => {
+    it('returns an empty list when there is no pending purchase', async () => {
+      const result = await pointsService.resumePendingPurchases('alice');
 
-      expect(result).toBeNull();
+      expect(result).toEqual([]);
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('re-verifies a pending purchase and returns the result', async () => {
-      const stored = JSON.stringify({ txid: 'txid-1', username: 'alice', createdAt: Date.now() });
+      const stored = JSON.stringify([{ txid: 'txid-1', username: 'alice', createdAt: Date.now() }]);
       AsyncStorage.getItem.mockResolvedValue(stored);
       getPointsAuthToken.mockResolvedValueOnce('jwt-token');
       mockFetchOnce({ status: 'credited', pointsCredited: 100, balance: 110 });
 
-      const result = await pointsService.resumePendingPurchase('alice');
+      const result = await pointsService.resumePendingPurchases('alice');
 
-      expect(result).toEqual({ status: 'credited', pointsCredited: 100, balance: 110 });
+      expect(result).toEqual([{ status: 'credited', pointsCredited: 100, balance: 110 }]);
     });
 
-    it('returns null instead of throwing when verification fails', async () => {
-      const stored = JSON.stringify({ txid: 'txid-1', username: 'alice', createdAt: Date.now() });
+    it('resumes every pending txid, not just one', async () => {
+      const stored = JSON.stringify([
+        { txid: 'txid-1', username: 'alice', createdAt: Date.now() },
+        { txid: 'txid-2', username: 'alice', createdAt: Date.now() },
+      ]);
       AsyncStorage.getItem.mockResolvedValue(stored);
-      getPointsAuthToken.mockResolvedValueOnce(null);
+      getPointsAuthToken.mockResolvedValue('jwt-token');
+      mockFetchOnce({ status: 'credited', pointsCredited: 100, balance: 110 });
+      mockFetchOnce({ status: 'duplicate', pointsCredited: 0, balance: 110 });
 
-      const result = await pointsService.resumePendingPurchase('alice');
+      const result = await pointsService.resumePendingPurchases('alice');
 
-      expect(result).toBeNull();
+      expect(result).toEqual([
+        { status: 'credited', pointsCredited: 100, balance: 110 },
+        { status: 'duplicate', pointsCredited: 0, balance: 110 },
+      ]);
+    });
+
+    it('leaves a still-unverified txid pending and omits a throwing one from the result, clearing neither', async () => {
+      const stored = JSON.stringify([
+        { txid: 'still-unverified', username: 'alice', createdAt: Date.now() },
+        { txid: 'auth-failed', username: 'alice', createdAt: Date.now() },
+      ]);
+      AsyncStorage.getItem.mockResolvedValue(stored);
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'unverified', pointsCredited: 0, balance: 10 });
+      getPointsAuthToken.mockResolvedValueOnce(null); // second txid's verify throws
+
+      const result = await pointsService.resumePendingPurchases('alice');
+
+      expect(result).toEqual([{ status: 'unverified', pointsCredited: 0, balance: 10 }]);
+      // Neither outcome is 'credited'/'duplicate'/'out_of_range', so
+      // clearPendingPurchase must never run for either txid — both entries
+      // are still fresh, so nothing gets pruned either.
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
     });
   });
 });
