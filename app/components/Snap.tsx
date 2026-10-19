@@ -28,7 +28,7 @@ import { buildSnapieUrl } from '../../utils/snapieUrlBuilder';
 import IPFSVideoPlayer from './IPFSVideoPlayer';
 import { WebView } from 'react-native-webview';
 import Markdown from 'react-native-markdown-display';
-import RenderHtml from 'react-native-render-html';
+import RenderHtml, { useInternalRenderer } from 'react-native-render-html';
 import { Video, ResizeMode } from 'expo-av';
 import {
   convertSpoilerSyntax,
@@ -57,6 +57,7 @@ import { ICON_SIZE, HEADER_SPACING, BUTTON_TAP_PADDING, TIMESTAMP_MAX_WIDTH, USE
 import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
+import { useMutedTags } from '../../hooks/useMutedTags';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
 import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
 import { renderHiveToHtml } from '../../utils/renderHive';
@@ -279,6 +280,19 @@ const Snap: React.FC<SnapProps> = ({
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
   const hangoutRoomNames = useMemo(() => [...new Set(extractHangoutRoomNames(body))], [body]);
   const router = useRouter(); // For navigation in reply mode
+  const { addTag: addMutedTag } = useMutedTags();
+
+  // Long-press on a #hashtag link offers to mute it (issue #267).
+  const handleHashtagLongPress = (tag: string) => {
+    Alert.alert(
+      `Mute #${tag}?`,
+      `You won't see snaps tagged #${tag} in your feed anymore. You can undo this from your profile's Muted hashtags section.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Mute', style: 'destructive', onPress: () => addMutedTag(tag) },
+      ]
+    );
+  };
 
   // Calculate indentation and content width for replies
   const maxVisualLevel = 2;
@@ -383,6 +397,7 @@ const Snap: React.FC<SnapProps> = ({
                 onHashtagPress && onHashtagPress(tag);
               }
             }}
+            onLongPress={() => handleHashtagLongPress(tag)}
             accessibilityRole='link'
             accessibilityLabel={`View #${tag} hashtag`}
             style={[linkStyles.base, linkStyles.hashtag, linkTextStyle]}
@@ -1042,6 +1057,25 @@ const Snap: React.FC<SnapProps> = ({
                           return TDefaultRenderer ? (
                             <TDefaultRenderer {...props} />
                           ) : null;
+                        },
+                        // Adds long-press-to-mute on top of the default anchor
+                        // renderer, which only supports onPress (issue #267).
+                        a: (props: any) => {
+                          const { Renderer, rendererProps } = useInternalRenderer('a', props);
+                          const href = props?.tnode?.attributes?.href;
+                          if (href && href.startsWith('hashtag://')) {
+                            const tag = href.replace('hashtag://', '');
+                            return (
+                              <Renderer
+                                {...rendererProps}
+                                nativeProps={{
+                                  ...(rendererProps as any).nativeProps,
+                                  onLongPress: () => handleHashtagLongPress(tag),
+                                } as any}
+                              />
+                            );
+                          }
+                          return <Renderer {...rendererProps} />;
                         },
                       }}
                     />
