@@ -14,7 +14,7 @@ interface UseWalletOperationsReturn {
     powerUpSuccess: boolean;
     powerDownLoading: boolean;
     powerDownSuccess: boolean;
-    transfer: (to: string, amount: string, currency: 'HIVE' | 'HBD', memo: string, manualKey?: string) => Promise<void>;
+    transfer: (to: string, amount: string, currency: 'HIVE' | 'HBD', memo: string, manualKey?: string) => Promise<string>;
     powerUp: (amount: string, manualKey?: string) => Promise<void>;
     powerDown: (amountHp: string, globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string }, manualKey?: string) => Promise<void>;
     cancelPowerDown: (manualKey?: string) => Promise<void>;
@@ -144,6 +144,8 @@ export const useWalletOperations = (
      * @param currency - 'HIVE' or 'HBD'
      * @param memo - optional memo
      * @param manualKey - active key string if user entered manually (omit if using stored key)
+     * @returns the broadcast transaction's id (e.g. for a caller that must
+     *   independently verify the transfer landed, like a points purchase)
      */
     const transfer = async (
         to: string,
@@ -151,19 +153,20 @@ export const useWalletOperations = (
         currency: 'HIVE' | 'HBD',
         memo: string,
         manualKey?: string
-    ): Promise<void> => {
+    ): Promise<string> => {
         const username = requireUsername();
         setTransferLoading(true);
         setTransferSuccess(false);
         try {
             const activeKey = await resolveKey(manualKey);
             const formattedAmount = `${parsePositiveAmount(amount, currency).toFixed(3)} ${currency}`;
-            await client.broadcast.sendOperations(
+            const confirmation = await client.broadcast.sendOperations(
                 [['transfer', { from: username, to, amount: formattedAmount, memo }]],
                 activeKey
             );
             setTransferSuccess(true);
             scheduleRefresh();
+            return confirmation.id;
         } finally {
             setTransferLoading(false);
         }

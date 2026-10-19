@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { fetchPointsSummary, PointsSummary } from '../services/pointsService';
-import { onPointsEarned, PointsEarnedDetail } from '../utils/pointsEvents';
+import { onPointsEarned, PointsEarnedDetail, onPointsPurchased, PointsPurchasedDetail } from '../utils/pointsEvents';
 
 export interface UsePointsSummaryResult {
   summary: PointsSummary | null;
@@ -55,6 +55,15 @@ export function usePointsSummary(username: string | null | undefined): UsePoints
           ? { ...prev, balance: detail.balance, lifetimeEarned: prev.lifetimeEarned + detail.awarded }
           : prev
       );
+      void refetch();
+    });
+  }, [refetch]);
+
+  // A purchase bumps balance only — never lifetimeEarned, so buying points
+  // can't inflate leaderboard rank.
+  useEffect(() => {
+    return onPointsPurchased((detail: PointsPurchasedDetail) => {
+      setSummary(prev => (prev ? { ...prev, balance: detail.balance } : prev));
       void refetch();
     });
   }, [refetch]);
