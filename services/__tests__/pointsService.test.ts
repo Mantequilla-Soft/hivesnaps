@@ -252,6 +252,48 @@ describe('pointsService', () => {
       await expect(pointsService.clearPendingPurchase('txid-1')).resolves.not.toThrow();
     });
 
+    it('propagates a read failure from recordPendingPurchase instead of writing a guessed-empty list over real records', async () => {
+      AsyncStorage.getItem.mockRejectedValueOnce(new Error('storage unavailable'));
+
+      await expect(pointsService.recordPendingPurchase('alice', 'txid-1')).rejects.toThrow('storage unavailable');
+      // The dangerous outcome this guards against: writing [{txid-1}] (or
+      // worse, []) over whatever was actually stored, because the read that
+      // should have informed the write failed silently instead of throwing.
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    });
+
+    it('does not write anything from clearPendingPurchase when it cannot read the current list', async () => {
+      AsyncStorage.getItem.mockRejectedValueOnce(new Error('storage unavailable'));
+
+      await expect(pointsService.clearPendingPurchase('txid-1')).resolves.not.toThrow();
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+    });
+
+    it('serializes concurrent record calls so neither clobbers the other\'s write', async () => {
+      // A stateful AsyncStorage double (unlike this file's usual
+      // mockResolvedValue chaining) — needed to actually observe whether two
+      // concurrent read-modify-write calls interleave. The artificial delay
+      // on the read gives an unserialized implementation room to race.
+      let store: string | null = null;
+      AsyncStorage.getItem.mockImplementation(async () => {
+        await new Promise(resolve => setTimeout(resolve, 5));
+        return store;
+      });
+      AsyncStorage.setItem.mockImplementation(async (_key: string, value: string) => {
+        store = value;
+      });
+
+      await Promise.all([
+        pointsService.recordPendingPurchase('alice', 'txid-1'),
+        pointsService.recordPendingPurchase('alice', 'txid-2'),
+      ]);
+
+      const saved = JSON.parse(store!) as { txid: string }[];
+      expect(saved.map(p => p.txid)).toEqual(expect.arrayContaining(['txid-1', 'txid-2']));
+      expect(saved).toHaveLength(2);
+    });
+
     it('records, reads back, and clears a pending purchase', async () => {
       await pointsService.recordPendingPurchase('alice', 'txid-1');
       const [, storedJson] = AsyncStorage.setItem.mock.calls[0];

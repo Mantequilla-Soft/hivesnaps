@@ -149,11 +149,28 @@ interface PendingPurchase {
 // earlier unverified txid (real HBD already sent) the moment a second
 // purchase is recorded, e.g. the user retries after an 'unverified' result.
 // That transfer becomes untracked and only a support request recovers it.
-async function readPendingPurchases(): Promise<PendingPurchase[]> {
+//
+// Strict: propagates an AsyncStorage.getItem failure instead of guessing
+// "empty". A read-modify-write caller (record/clear/prune below) that wrote
+// that guess back would silently delete every real pending record — other
+// txids, other accounts on a shared device — not just fail to find its own.
+// A JSON.parse failure is different: that data is unrecoverable garbage
+// either way, so it still falls back to [].
+async function readPendingPurchasesStrict(): Promise<PendingPurchase[]> {
+  const raw = await AsyncStorage.getItem(PENDING_PURCHASE_KEY);
   try {
-    const raw = await AsyncStorage.getItem(PENDING_PURCHASE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? (parsed as PendingPurchase[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Lenient wrapper for read-only callers, where "we couldn't check" and "there
+// really is nothing pending" are safe to treat the same way.
+async function readPendingPurchases(): Promise<PendingPurchase[]> {
+  try {
+    return await readPendingPurchasesStrict();
   } catch {
     return [];
   }
@@ -170,6 +187,20 @@ async function writePendingPurchases(list: PendingPurchase[]): Promise<void> {
   else await AsyncStorage.removeItem(PENDING_PURCHASE_KEY);
 }
 
+// Serializes every read-modify-write against the pending-purchase list
+// through one chain, so e.g. recordPendingPurchase for a fresh purchase and
+// clearPendingPurchase resolving an older one can't interleave their reads —
+// both reading the same stale snapshot, then the second write clobbering the
+// first's change. RN's JS is single-threaded, so a simple promise chain is
+// enough; no real locking primitive needed. The `.then(ok, ok)` reset always
+// resolves — a prior failure must never jam the queue for later operations.
+let pendingPurchaseQueue: Promise<void> = Promise.resolve();
+function enqueuePendingPurchaseOp<T>(op: () => Promise<T>): Promise<T> {
+  const result = pendingPurchaseQueue.then(op, op);
+  pendingPurchaseQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 /** Records a broadcast transfer's txid BEFORE calling verifyPointsPurchase,
  *  so a crash/app-kill between broadcast and verification — with real HBD
  *  already having left the wallet — still leaves a record to resume from on
@@ -177,8 +208,10 @@ async function writePendingPurchases(list: PendingPurchase[]): Promise<void> {
  *  alongside any other still-unresolved purchase, never replacing one.
  *  Throws on an AsyncStorage failure — see writePendingPurchases. */
 export async function recordPendingPurchase(username: string, txid: string): Promise<void> {
-  const list = await readPendingPurchases();
-  await writePendingPurchases([...list.filter(p => p.txid !== txid), { txid, username, createdAt: Date.now() }]);
+  await enqueuePendingPurchaseOp(async () => {
+    const list = await readPendingPurchasesStrict();
+    await writePendingPurchases([...list.filter(p => p.txid !== txid), { txid, username, createdAt: Date.now() }]);
+  });
 }
 
 /** Removes a single resolved purchase, leaving any other pending ones intact.
@@ -187,8 +220,10 @@ export async function recordPendingPurchase(username: string, txid: string): Pro
  *  harmless no-op — so it's logged rather than thrown. */
 export async function clearPendingPurchase(txid: string): Promise<void> {
   try {
-    const list = await readPendingPurchases();
-    await writePendingPurchases(list.filter(p => p.txid !== txid));
+    await enqueuePendingPurchaseOp(async () => {
+      const list = await readPendingPurchasesStrict();
+      await writePendingPurchases(list.filter(p => p.txid !== txid));
+    });
   } catch (err) {
     console.error('[pointsService] Error clearing a resolved pending purchase (non-critical):', err);
   }
@@ -203,7 +238,13 @@ export async function getPendingPurchaseTxids(username: string): Promise<string[
   const fresh = list.filter(p => Date.now() - p.createdAt <= PENDING_PURCHASE_MAX_AGE_MS);
   if (fresh.length !== list.length) {
     try {
-      await writePendingPurchases(fresh);
+      await enqueuePendingPurchaseOp(async () => {
+        // Re-read inside the queue — `list` above may already be stale by
+        // the time any earlier-queued record/clear finishes.
+        const latest = await readPendingPurchasesStrict();
+        const latestFresh = latest.filter(p => Date.now() - p.createdAt <= PENDING_PURCHASE_MAX_AGE_MS);
+        if (latestFresh.length !== latest.length) await writePendingPurchases(latestFresh);
+      });
     } catch (err) {
       console.error('[pointsService] Error pruning stale pending purchases (non-critical):', err);
     }
