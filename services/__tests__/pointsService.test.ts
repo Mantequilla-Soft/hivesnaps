@@ -198,6 +198,26 @@ describe('pointsService', () => {
       expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
     });
 
+    it('throws and leaves the record in place on an unrecognized status — an allowlist, not "anything but unverified"', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'weird', pointsCredited: 0, balance: 10 });
+
+      await expect(pointsService.verifyPointsPurchase('alice', 'txid-1')).rejects.toThrow();
+
+      expect(emitPointsPurchased).not.toHaveBeenCalled();
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    });
+
+    it('throws and leaves the record in place on a response with no status at all', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ error: 'something unexpected' });
+
+      await expect(pointsService.verifyPointsPurchase('alice', 'txid-1')).rejects.toThrow();
+
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+    });
+
     it('throws when there is no auth token — a purchase failure must surface, unlike awardPoints', async () => {
       getPointsAuthToken.mockResolvedValueOnce(null);
 
@@ -214,6 +234,24 @@ describe('pointsService', () => {
   });
 
   describe('pending purchase persistence', () => {
+    it('propagates a write failure from recordPendingPurchase — its caller must know the record did not actually persist', async () => {
+      AsyncStorage.setItem.mockRejectedValueOnce(new Error('disk full'));
+
+      await expect(pointsService.recordPendingPurchase('alice', 'txid-1')).rejects.toThrow('disk full');
+    });
+
+    it('swallows a write failure from clearPendingPurchase — non-critical, a re-verified txid just comes back duplicate', async () => {
+      // Two entries so the filtered list is non-empty and clearing goes
+      // through setItem (not removeItem), which is what's made to fail here.
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify([
+        { txid: 'txid-1', username: 'alice', createdAt: Date.now() },
+        { txid: 'txid-2', username: 'alice', createdAt: Date.now() },
+      ]));
+      AsyncStorage.setItem.mockRejectedValueOnce(new Error('disk full'));
+
+      await expect(pointsService.clearPendingPurchase('txid-1')).resolves.not.toThrow();
+    });
+
     it('records, reads back, and clears a pending purchase', async () => {
       await pointsService.recordPendingPurchase('alice', 'txid-1');
       const [, storedJson] = AsyncStorage.setItem.mock.calls[0];

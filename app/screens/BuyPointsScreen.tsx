@@ -151,6 +151,11 @@ const BuyPointsScreen = (): React.JSX.Element => {
         // "broadcast never happened, safe to say try again" apart from
         // "HBD already left the wallet, do not say try again".
         let broadcastTxid: string | null = null;
+        // Whether recordPendingPurchase actually persisted — if it didn't
+        // (a rare AsyncStorage failure), "tap Retry verification" is a false
+        // promise: there's nothing in storage for that action to find. The
+        // user must be told to save the txid themselves instead.
+        let persisted = false;
         try {
             const txid = await transfer(
                 POINTS_RECEIVING_ACCOUNT,
@@ -163,7 +168,16 @@ const BuyPointsScreen = (): React.JSX.Element => {
 
             // Persisted BEFORE verification so a crash/kill between here and
             // the result below still leaves a record we can resume from.
-            await recordPendingPurchase(currentUsername, txid);
+            // Caught locally (not left to the outer catch) so a storage
+            // failure still lets the immediate verification below run —
+            // that's the one chance to resolve this without relying on
+            // the pending-purchase record at all.
+            try {
+                await recordPendingPurchase(currentUsername, txid);
+                persisted = true;
+            } catch (persistErr) {
+                console.error('[BuyPointsScreen] Failed to persist pending purchase — verifying immediately as a best effort:', persistErr);
+            }
             await refreshPendingTxids();
 
             setStage('verifying');
@@ -171,10 +185,17 @@ const BuyPointsScreen = (): React.JSX.Element => {
             await refreshPendingTxids();
 
             if (result.status === 'unverified') {
-                Alert.alert(
-                    'Could not verify the transfer yet',
-                    'Reopen this screen or tap Retry verification below to check again. If it never confirms, contact support with your transaction ID.'
-                );
+                if (persisted) {
+                    Alert.alert(
+                        'Could not verify the transfer yet',
+                        'Reopen this screen or tap Retry verification below to check again. If it never confirms, contact support with your transaction ID.'
+                    );
+                } else {
+                    Alert.alert(
+                        "Transfer sent — couldn't save for automatic retry",
+                        `Your HBD transfer broadcast successfully (txid: ${txid}) but we couldn't verify it yet, and couldn't save it to check again automatically. Save this transaction ID and contact support if it doesn't appear in your balance soon.`
+                    );
+                }
             } else {
                 const { title, message } = describeResult(result);
                 Alert.alert(title, message);
@@ -183,13 +204,20 @@ const BuyPointsScreen = (): React.JSX.Element => {
             }
         } catch (err) {
             if (err instanceof AuthCancelledError) return;
-            if (broadcastTxid) {
+            if (broadcastTxid && persisted) {
                 // The transfer already broadcast — HBD already left the
                 // wallet — so this must never read as "nothing happened,
                 // try again" or it invites a second, separate payment.
                 Alert.alert(
                     'Transfer sent — verification pending',
                     `Your HBD transfer broadcast successfully (txid: ${broadcastTxid}) but couldn't be verified yet. Do not pay again — tap Retry verification below to check again.`
+                );
+            } else if (broadcastTxid) {
+                // Same situation, but nothing was saved to retry from —
+                // "tap Retry verification" would be a false promise here.
+                Alert.alert(
+                    "Transfer sent — couldn't save for automatic retry",
+                    `Your HBD transfer broadcast successfully (txid: ${broadcastTxid}) but verification failed and we couldn't save it to check again automatically. Do not pay again — save this transaction ID and contact support if it doesn't appear in your balance soon.`
                 );
             } else {
                 Alert.alert('Purchase failed', err instanceof Error ? err.message : 'Please try again.');

@@ -159,48 +159,77 @@ async function readPendingPurchases(): Promise<PendingPurchase[]> {
   }
 }
 
+// Deliberately NOT caught here — a write failure must surface to
+// recordPendingPurchase's caller (BuyPointsScreen), which needs to know its
+// "safe to retry later" promise didn't actually get persisted. Swallowing it
+// previously meant recordPendingPurchase could "succeed" without writing
+// anything, so a later unverified/thrown result pointed the user at a
+// Retry-verification path that could never find the txid.
 async function writePendingPurchases(list: PendingPurchase[]): Promise<void> {
-  try {
-    if (list.length > 0) await AsyncStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(list));
-    else await AsyncStorage.removeItem(PENDING_PURCHASE_KEY);
-  } catch (err) {
-    console.error('[pointsService] Error persisting pending purchases:', err);
-  }
+  if (list.length > 0) await AsyncStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(list));
+  else await AsyncStorage.removeItem(PENDING_PURCHASE_KEY);
 }
 
 /** Records a broadcast transfer's txid BEFORE calling verifyPointsPurchase,
  *  so a crash/app-kill between broadcast and verification — with real HBD
  *  already having left the wallet — still leaves a record to resume from on
  *  next launch, mirroring snapie.io's own buy-points page. Keyed by txid
- *  alongside any other still-unresolved purchase, never replacing one. */
+ *  alongside any other still-unresolved purchase, never replacing one.
+ *  Throws on an AsyncStorage failure — see writePendingPurchases. */
 export async function recordPendingPurchase(username: string, txid: string): Promise<void> {
   const list = await readPendingPurchases();
   await writePendingPurchases([...list.filter(p => p.txid !== txid), { txid, username, createdAt: Date.now() }]);
 }
 
-/** Removes a single resolved purchase, leaving any other pending ones intact. */
+/** Removes a single resolved purchase, leaving any other pending ones intact.
+ *  Unlike recordPendingPurchase, a failure here is non-critical — worst case
+ *  a resolved txid gets re-verified later and comes back 'duplicate', a
+ *  harmless no-op — so it's logged rather than thrown. */
 export async function clearPendingPurchase(txid: string): Promise<void> {
-  const list = await readPendingPurchases();
-  await writePendingPurchases(list.filter(p => p.txid !== txid));
+  try {
+    const list = await readPendingPurchases();
+    await writePendingPurchases(list.filter(p => p.txid !== txid));
+  } catch (err) {
+    console.error('[pointsService] Error clearing a resolved pending purchase (non-critical):', err);
+  }
 }
 
 /** All pending txids for `username` (ignores other accounts' records on a
- *  shared device), dropping — and persisting the drop of — any older than
- *  PENDING_PURCHASE_MAX_AGE_MS. */
+ *  shared device), dropping any older than PENDING_PURCHASE_MAX_AGE_MS.
+ *  Persisting that prune is best-effort — a failure just means it's retried
+ *  on the next read, so it's logged rather than thrown. */
 export async function getPendingPurchaseTxids(username: string): Promise<string[]> {
   const list = await readPendingPurchases();
   const fresh = list.filter(p => Date.now() - p.createdAt <= PENDING_PURCHASE_MAX_AGE_MS);
-  if (fresh.length !== list.length) await writePendingPurchases(fresh);
+  if (fresh.length !== list.length) {
+    try {
+      await writePendingPurchases(fresh);
+    } catch (err) {
+      console.error('[pointsService] Error pruning stale pending purchases (non-critical):', err);
+    }
+  }
   return fresh.filter(p => p.username === username).map(p => p.txid);
 }
+
+// Status values that mean "the server has resolved this one way or another
+// and nothing further will ever change it" — the ONLY ones that may clear a
+// pending-purchase record. 'unverified' means "still propagating, try
+// again" and must never clear it either. Deliberately an allowlist, not
+// "anything but unverified": an unrecognized or malformed response (a typo'd
+// status, an error body, a future status this client doesn't know about)
+// must never be treated as resolved — that HBD already left the wallet, and
+// clearing the record on a response this code doesn't understand would
+// strand it with no path back except a support request.
+const RESOLVED_PURCHASE_STATUSES: readonly PurchaseStatus[] = ['credited', 'duplicate', 'out_of_range'];
 
 /** Posts a broadcast transfer's txid for independent on-chain verification
  *  and crediting — the server never trusts a client-supplied amount, so
  *  this only reports what it decided. Clears that txid's pending-purchase
- *  record on any resolved outcome except 'unverified' (that one means
- *  "still propagating, try again"), and emits pointsPurchased on a real
- *  credit so any live balance display (e.g. PointsSection) updates
- *  immediately. */
+ *  record on a known-resolved outcome (see RESOLVED_PURCHASE_STATUSES), and
+ *  emits pointsPurchased on a real credit so any live balance display (e.g.
+ *  PointsSection) updates immediately. Throws — leaving the record in place
+ *  — for 'unverified' just as before, and now also for any response whose
+ *  status isn't one this code recognizes. */
 export async function verifyPointsPurchase(username: string, txid: string): Promise<PurchaseResult> {
   const token = await getPointsAuthToken();
   if (!token) throw new Error('Could not verify the purchase — please sign in again.');
@@ -222,8 +251,18 @@ export async function verifyPointsPurchase(username: string, txid: string): Prom
     throw new Error(`Purchase verification failed: ${res.status} ${res.statusText}`);
   }
 
-  const result = (await res.json()) as PurchaseResult;
-  if (result.status !== 'unverified') {
+  const raw = (await res.json()) as { status?: unknown; pointsCredited?: unknown; balance?: unknown } | null;
+  const status = raw?.status as PurchaseStatus | undefined;
+  if (status !== 'unverified' && !(status && RESOLVED_PURCHASE_STATUSES.includes(status))) {
+    throw new Error('Purchase verification returned an unexpected response.');
+  }
+  const result: PurchaseResult = {
+    status,
+    pointsCredited: typeof raw?.pointsCredited === 'number' ? raw.pointsCredited : 0,
+    balance: typeof raw?.balance === 'number' ? raw.balance : 0,
+  };
+
+  if (RESOLVED_PURCHASE_STATUSES.includes(result.status)) {
     await clearPendingPurchase(txid);
   }
   if (result.status === 'credited') {
