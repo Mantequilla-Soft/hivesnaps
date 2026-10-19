@@ -1,7 +1,17 @@
 /**
- * Tests for pointsService — public reads (summary/leaderboard) plus the
- * fire-and-forget award call.
+ * Tests for pointsService — public reads (summary/leaderboard), the
+ * fire-and-forget award call, and buying points (verify + pending-purchase
+ * persistence).
  */
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+  },
+}));
 
 type PointsServiceModule = typeof import('../pointsService');
 
@@ -22,6 +32,8 @@ describe('pointsService', () => {
   let pointsService: PointsServiceModule;
   let getPointsAuthToken: jest.Mock;
   let emitPointsEarned: jest.Mock;
+  let emitPointsPurchased: jest.Mock;
+  let AsyncStorage: { getItem: jest.Mock; setItem: jest.Mock; removeItem: jest.Mock };
 
   beforeEach(() => {
     jest.resetModules();
@@ -32,11 +44,15 @@ describe('pointsService', () => {
     }));
     jest.doMock('../../utils/pointsEvents', () => ({
       emitPointsEarned: jest.fn(),
+      emitPointsPurchased: jest.fn(),
     }));
 
     pointsService = require('../pointsService');
     getPointsAuthToken = require('../pointsAuthService').getPointsAuthToken;
     emitPointsEarned = require('../../utils/pointsEvents').emitPointsEarned;
+    emitPointsPurchased = require('../../utils/pointsEvents').emitPointsPurchased;
+    AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    AsyncStorage.getItem.mockResolvedValue(null);
   });
 
   describe('fetchPointsSummary', () => {
@@ -143,6 +159,120 @@ describe('pointsService', () => {
       await flushMicrotasks();
 
       expect(emitPointsEarned).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyPointsPurchase', () => {
+    it('posts the txid, emits pointsPurchased, and clears the pending record on a credit', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'credited', pointsCredited: 100, balance: 110 });
+
+      const result = await pointsService.verifyPointsPurchase('alice', 'txid-1');
+
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('https://snapie.io/api/points/purchase/verify');
+      expect(init.headers.Authorization).toBe('Bearer jwt-token');
+      expect(JSON.parse(init.body)).toEqual({ txid: 'txid-1' });
+      expect(result).toEqual({ status: 'credited', pointsCredited: 100, balance: 110 });
+      expect(emitPointsPurchased).toHaveBeenCalledWith({ pointsCredited: 100, balance: 110 });
+      expect(AsyncStorage.removeItem).toHaveBeenCalled();
+    });
+
+    it('clears the pending record without emitting on a duplicate or out_of_range result', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'duplicate', pointsCredited: 0, balance: 10 });
+
+      await pointsService.verifyPointsPurchase('alice', 'txid-1');
+
+      expect(emitPointsPurchased).not.toHaveBeenCalled();
+      expect(AsyncStorage.removeItem).toHaveBeenCalled();
+    });
+
+    it('leaves the pending record in place on an unverified result', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'unverified', pointsCredited: 0, balance: 10 });
+
+      await pointsService.verifyPointsPurchase('alice', 'txid-1');
+
+      expect(emitPointsPurchased).not.toHaveBeenCalled();
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+    });
+
+    it('throws when there is no auth token — a purchase failure must surface, unlike awardPoints', async () => {
+      getPointsAuthToken.mockResolvedValueOnce(null);
+
+      await expect(pointsService.verifyPointsPurchase('alice', 'txid-1')).rejects.toThrow();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('throws on a non-OK HTTP response', async () => {
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({}, false, 500, 'Server Error');
+
+      await expect(pointsService.verifyPointsPurchase('alice', 'txid-1')).rejects.toThrow();
+    });
+  });
+
+  describe('pending purchase persistence', () => {
+    it('records, reads back, and clears a pending purchase', async () => {
+      await pointsService.recordPendingPurchase('alice', 'txid-1');
+      const [, storedJson] = AsyncStorage.setItem.mock.calls[0];
+      AsyncStorage.getItem.mockResolvedValue(storedJson);
+
+      expect(await pointsService.getPendingPurchaseTxid('alice')).toBe('txid-1');
+
+      await pointsService.clearPendingPurchase();
+      expect(AsyncStorage.removeItem).toHaveBeenCalled();
+    });
+
+    it('ignores a pending purchase recorded for a different username', async () => {
+      await pointsService.recordPendingPurchase('alice', 'txid-1');
+      const [, storedJson] = AsyncStorage.setItem.mock.calls[0];
+      AsyncStorage.getItem.mockResolvedValue(storedJson);
+
+      expect(await pointsService.getPendingPurchaseTxid('bob')).toBeNull();
+    });
+
+    it('drops and clears a pending purchase older than the max age', async () => {
+      const stale = JSON.stringify({ txid: 'txid-1', username: 'alice', createdAt: Date.now() - 25 * 60 * 60 * 1000 });
+      AsyncStorage.getItem.mockResolvedValue(stale);
+
+      expect(await pointsService.getPendingPurchaseTxid('alice')).toBeNull();
+      expect(AsyncStorage.removeItem).toHaveBeenCalled();
+    });
+
+    it('returns null when there is nothing pending', async () => {
+      expect(await pointsService.getPendingPurchaseTxid('alice')).toBeNull();
+    });
+  });
+
+  describe('resumePendingPurchase', () => {
+    it('returns null when there is no pending purchase', async () => {
+      const result = await pointsService.resumePendingPurchase('alice');
+
+      expect(result).toBeNull();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('re-verifies a pending purchase and returns the result', async () => {
+      const stored = JSON.stringify({ txid: 'txid-1', username: 'alice', createdAt: Date.now() });
+      AsyncStorage.getItem.mockResolvedValue(stored);
+      getPointsAuthToken.mockResolvedValueOnce('jwt-token');
+      mockFetchOnce({ status: 'credited', pointsCredited: 100, balance: 110 });
+
+      const result = await pointsService.resumePendingPurchase('alice');
+
+      expect(result).toEqual({ status: 'credited', pointsCredited: 100, balance: 110 });
+    });
+
+    it('returns null instead of throwing when verification fails', async () => {
+      const stored = JSON.stringify({ txid: 'txid-1', username: 'alice', createdAt: Date.now() });
+      AsyncStorage.getItem.mockResolvedValue(stored);
+      getPointsAuthToken.mockResolvedValueOnce(null);
+
+      const result = await pointsService.resumePendingPurchase('alice');
+
+      expect(result).toBeNull();
     });
   });
 });

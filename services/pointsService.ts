@@ -3,8 +3,9 @@
 // Read endpoints are public; awarding requires the Bearer JWT from
 // pointsAuthService.ts, obtained by signing a challenge with the posting key.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getPointsAuthToken } from './pointsAuthService';
-import { emitPointsEarned } from '../utils/pointsEvents';
+import { emitPointsEarned, emitPointsPurchased } from '../utils/pointsEvents';
 
 const SNAPIE_API_URL = 'https://snapie.io';
 const FETCH_TIMEOUT_MS = 10_000;
@@ -118,4 +119,122 @@ export function awardPoints(
       // Swallow — nothing about points should ever surface to the user.
     }
   })();
+}
+
+// --- Buying points ---------------------------------------------------------
+// A purchase is a real HBD transfer the caller broadcasts (see
+// hooks/useWalletOperations.ts's transfer()); this only covers reporting the
+// resulting txid for server-side verification + crediting. Unlike
+// awardPoints, failures here must surface to the user — real money moved.
+
+export type PurchaseStatus = 'credited' | 'duplicate' | 'unverified' | 'out_of_range';
+
+export interface PurchaseResult {
+  status: PurchaseStatus;
+  pointsCredited: number;
+  balance: number;
+}
+
+const PENDING_PURCHASE_KEY = 'hivesnaps_pending_points_purchase';
+// Matches snapie.io's own localStorage pending-purchase TTL.
+const PENDING_PURCHASE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+interface PendingPurchase {
+  txid: string;
+  username: string;
+  createdAt: number;
+}
+
+async function readPendingPurchase(): Promise<PendingPurchase | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_PURCHASE_KEY);
+    return raw ? (JSON.parse(raw) as PendingPurchase) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writePendingPurchase(pending: PendingPurchase | null): Promise<void> {
+  try {
+    if (pending) await AsyncStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(pending));
+    else await AsyncStorage.removeItem(PENDING_PURCHASE_KEY);
+  } catch (err) {
+    console.error('[pointsService] Error persisting pending purchase:', err);
+  }
+}
+
+/** Records a broadcast transfer's txid BEFORE calling verifyPointsPurchase,
+ *  so a crash/app-kill between broadcast and verification — with real HBD
+ *  already having left the wallet — still leaves a record to resume from on
+ *  next launch, mirroring snapie.io's own buy-points page. */
+export async function recordPendingPurchase(username: string, txid: string): Promise<void> {
+  await writePendingPurchase({ txid, username, createdAt: Date.now() });
+}
+
+export async function clearPendingPurchase(): Promise<void> {
+  await writePendingPurchase(null);
+}
+
+/** The pending txid for `username`, if any (ignores another account's
+ *  leftover record, and drops one older than PENDING_PURCHASE_MAX_AGE_MS). */
+export async function getPendingPurchaseTxid(username: string): Promise<string | null> {
+  const pending = await readPendingPurchase();
+  if (!pending || pending.username !== username) return null;
+  if (Date.now() - pending.createdAt > PENDING_PURCHASE_MAX_AGE_MS) {
+    await clearPendingPurchase();
+    return null;
+  }
+  return pending.txid;
+}
+
+/** Posts a broadcast transfer's txid for independent on-chain verification
+ *  and crediting — the server never trusts a client-supplied amount, so
+ *  this only reports what it decided. Clears the pending-purchase record on
+ *  any resolved outcome except 'unverified' (that one means "still
+ *  propagating, try again"), and emits pointsPurchased on a real credit so
+ *  any live balance display (e.g. PointsSection) updates immediately. */
+export async function verifyPointsPurchase(username: string, txid: string): Promise<PurchaseResult> {
+  const token = await getPointsAuthToken();
+  if (!token) throw new Error('Could not verify the purchase — please sign in again.');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${SNAPIE_API_URL}/api/points/purchase/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ txid }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) {
+    throw new Error(`Purchase verification failed: ${res.status} ${res.statusText}`);
+  }
+
+  const result = (await res.json()) as PurchaseResult;
+  if (result.status !== 'unverified') {
+    await clearPendingPurchase();
+  }
+  if (result.status === 'credited') {
+    emitPointsPurchased({ pointsCredited: result.pointsCredited, balance: result.balance });
+  }
+  return result;
+}
+
+/** Call on BuyPointsScreen mount — resumes a purchase that broadcast
+ *  successfully on a previous app session but never finished verifying
+ *  (app killed, network dropped, right after real HBD left the wallet).
+ *  Returns null when there's nothing to resume, or verification is still
+ *  unresolved (left in place for the next resume attempt). */
+export async function resumePendingPurchase(username: string): Promise<PurchaseResult | null> {
+  const txid = await getPendingPurchaseTxid(username);
+  if (!txid) return null;
+  try {
+    return await verifyPointsPurchase(username, txid);
+  } catch {
+    return null;
+  }
 }

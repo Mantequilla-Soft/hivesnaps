@@ -58,15 +58,31 @@ export const PointsSection: React.FC<PointsSectionProps> = ({ isOwnProfile, prof
                 </View>
             )}
 
-            <TouchableOpacity
-                style={[localStyles.leaderboardButton, halfWidth && localStyles.leaderboardButtonCompact, { backgroundColor: colors.button }]}
-                onPress={() => router.push('/screens/PointsLeaderboardScreen' as Href)}
-                accessibilityRole="button"
-                accessibilityLabel="View points leaderboard"
-            >
-                <Text style={[localStyles.leaderboardButtonText, { color: colors.buttonText }]} numberOfLines={1}>Leaderboard</Text>
-                <FontAwesome name="chevron-right" size={11} color={colors.buttonText} />
-            </TouchableOpacity>
+            {/* Side by side when there's room for the full labels; stacked in the
+                half-width card (shares a row with WalletSection) where two
+                buttons across would truncate "Buy Points"/"Leaderboard". */}
+            <View style={[localStyles.actionsRow, halfWidth && localStyles.actionsColumn]}>
+                {isOwnProfile && (
+                    <TouchableOpacity
+                        style={[localStyles.actionButton, halfWidth && localStyles.actionButtonCompact, { backgroundColor: colors.button }]}
+                        onPress={() => router.push('/screens/BuyPointsScreen' as Href)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Buy Snapie Points"
+                    >
+                        <FontAwesome name="plus" size={11} color={colors.buttonText} />
+                        <Text style={[localStyles.actionButtonText, { color: colors.buttonText }]} numberOfLines={1}>Buy Points</Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                    style={[localStyles.actionButton, halfWidth && localStyles.actionButtonCompact, { backgroundColor: colors.button }]}
+                    onPress={() => router.push('/screens/PointsLeaderboardScreen' as Href)}
+                    accessibilityRole="button"
+                    accessibilityLabel="View points leaderboard"
+                >
+                    <Text style={[localStyles.actionButtonText, { color: colors.buttonText }]} numberOfLines={1}>Leaderboard</Text>
+                    <FontAwesome name="chevron-right" size={11} color={colors.buttonText} />
+                </TouchableOpacity>
+            </View>
         </View>
     );
 };
@@ -116,21 +132,29 @@ const localStyles = StyleSheet.create({
     balanceValueCompact: {
         fontSize: 13,
     },
-    leaderboardButton: {
+    actionsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 12,
+    },
+    actionsColumn: {
+        flexDirection: 'column',
+    },
+    actionButton: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
         paddingVertical: 12,
-        paddingHorizontal: 24,
+        paddingHorizontal: 16,
         borderRadius: 8,
-        marginTop: 12,
     },
-    leaderboardButtonCompact: {
+    actionButtonCompact: {
         paddingVertical: 10,
-        paddingHorizontal: 12,
+        paddingHorizontal: 10,
     },
-    leaderboardButtonText: {
+    actionButtonText: {
         fontSize: 14,
         fontWeight: '600',
     },

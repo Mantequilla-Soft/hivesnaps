@@ -1,7 +1,7 @@
 /**
  * Tests for usePointsSummary — fetches a user's points summary on mount/
- * username change, and reacts live to a pointsEvents "earned" notification
- * with an optimistic bump followed by a refetch.
+ * username change, and reacts live to pointsEvents "earned" and "purchased"
+ * notifications, each with an optimistic bump followed by a refetch.
  */
 
 jest.mock('../../services/pointsService', () => ({
@@ -10,16 +10,18 @@ jest.mock('../../services/pointsService', () => ({
 
 jest.mock('../../utils/pointsEvents', () => ({
   onPointsEarned: jest.fn(),
+  onPointsPurchased: jest.fn(),
 }));
 
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { usePointsSummary, UsePointsSummaryResult } from '../usePointsSummary';
 import { fetchPointsSummary } from '../../services/pointsService';
-import { onPointsEarned } from '../../utils/pointsEvents';
+import { onPointsEarned, onPointsPurchased } from '../../utils/pointsEvents';
 
 const mockFetchPointsSummary = fetchPointsSummary as jest.Mock;
 const mockOnPointsEarned = onPointsEarned as jest.Mock;
+const mockOnPointsPurchased = onPointsPurchased as jest.Mock;
 
 // `container` is mutated in place on every re-render, so callers must read
 // `container.result` fresh after each `act()` rather than destructuring it
@@ -33,13 +35,19 @@ function renderUsePointsSummary(username: string | null | undefined): { result: 
 
 describe('usePointsSummary', () => {
   let earnedListener: ((detail: { awarded: number; balance: number }) => void) | null;
+  let purchasedListener: ((detail: { pointsCredited: number; balance: number }) => void) | null;
 
   beforeEach(() => {
     jest.clearAllMocks();
     earnedListener = null;
+    purchasedListener = null;
     mockOnPointsEarned.mockImplementation((cb: (detail: { awarded: number; balance: number }) => void) => {
       earnedListener = cb;
       return () => { earnedListener = null; };
+    });
+    mockOnPointsPurchased.mockImplementation((cb: (detail: { pointsCredited: number; balance: number }) => void) => {
+      purchasedListener = cb;
+      return () => { purchasedListener = null; };
     });
   });
 
@@ -92,9 +100,30 @@ describe('usePointsSummary', () => {
     expect(mockFetchPointsSummary).toHaveBeenCalledTimes(2);
   });
 
+  it('bumps balance only (never lifetimeEarned) on a pointsPurchased notification, then refetches', async () => {
+    mockFetchPointsSummary.mockResolvedValueOnce({ username: 'alice', balance: 10, lifetimeEarned: 25, rank: 3 });
+    const hook = renderUsePointsSummary('alice');
+    await act(async () => { await Promise.resolve(); });
+
+    mockFetchPointsSummary.mockResolvedValueOnce({ username: 'alice', balance: 110, lifetimeEarned: 25, rank: 3 });
+
+    expect(purchasedListener).not.toBeNull();
+    await act(async () => {
+      purchasedListener!({ pointsCredited: 100, balance: 110 });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(hook.result.summary?.balance).toBe(110);
+    expect(hook.result.summary?.lifetimeEarned).toBe(25); // unchanged — a purchase must never move the leaderboard
+    expect(mockFetchPointsSummary).toHaveBeenCalledTimes(2);
+  });
+
   it('unsubscribes from pointsEvents on unmount', async () => {
-    const unsubscribe = jest.fn();
-    mockOnPointsEarned.mockImplementation(() => unsubscribe);
+    const unsubscribeEarned = jest.fn();
+    const unsubscribePurchased = jest.fn();
+    mockOnPointsEarned.mockImplementation(() => unsubscribeEarned);
+    mockOnPointsPurchased.mockImplementation(() => unsubscribePurchased);
     mockFetchPointsSummary.mockResolvedValueOnce({ username: 'alice', balance: 10, lifetimeEarned: 25, rank: 3 });
 
     let renderer: ReturnType<typeof create> | null = null;
@@ -104,6 +133,7 @@ describe('usePointsSummary', () => {
 
     act(() => { renderer!.unmount(); });
 
-    expect(unsubscribe).toHaveBeenCalled();
+    expect(unsubscribeEarned).toHaveBeenCalled();
+    expect(unsubscribePurchased).toHaveBeenCalled();
   });
 });

@@ -40,3 +40,26 @@ export function onPointsSpent(cb: SpentListener): () => void {
 export function emitPointsSpent(detail: PointsSpentDetail): void {
   spentListeners.forEach(cb => cb(detail));
 }
+
+// Separate again from both of the above: a purchase credits `balance` only
+// (never `lifetimeEarned` — buying points must never move the leaderboard,
+// see pointsService.ts's verifyPointsPurchase). A listener that adds
+// `awarded` to lifetimeEarned, like usePointsSummary's onPointsEarned
+// handler, must never be handed a purchase by mistake.
+export interface PointsPurchasedDetail {
+  pointsCredited: number;
+  balance: number;
+}
+
+type PurchasedListener = (detail: PointsPurchasedDetail) => void;
+
+const purchasedListeners = new Set<PurchasedListener>();
+
+export function onPointsPurchased(cb: PurchasedListener): () => void {
+  purchasedListeners.add(cb);
+  return () => purchasedListeners.delete(cb);
+}
+
+export function emitPointsPurchased(detail: PointsPurchasedDetail): void {
+  purchasedListeners.forEach(cb => cb(detail));
+}
