@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { SafeAreaView as SafeAreaViewRN } from 'react-native';
 import {
   SafeAreaView as SafeAreaViewSA,
@@ -28,6 +28,7 @@ import { useHivePostData } from '../../hooks/useHivePostData';
 import { HivePostScreenStyles } from '../../styles/HivePostScreenStyles';
 // useReply and useGifPicker removed - now using ComposeScreen for reply
 import UpvoteModal from '../../components/UpvoteModal';
+import VotersModal from '../components/VotersModal';
 import { useMutedList } from '../../store/context';
 import Snap from '../components/Snap';
 // ContentModal and GifPickerModal removed - now using ComposeScreen
@@ -44,6 +45,7 @@ const HivePostScreen = () => {
   const router = useRouter();
   const currentUsername = useCurrentUser();
   const { medianPrice, rewardFund } = useHiveData();
+  const [votersVisible, setVotersVisible] = useState(false);
 
   console.log('[HivePostScreen] Component loaded with params:', {
     author,
@@ -447,14 +449,21 @@ const HivePostScreen = () => {
                 color={post.hasUpvoted ? '#8e44ad' : colors.icon}
               />
             </TouchableOpacity>
-            <Text
-              style={[
-                HivePostScreenStyles.engagementText,
-                { color: colors.text },
-              ]}
+            <TouchableOpacity
+              onPress={() => setVotersVisible(true)}
+              hitSlop={8}
+              accessibilityRole='button'
+              accessibilityLabel='Show who voted'
             >
-              {post.voteCount}
-            </Text>
+              <Text
+                style={[
+                  HivePostScreenStyles.engagementText,
+                  { color: colors.text },
+                ]}
+              >
+                {post.voteCount}
+              </Text>
+            </TouchableOpacity>
             <FontAwesome
               name='comment-o'
               size={16}
@@ -609,6 +618,15 @@ const HivePostScreen = () => {
       {/* Reply Modal removed - now using ComposeScreen */}
 
       {/* Professional GIF Picker Modal removed - now handled in ComposeScreen */}
+
+      {votersVisible && author && permlink && (
+        <VotersModal
+          visible={votersVisible}
+          author={author}
+          permlink={permlink}
+          onClose={() => setVotersVisible(false)}
+        />
+      )}
 
       {/* Upvote Modal */}
       <UpvoteModal

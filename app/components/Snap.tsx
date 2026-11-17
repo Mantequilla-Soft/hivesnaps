@@ -50,6 +50,7 @@ import { linkStyles, useLinkTextStyle } from '../../styles/linkStyles';
 import { extractRawImageUrls as extractRawImageUrlsUtil, removeRawImageUrls as removeRawImageUrlsUtil } from '../../utils/rawImageUrls';
 import { proxyImageUrl } from '../../utils/proxyImageUrl';
 import { buildImageGalleryFromSnap } from '../../utils/imageGallery';
+import VotersModal from './VotersModal';
 import ModerationRequestModal, { ModerationReason, ModerationRequestPayload } from './moderation/ModerationRequestModal';
 import { formatRelativeShort } from '../../utils/time';
 import ActionSheet from './common/ActionSheet';
@@ -664,6 +665,7 @@ const Snap: React.FC<SnapProps> = ({
     }
   }, []);
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
+  const [votersVisible, setVotersVisible] = useState(false);
   const [translationState, setTranslationState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [translatedBody, setTranslatedBody] = useState<string | null>(null);
   const [showingTranslation, setShowingTranslation] = useState(false);
@@ -1171,9 +1173,18 @@ const Snap: React.FC<SnapProps> = ({
                 style={{ marginRight: 4 }}
               />
             )}
-            <Text style={[styles.voteCount, { color: colors.text, fontSize: 14 }]}>
-              {typeof voteCount === 'number' ? Math.abs(voteCount) : '0'}
-            </Text>
+            <Pressable
+              onPress={() => setVotersVisible(true)}
+              disabled={!permlink}
+              hitSlop={8}
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+              accessibilityRole='button'
+              accessibilityLabel='Show who voted'
+            >
+              <Text style={[styles.voteCount, { color: colors.text, fontSize: 14 }]}>
+                {typeof voteCount === 'number' ? Math.abs(voteCount) : '0'}
+              </Text>
+            </Pressable>
 
             <FontAwesome
               name='comment-o'
@@ -1281,9 +1292,18 @@ const Snap: React.FC<SnapProps> = ({
                 style={styles.icon}
               />
             )}
-            <Text style={[styles.voteCount, { color: colors.text }]}>
-              {typeof voteCount === 'number' ? Math.abs(voteCount) : '0'}
-            </Text>
+            <Pressable
+              onPress={() => setVotersVisible(true)}
+              disabled={!permlink}
+              hitSlop={8}
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+              accessibilityRole='button'
+              accessibilityLabel='Show who voted'
+            >
+              <Text style={[styles.voteCount, { color: colors.text }]}>
+                {typeof voteCount === 'number' ? Math.abs(voteCount) : '0'}
+              </Text>
+            </Pressable>
             {onSpeechBubblePress ? (
               <Pressable
                 onPress={onSpeechBubblePress}
@@ -1506,6 +1526,14 @@ const Snap: React.FC<SnapProps> = ({
           ]}
           colors={{ bubble: colors.bubble, border: colors.border, text: colors.text }}
         />
+        {permlink && votersVisible && (
+          <VotersModal
+            visible={votersVisible}
+            author={author}
+            permlink={permlink}
+            onClose={() => setVotersVisible(false)}
+          />
+        )}
         {/* Moderation Request Modal (Mock) */}
         <ModerationRequestModal
           visible={moderationVisible}
