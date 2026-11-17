@@ -63,6 +63,67 @@ export function formatReputation(raw: number | string | undefined): number | nul
   return Math.round(score);
 }
 
+/** get_content returns at most this many active_votes. */
+export const GET_CONTENT_VOTE_CAP = 1000;
+const LIST_VOTES_PAGE = 1000;
+/** Safety stop: 20 pages = 20k votes, far beyond any real post. */
+const MAX_EXTRA_PAGES = 20;
+
+interface ListVotesEntry {
+  voter: string;
+  author: string;
+  permlink: string;
+  rshares: number | string;
+  vote_percent: number;
+}
+
+/** Raw RPC call, e.g. `(api, method, params) => getClient().call(api, method, params)`. */
+export type HiveRpcCall = (api: string, method: string, params: unknown) => Promise<any>;
+
+/**
+ * Every vote on a post. get_content silently stops at 1,000 votes, and the
+ * 1,000 it returns are not the biggest ones, so for busier posts the rest
+ * are paged in with database_api.list_votes (which has no reputation, so
+ * those voters come back without one).
+ */
+export async function fetchAllVotes(
+  call: HiveRpcCall,
+  author: string,
+  permlink: string
+): Promise<{ post: PostPayoutFields; votes: RawActiveVote[] }> {
+  const post = (await call('condenser_api', 'get_content', [author, permlink])) || {};
+  const votes: RawActiveVote[] = Array.isArray(post.active_votes) ? [...post.active_votes] : [];
+  if (votes.length < GET_CONTENT_VOTE_CAP) return { post, votes };
+
+  // Re-read the full list via list_votes, keeping get_content's entries
+  // (they carry reputation) and adding whoever it left out.
+  const seen = new Map(votes.map(v => [v.voter, v]));
+  let start = '';
+  for (let page = 0; page < MAX_EXTRA_PAGES; page++) {
+    const res = await call('database_api', 'list_votes', {
+      start: [author, permlink, start],
+      limit: LIST_VOTES_PAGE,
+      order: 'by_comment_voter',
+    });
+    const batch: ListVotesEntry[] = Array.isArray(res?.votes) ? res.votes : [];
+    // by_comment_voter runs on into the next comment once this one is done.
+    const mine = batch.filter(v => v.author === author && v.permlink === permlink);
+    for (const v of mine) {
+      if (!seen.has(v.voter)) {
+        const entry = { voter: v.voter, rshares: v.rshares, percent: v.vote_percent };
+        seen.set(v.voter, entry);
+        votes.push(entry);
+      }
+    }
+    if (mine.length < batch.length || batch.length < LIST_VOTES_PAGE) break;
+    // The next page starts at (and repeats) the last voter we got.
+    const last = mine[mine.length - 1].voter;
+    if (last === start) break;
+    start = last;
+  }
+  return { post, votes };
+}
+
 /** Build the voters list, sorted by dollar contribution (largest first). */
 export function buildVoterRows(votes: RawActiveVote[], post: PostPayoutFields): VoterRow[] {
   const payout = getPostPayout(post);

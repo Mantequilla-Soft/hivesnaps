@@ -1,4 +1,4 @@
-import { buildVoterRows, formatReputation, getPostPayout } from '../voters';
+import { buildVoterRows, fetchAllVotes, formatReputation, getPostPayout, type HiveRpcCall } from '../voters';
 
 describe('getPostPayout', () => {
   it('uses pending payout while the post is open', () => {
@@ -77,5 +77,63 @@ describe('buildVoterRows', () => {
   it('returns zero values when net rshares is not positive', () => {
     const rows = buildVoterRows([{ voter: 'a', percent: 0, rshares: 0 }], post);
     expect(rows[0].value).toBe(0);
+  });
+});
+
+describe('fetchAllVotes', () => {
+  const author = 'alice';
+  const permlink = 'post';
+  const voterName = (i: number) => `v${String(i).padStart(5, '0')}`;
+  const allVoters = Array.from({ length: 1131 }, (_, i) => voterName(i));
+
+  /** Fake node: get_content capped at 1000, list_votes paged by voter name and
+   *  running on into another comment's votes once this post's run out. */
+  function fakeNode(voterNames: string[]) {
+    const calls: string[] = [];
+    const call: HiveRpcCall = async (api, method, params: any) => {
+      calls.push(method);
+      if (method === 'get_content') {
+        return {
+          pending_payout_value: '11.310 HBD',
+          active_votes: voterNames.slice(0, 1000).map(v => ({ voter: v, rshares: 100, percent: 10000, reputation: 0 })),
+        };
+      }
+      const startVoter: string = params.start[2];
+      const mine = voterNames
+        .filter(v => v >= startVoter)
+        .map(v => ({ voter: v, author, permlink, rshares: 100, vote_percent: 10000 }));
+      const other = Array.from({ length: 1000 }, (_, i) => ({ voter: voterName(i), author: 'bob', permlink: 'other', rshares: 5, vote_percent: 100 }));
+      return { votes: [...mine, ...other].slice(0, params.limit) };
+    };
+    return { call, calls };
+  }
+
+  it('makes one call when the post has fewer than 1000 votes', async () => {
+    const { call, calls } = fakeNode(allVoters.slice(0, 40));
+    const { votes } = await fetchAllVotes(call, author, permlink);
+    expect(votes).toHaveLength(40);
+    expect(calls).toEqual(['get_content']);
+  });
+
+  it('pages past the 1000-vote cap without duplicates or other posts\' votes', async () => {
+    const { call, calls } = fakeNode(allVoters);
+    const { post, votes } = await fetchAllVotes(call, author, permlink);
+    expect(votes).toHaveLength(1131);
+    expect(new Set(votes.map(v => v.voter)).size).toBe(1131);
+    expect(calls).toEqual(['get_content', 'list_votes', 'list_votes']);
+
+    // Voters from get_content keep their reputation; paged-in ones have none.
+    const rows = buildVoterRows(votes, post);
+    expect(rows.find(r => r.voter === voterName(0))!.reputation).toBe(25);
+    expect(rows.find(r => r.voter === voterName(1130))!.reputation).toBeNull();
+    // Payout is split over all 1131 equal votes, not just the first 1000.
+    expect(rows[0].value).toBeCloseTo(0.01);
+  });
+
+  it('stops when a full page belongs to another post', async () => {
+    const { call, calls } = fakeNode(allVoters.slice(0, 1000));
+    const { votes } = await fetchAllVotes(call, author, permlink);
+    expect(votes).toHaveLength(1000);
+    expect(calls.filter(c => c === 'list_votes')).toHaveLength(2);
   });
 });

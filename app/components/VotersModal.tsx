@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { getClient } from '../../services/HiveClient';
 import { getAvatarImageUrl } from '../../services/AvatarService';
-import { buildVoterRows, type VoterRow } from '../../utils/voters';
+import { buildVoterRows, fetchAllVotes, type VoterRow } from '../../utils/voters';
 import { useAppColors } from '../styles/colors';
 
 interface VotersModalProps {
@@ -24,8 +24,8 @@ interface VotersModalProps {
 
 /**
  * Who voted on a snap/post — opened by tapping the vote count. Fetches fresh
- * votes with get_content (it includes rshares, percent and reputation for
- * every voter) and sorts them by $ contribution.
+ * votes when opened (get_content, plus list_votes paging past its 1,000-vote
+ * cap) and sorts them by $ contribution. FlatList keeps long lists cheap.
  */
 const VotersModal: React.FC<VotersModalProps> = ({ visible, author, permlink, onClose }) => {
   const colors = useAppColors();
@@ -38,8 +38,13 @@ const VotersModal: React.FC<VotersModalProps> = ({ visible, author, permlink, on
     setLoading(true);
     setError(false);
     try {
-      const post: any = await getClient().database.call('get_content', [author, permlink]);
-      setRows(buildVoterRows(Array.isArray(post?.active_votes) ? post.active_votes : [], post || {}));
+      const client = getClient();
+      const { post, votes } = await fetchAllVotes(
+        (api, method, params) => client.call(api, method, params as any),
+        author,
+        permlink
+      );
+      setRows(buildVoterRows(votes, post));
     } catch (err) {
       console.warn('[VotersModal] Failed to load voters:', err);
       setError(true);
