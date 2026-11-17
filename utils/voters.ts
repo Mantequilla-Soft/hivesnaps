@@ -59,7 +59,8 @@ export function formatReputation(raw: number | string | undefined): number | nul
   let score = Math.log10(Math.abs(rep));
   score = Math.max(score - 9, 0);
   score = (neg ? -1 : 1) * score * 9 + 25;
-  return Math.floor(score);
+  // Round (not floor) to match the reputation API the profile screen shows.
+  return Math.round(score);
 }
 
 /** Build the voters list, sorted by dollar contribution (largest first). */

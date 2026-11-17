@@ -21,10 +21,10 @@ describe('getPostPayout', () => {
 });
 
 describe('formatReputation', () => {
-  it('formats raw reputation like other Hive frontends', () => {
+  it('rounds raw reputation to the display score', () => {
     expect(formatReputation(0)).toBe(25);
-    expect(formatReputation(95832978796820)).toBe(69);
-    expect(formatReputation('95832978796820')).toBe(69);
+    expect(formatReputation(95832978796820)).toBe(70);
+    expect(formatReputation('95832978796820')).toBe(70);
   });
 
   it('handles negative reputation', () => {
