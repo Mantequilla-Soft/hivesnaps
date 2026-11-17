@@ -38,6 +38,8 @@ import { hasUserVoted } from '../../utils/votes';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
+import { usePendingRewards } from '../../hooks/usePendingRewards';
+import PendingRewardsBanner from '../components/PendingRewardsBanner';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
@@ -310,6 +312,7 @@ const FeedScreenRefactored = () => {
   } = useSearch();
 
   const { unreadCount, refresh: refreshNotifications } = useNotifications(username || null);
+  const { rewards: pendingRewards, visible: showRewardsBanner, dismiss: dismissRewardsBanner } = usePendingRewards(username);
   const hangoutsCount = useHangoutsCount();
 
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
@@ -1011,6 +1014,14 @@ const FeedScreenRefactored = () => {
           </ScrollView>
         </View>
       </SafeAreaView>
+
+      {showRewardsBanner && pendingRewards && username && (
+        <PendingRewardsBanner
+          rewards={pendingRewards}
+          onPress={() => router.push(`/screens/ProfileScreen?username=${username}` as any)}
+          onDismiss={dismissRewardsBanner}
+        />
+      )}
 
       {/* Feed list */}
       <View style={styles.feedContainer}>
