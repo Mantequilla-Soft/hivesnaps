@@ -75,8 +75,22 @@ describe('buildVoterRows', () => {
   });
 
   it('returns zero values when net rshares is not positive', () => {
-    const rows = buildVoterRows([{ voter: 'a', percent: 0, rshares: 0 }], post);
+    const rows = buildVoterRows([{ voter: 'a', percent: 10000, rshares: 0 }], post);
     expect(rows[0].value).toBe(0);
+  });
+
+  it('drops revoked votes (percent 0) but keeps zero-rshares votes', () => {
+    const rows = buildVoterRows(
+      [
+        { voter: 'revoked', percent: 0, rshares: 0 },
+        { voter: 'revokedString', percent: '0', rshares: '0' },
+        { voter: 'noPower', percent: 10000, rshares: 0 },
+        { voter: 'bridgeShape', rshares: 0 },
+        { voter: 'real', percent: 5000, rshares: 1000 },
+      ],
+      post
+    );
+    expect(rows.map((r) => r.voter).sort()).toEqual(['bridgeShape', 'noPower', 'real']);
   });
 });
 

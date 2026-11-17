@@ -77,8 +77,17 @@ interface ListVotesEntry {
   vote_percent: number;
 }
 
+/** The parts of a condenser_api.get_content response the voters list reads. */
+export interface GetContentResponse extends PostPayoutFields {
+  active_votes?: RawActiveVote[];
+}
+
+interface ListVotesResponse {
+  votes?: ListVotesEntry[];
+}
+
 /** Raw RPC call, e.g. `(api, method, params) => getClient().call(api, method, params)`. */
-export type HiveRpcCall = (api: string, method: string, params: unknown) => Promise<any>;
+export type HiveRpcCall = (api: string, method: string, params: unknown) => Promise<unknown>;
 
 /**
  * Every vote on a post. get_content silently stops at 1,000 votes, and the
@@ -91,7 +100,7 @@ export async function fetchAllVotes(
   author: string,
   permlink: string
 ): Promise<{ post: PostPayoutFields; votes: RawActiveVote[] }> {
-  const post = (await call('condenser_api', 'get_content', [author, permlink])) || {};
+  const post = ((await call('condenser_api', 'get_content', [author, permlink])) || {}) as GetContentResponse;
   const votes: RawActiveVote[] = Array.isArray(post.active_votes) ? [...post.active_votes] : [];
   if (votes.length < GET_CONTENT_VOTE_CAP) return { post, votes };
 
@@ -100,11 +109,11 @@ export async function fetchAllVotes(
   const seen = new Map(votes.map(v => [v.voter, v]));
   let start = '';
   for (let page = 0; page < MAX_EXTRA_PAGES; page++) {
-    const res = await call('database_api', 'list_votes', {
+    const res = (await call('database_api', 'list_votes', {
       start: [author, permlink, start],
       limit: LIST_VOTES_PAGE,
       order: 'by_comment_voter',
-    });
+    })) as ListVotesResponse | null;
     const batch: ListVotesEntry[] = Array.isArray(res?.votes) ? res.votes : [];
     // by_comment_voter runs on into the next comment once this one is done.
     const mine = batch.filter(v => v.author === author && v.permlink === permlink);
@@ -124,10 +133,16 @@ export async function fetchAllVotes(
   return { post, votes };
 }
 
-/** Build the voters list, sorted by dollar contribution (largest first). */
+/**
+ * Build the voters list, sorted by dollar contribution (largest first).
+ * Revoked votes stay in active_votes with percent 0 and are left out; a vote
+ * with a real percent but 0 rshares (an account with no voting power) stays.
+ */
 export function buildVoterRows(votes: RawActiveVote[], post: PostPayoutFields): VoterRow[] {
   const payout = getPostPayout(post);
-  const parsed = votes.map((v) => ({ vote: v, rshares: toNumber(v.rshares) ?? 0 }));
+  const parsed = votes
+    .filter((v) => toNumber(v.percent) !== 0)
+    .map((v) => ({ vote: v, rshares: toNumber(v.rshares) ?? 0 }));
   const netRshares = parsed.reduce((sum, p) => sum + p.rshares, 0);
 
   return parsed

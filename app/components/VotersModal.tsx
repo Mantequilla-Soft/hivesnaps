@@ -40,7 +40,7 @@ const VotersModal: React.FC<VotersModalProps> = ({ visible, author, permlink, on
     try {
       const client = getClient();
       const { post, votes } = await fetchAllVotes(
-        (api, method, params) => client.call(api, method, params as any),
+        (api, method, params) => client.call(api, method, params),
         author,
         permlink
       );
@@ -59,7 +59,7 @@ const VotersModal: React.FC<VotersModalProps> = ({ visible, author, permlink, on
 
   const openProfile = (username: string) => {
     onClose();
-    router.push({ pathname: '/screens/ProfileScreen', params: { username } } as any);
+    router.push({ pathname: '/screens/ProfileScreen', params: { username } });
   };
 
   return (
