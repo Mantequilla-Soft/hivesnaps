@@ -296,6 +296,8 @@ const ProfileScreen = () => {
                     ? profile.followersCount
                     : profile.followingCount
                 }
+                currentUsername={currentUsername}
+                onFollowChange={isOwnProfile ? refetchProfile : undefined}
                 onClose={() => setFollowListKind(null)}
               />
             )}

@@ -7,12 +7,15 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
+  Alert,
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getClient } from '../../services/HiveClient';
 import { getAvatarImageUrl } from '../../services/AvatarService';
-import { fetchFollowPage, type FollowListKind } from '../../utils/followList';
+import { broadcastFollow } from '../../services/HiveFollowService';
+import { useFollowCacheManagement } from '../../store/context';
+import { fetchAllFollowing, fetchFollowPage, type FollowListKind } from '../../utils/followList';
 import { useAppColors } from '../styles/colors';
 
 interface FollowListModalProps {
@@ -21,18 +24,26 @@ interface FollowListModalProps {
   kind: FollowListKind;
   /** Count from the profile, shown in the title. */
   total?: number;
+  /** Logged-in user; enables Follow / Unfollow on each row. */
+  currentUsername?: string | null;
+  /** Called on close if the user followed or unfollowed anyone from the list. */
+  onFollowChange?: () => void;
   onClose: () => void;
 }
 
 /**
  * A profile's followers or following, opened by tapping the counts.
  * Loads 100 accounts at a time (alphabetical) and fetches more on scroll.
+ * When logged in, each row has Follow / Unfollow, based on the full list of
+ * accounts the current user follows.
  */
 const FollowListModal: React.FC<FollowListModalProps> = ({
   visible,
   username,
   kind,
   total,
+  currentUsername,
+  onFollowChange,
   onClose,
 }) => {
   const colors = useAppColors();
@@ -43,6 +54,11 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
   const [done, setDone] = useState(false);
   const nextStart = useRef('');
   const inFlight = useRef(false);
+  const { invalidateFollowingCache } = useFollowCacheManagement();
+  /** Accounts the logged-in user follows; null until loaded (buttons hidden). */
+  const [myFollowing, setMyFollowing] = useState<Set<string> | null>(null);
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const changed = useRef(false);
 
   const loadPage = useCallback(
     async (reset: boolean) => {
@@ -84,8 +100,60 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
     loadPage(true);
   }, [visible, loadPage]);
 
-  const openProfile = (name: string) => {
+  useEffect(() => {
+    if (!visible || !currentUsername) return;
+    let cancelled = false;
+    setMyFollowing(null);
+    const client = getClient();
+    fetchAllFollowing((api, method, params) => client.call(api, method, params), currentUsername)
+      .then((set) => {
+        if (!cancelled) setMyFollowing(set);
+      })
+      .catch((err) => console.warn('[FollowListModal] Failed to load your following list:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, currentUsername]);
+
+  const toggleFollow = async (name: string) => {
+    if (!currentUsername || !myFollowing || pending.has(name)) return;
+    const following = myFollowing.has(name);
+    setPending((p) => new Set(p).add(name));
+    try {
+      await broadcastFollow(currentUsername, name, following ? [] : ['blog']);
+      setMyFollowing((prev) => {
+        const next = new Set(prev ?? []);
+        if (following) next.delete(name);
+        else next.add(name);
+        return next;
+      });
+      changed.current = true;
+      invalidateFollowingCache(currentUsername);
+    } catch (err) {
+      console.warn('[FollowListModal] Follow toggle failed:', err);
+      Alert.alert(
+        following ? 'Unfollow failed' : 'Follow failed',
+        err instanceof Error ? err.message : 'Please try again.'
+      );
+    } finally {
+      setPending((p) => {
+        const next = new Set(p);
+        next.delete(name);
+        return next;
+      });
+    }
+  };
+
+  const close = () => {
+    if (changed.current) {
+      changed.current = false;
+      onFollowChange?.();
+    }
     onClose();
+  };
+
+  const openProfile = (name: string) => {
+    close();
     router.push({ pathname: '/screens/ProfileScreen', params: { username: name } });
   };
 
@@ -93,9 +161,9 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
   const initialLoad = loading && names.length === 0;
 
   return (
-    <Modal visible={visible} transparent animationType='fade' onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType='fade' onRequestClose={close}>
       <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={`Close ${title.toLowerCase()} list`} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={`Close ${title.toLowerCase()} list`} />
         <View style={[styles.card, { backgroundColor: colors.background }]}>
           <Text style={[styles.title, { color: colors.text }]}>
             {title}
@@ -131,6 +199,15 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
                   <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
                     @{item}
                   </Text>
+                  {myFollowing && currentUsername && item !== currentUsername && (
+                    <FollowToggle
+                      following={myFollowing.has(item)}
+                      busy={pending.has(item)}
+                      onPress={() => toggleFollow(item)}
+                      username={item}
+                      colors={colors}
+                    />
+                  )}
                 </Pressable>
               )}
               ListEmptyComponent={
@@ -152,7 +229,7 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
 
           <Pressable
             style={[styles.closeButton, { backgroundColor: colors.button }]}
-            onPress={onClose}
+            onPress={close}
             accessibilityRole='button'
             accessibilityLabel='Close'
           >
@@ -165,6 +242,37 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
 };
 
 export default FollowListModal;
+
+const FollowToggle: React.FC<{
+  following: boolean;
+  busy: boolean;
+  username: string;
+  onPress: () => void;
+  colors: ReturnType<typeof useAppColors>;
+}> = ({ following, busy, username, onPress, colors }) => (
+  <Pressable
+    onPress={onPress}
+    disabled={busy}
+    hitSlop={6}
+    style={({ pressed }) => [
+      styles.toggle,
+      following
+        ? { borderColor: colors.unfollowButton, borderWidth: 1 }
+        : { backgroundColor: colors.followButton },
+      { opacity: pressed || busy ? 0.6 : 1 },
+    ]}
+    accessibilityRole='button'
+    accessibilityLabel={following ? `Unfollow @${username}` : `Follow @${username}`}
+  >
+    {busy ? (
+      <ActivityIndicator size='small' color={following ? colors.unfollowButton : '#fff'} />
+    ) : (
+      <Text style={[styles.toggleText, { color: following ? colors.unfollowButton : '#fff' }]}>
+        {following ? 'Unfollow' : 'Follow'}
+      </Text>
+    )}
+  </Pressable>
+);
 
 const styles = StyleSheet.create({
   overlay: {
@@ -210,6 +318,19 @@ const styles = StyleSheet.create({
   name: {
     flex: 1,
     fontSize: 14,
+    fontWeight: '600',
+  },
+  toggle: {
+    minWidth: 84,
+    height: 30,
+    borderRadius: 15,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  toggleText: {
+    fontSize: 13,
     fontWeight: '600',
   },
   footer: {

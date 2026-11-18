@@ -1,4 +1,4 @@
-import { fetchFollowPage, type HiveRpcCall } from '../followList';
+import { fetchAllFollowing, fetchFollowPage, type HiveRpcCall } from '../followList';
 
 /** Fake node holding an alphabetical follower list; `inclusive` repeats the start entry. */
 function fakeNode(all: string[], inclusive = false) {
@@ -62,5 +62,21 @@ describe('fetchFollowPage', () => {
     const { call } = fakeNode([]);
     const page = await fetchFollowPage(call, 'alice', 'followers');
     expect(page).toEqual({ names: [], nextStart: '', done: true });
+  });
+});
+
+describe('fetchAllFollowing', () => {
+  it('reads every page of 1,000 into a set', async () => {
+    const many = Array.from({ length: 2500 }, (_, i) => `acct${String(i).padStart(4, '0')}`);
+    const { call, calls } = fakeNode(many, true);
+    const set = await fetchAllFollowing(call, 'alice');
+    expect(set.size).toBe(2500);
+    expect(set.has('acct2499')).toBe(true);
+    expect(calls.every((c) => c[0] === 'get_following' && c[2] === 1000)).toBe(true);
+  });
+
+  it('returns an empty set for an account that follows nobody', async () => {
+    const { call } = fakeNode([]);
+    expect((await fetchAllFollowing(call, 'alice')).size).toBe(0);
   });
 });

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
-import { accountStorageService } from '../services/AccountStorageService';
+import { broadcastFollow } from '../services/HiveFollowService';
 import { useFollowCacheManagement } from '../store/context';
 import { clearMutedListCache } from '../services/HiveMuteService';
 
@@ -113,33 +112,7 @@ export const useFollowManagement = (
 
     setFollowLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
-      if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
-      }
-      const postingKey = PrivateKey.fromString(postingKeyStr);
-
-      // Create follow operation
-      const followOp = [
-        'follow',
-        {
-          follower: currentUsername,
-          following: targetUsername,
-          what: ['blog'], // Follow their blog posts
-        },
-      ];
-
-      // Broadcast the follow operation
-      await client.broadcast.json(
-        {
-          required_auths: [],
-          required_posting_auths: [currentUsername],
-          id: 'follow',
-          json: JSON.stringify(followOp),
-        },
-        postingKey
-      );
+      await broadcastFollow(currentUsername, targetUsername, ['blog']);
 
       setIsFollowing(true);
       
@@ -163,33 +136,7 @@ export const useFollowManagement = (
 
     setFollowLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
-      if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
-      }
-      const postingKey = PrivateKey.fromString(postingKeyStr);
-
-      // Create unfollow operation
-      const unfollowOp = [
-        'follow',
-        {
-          follower: currentUsername,
-          following: targetUsername,
-          what: [], // Empty array means unfollow
-        },
-      ];
-
-      // Broadcast the unfollow operation
-      await client.broadcast.json(
-        {
-          required_auths: [],
-          required_posting_auths: [currentUsername],
-          id: 'follow',
-          json: JSON.stringify(unfollowOp),
-        },
-        postingKey
-      );
+      await broadcastFollow(currentUsername, targetUsername, []);
 
       setIsFollowing(false);
       
@@ -213,33 +160,7 @@ export const useFollowManagement = (
 
     setMuteLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
-      if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
-      }
-      const postingKey = PrivateKey.fromString(postingKeyStr);
-
-      // Create mute operation
-      const muteOp = [
-        'follow',
-        {
-          follower: currentUsername,
-          following: targetUsername,
-          what: ['ignore'], // Mute/ignore user
-        },
-      ];
-
-      // Broadcast the mute operation
-      await client.broadcast.json(
-        {
-          required_auths: [],
-          required_posting_auths: [currentUsername],
-          id: 'follow',
-          json: JSON.stringify(muteOp),
-        },
-        postingKey
-      );
+      await broadcastFollow(currentUsername, targetUsername, ['ignore']);
 
       setIsMuted(true);
       
@@ -264,33 +185,7 @@ export const useFollowManagement = (
 
     setMuteLoading(true);
     try {
-      // Get posting key from secure storage
-      const postingKeyStr = await accountStorageService.getCurrentPostingKey();
-      if (!postingKeyStr) {
-        throw new Error('No posting key found. Please log in again.');
-      }
-      const postingKey = PrivateKey.fromString(postingKeyStr);
-
-      // Create unmute operation (same as unfollow - empty array)
-      const unmuteOp = [
-        'follow',
-        {
-          follower: currentUsername,
-          following: targetUsername,
-          what: [], // Empty array removes all follow relationships including mute
-        },
-      ];
-
-      // Broadcast the unmute operation
-      await client.broadcast.json(
-        {
-          required_auths: [],
-          required_posting_auths: [currentUsername],
-          id: 'follow',
-          json: JSON.stringify(unmuteOp),
-        },
-        postingKey
-      );
+      await broadcastFollow(currentUsername, targetUsername, []);
 
       setIsMuted(false);
       

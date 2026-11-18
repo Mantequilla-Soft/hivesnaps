@@ -50,3 +50,22 @@ export async function fetchFollowPage(
     done: entries.length < limit,
   };
 }
+
+/** Safety stop when reading a whole list: 20 pages of 1,000. */
+const MAX_FULL_PAGES = 20;
+
+/**
+ * Every account `account` follows (blog follows), read 1,000 at a time.
+ * Used to show Follow / Unfollow on each row of a follow list.
+ */
+export async function fetchAllFollowing(call: HiveRpcCall, account: string): Promise<Set<string>> {
+  const all = new Set<string>();
+  let start = '';
+  for (let i = 0; i < MAX_FULL_PAGES; i++) {
+    const page = await fetchFollowPage(call, account, 'following', start, 1000);
+    page.names.forEach((n) => all.add(n));
+    if (page.done || page.nextStart === start) break;
+    start = page.nextStart;
+  }
+  return all;
+}
