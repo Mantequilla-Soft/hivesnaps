@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, Text, StyleSheet } from 'react-native';
 
 interface SocialStatItemProps {
     count: number;
     label: string;
     textColor: string;
+    onPress?: () => void;
 }
 
 /**
@@ -15,16 +16,24 @@ export const SocialStatItem: React.FC<SocialStatItemProps> = ({
     count,
     label,
     textColor,
+    onPress,
 }) => {
     return (
-        <View style={styles.socialStatItem}>
+        <Pressable
+            style={({ pressed }) => [styles.socialStatItem, { opacity: pressed ? 0.6 : 1 }]}
+            onPress={onPress}
+            disabled={!onPress}
+            hitSlop={8}
+            accessibilityRole={onPress ? 'button' : undefined}
+            accessibilityLabel={onPress ? `Show ${label.toLowerCase()}` : undefined}
+        >
             <Text style={[styles.socialStatNumber, { color: textColor }]}>
                 {count.toLocaleString()}
             </Text>
             <Text style={[styles.socialStatLabel, { color: textColor }]}>
                 {label}
             </Text>
-        </View>
+        </Pressable>
     );
 };
 

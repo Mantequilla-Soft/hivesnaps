@@ -19,6 +19,7 @@ import { ActionButton } from '../components/profile/ActionButton';
 import { StatItem } from '../components/profile/StatItem';
 import { InfoRow } from '../components/profile/InfoRow';
 import { SocialStatItem } from '../components/profile/SocialStatItem';
+import FollowListModal from '../components/FollowListModal';
 import { LoadingState } from '../components/profile/LoadingState';
 import { EditAvatarModal } from '../components/profile/EditAvatarModal';
 import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
@@ -67,6 +68,7 @@ const ProfileScreen = () => {
   // Wallet is accessible only when an active key is stored AND device auth is available.
   // hasActiveKey alone isn't enough — if biometrics aren't set up the key can't be used.
   const [walletAccessible, setWalletAccessible] = useState(false);
+  const [followListKind, setFollowListKind] = useState<'followers' | 'following' | null>(null);
   useEffect(() => {
     if (!isOwnProfile || !hasActiveKey) { setWalletAccessible(false); return; }
     let cancelled = false;
@@ -275,13 +277,28 @@ const ProfileScreen = () => {
                 count={profile.followersCount || 0}
                 label="Followers"
                 textColor={colors.text}
+                onPress={() => setFollowListKind('followers')}
               />
               <SocialStatItem
                 count={profile.followingCount || 0}
                 label="Following"
                 textColor={colors.text}
+                onPress={() => setFollowListKind('following')}
               />
             </View>
+            {username && followListKind && (
+              <FollowListModal
+                visible
+                username={username}
+                kind={followListKind}
+                total={
+                  followListKind === 'followers'
+                    ? profile.followersCount
+                    : profile.followingCount
+                }
+                onClose={() => setFollowListKind(null)}
+              />
+            )}
 
             {/* Action Buttons */}
             {!isOwnProfile && (
