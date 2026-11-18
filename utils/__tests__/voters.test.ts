@@ -102,9 +102,14 @@ describe('fetchAllVotes', () => {
 
   /** Fake node: get_content capped at 1000, list_votes paged by voter name and
    *  running on into another comment's votes once this post's run out. */
+  interface ListVotesParams {
+    start: [string, string, string];
+    limit: number;
+  }
+
   function fakeNode(voterNames: string[]) {
     const calls: string[] = [];
-    const call: HiveRpcCall = async (api, method, params: any) => {
+    const call: HiveRpcCall = async (api, method, rawParams) => {
       calls.push(method);
       if (method === 'get_content') {
         return {
@@ -112,7 +117,8 @@ describe('fetchAllVotes', () => {
           active_votes: voterNames.slice(0, 1000).map(v => ({ voter: v, rshares: 100, percent: 10000, reputation: 0 })),
         };
       }
-      const startVoter: string = params.start[2];
+      const params = rawParams as ListVotesParams;
+      const startVoter = params.start[2];
       const mine = voterNames
         .filter(v => v >= startVoter)
         .map(v => ({ voter: v, author, permlink, rshares: 100, vote_percent: 10000 }));

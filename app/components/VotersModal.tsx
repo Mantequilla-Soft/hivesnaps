@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -33,8 +33,11 @@ const VotersModal: React.FC<VotersModalProps> = ({ visible, author, permlink, on
   const [rows, setRows] = useState<VoterRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  /** Only the latest load may update state; an older, slower one is ignored. */
+  const requestId = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<void> => {
+    const id = ++requestId.current;
     setLoading(true);
     setError(false);
     try {
@@ -44,12 +47,12 @@ const VotersModal: React.FC<VotersModalProps> = ({ visible, author, permlink, on
         author,
         permlink
       );
-      setRows(buildVoterRows(votes, post));
+      if (id === requestId.current) setRows(buildVoterRows(votes, post));
     } catch (err) {
       console.warn('[VotersModal] Failed to load voters:', err);
-      setError(true);
+      if (id === requestId.current) setError(true);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [author, permlink]);
 
