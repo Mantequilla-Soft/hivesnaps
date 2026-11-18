@@ -25,7 +25,8 @@ export const SocialStatItem: React.FC<SocialStatItemProps> = ({
             disabled={!onPress}
             hitSlop={8}
             accessibilityRole={onPress ? 'button' : undefined}
-            accessibilityLabel={onPress ? `Show ${label.toLowerCase()}` : undefined}
+            accessibilityLabel={onPress ? `${count.toLocaleString()} ${label}` : undefined}
+            accessibilityHint={onPress ? `Shows the ${label.toLowerCase()} list` : undefined}
         >
             <Text style={[styles.socialStatNumber, { color: textColor }]}>
                 {count.toLocaleString()}

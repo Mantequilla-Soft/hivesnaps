@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import {
   Modal,
   View,
   Text,
-  Image,
   FlatList,
   Pressable,
   ActivityIndicator,
@@ -11,11 +10,10 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getClient } from '../../services/HiveClient';
+import { Image } from 'expo-image';
 import { getAvatarImageUrl } from '../../services/AvatarService';
-import { broadcastFollow } from '../../services/HiveFollowService';
-import { useFollowCacheManagement } from '../../store/context';
-import { fetchAllFollowing, fetchFollowPage, type FollowListKind } from '../../utils/followList';
+import { useFollowList } from '../../hooks/useFollowList';
+import type { FollowListKind } from '../../utils/followList';
 import { useAppColors } from '../styles/colors';
 
 interface FollowListModalProps {
@@ -48,107 +46,31 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
 }) => {
   const colors = useAppColors();
   const router = useRouter();
-  const [names, setNames] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const [done, setDone] = useState(false);
-  const nextStart = useRef('');
-  const inFlight = useRef(false);
-  const { invalidateFollowingCache } = useFollowCacheManagement();
-  /** Accounts the logged-in user follows; null until loaded (buttons hidden). */
-  const [myFollowing, setMyFollowing] = useState<Set<string> | null>(null);
-  const [pending, setPending] = useState<Set<string>>(new Set());
-  const changed = useRef(false);
+  const {
+    names,
+    loading,
+    error,
+    loadMore,
+    retry,
+    myFollowing,
+    pending,
+    toggleFollow,
+    takeFollowChanged,
+  } = useFollowList(username, kind, currentUsername, visible);
 
-  const loadPage = useCallback(
-    async (reset: boolean) => {
-      if (inFlight.current) return;
-      inFlight.current = true;
-      setLoading(true);
-      setError(false);
-      try {
-        const client = getClient();
-        const page = await fetchFollowPage(
-          (api, method, params) => client.call(api, method, params),
-          username,
-          kind,
-          reset ? '' : nextStart.current
-        );
-        nextStart.current = page.nextStart;
-        setDone(page.done);
-        setNames((prev) => {
-          const base = reset ? [] : prev;
-          const seen = new Set(base);
-          return [...base, ...page.names.filter((n) => !seen.has(n))];
-        });
-      } catch (err) {
-        console.warn(`[FollowListModal] Failed to load ${kind}:`, err);
-        setError(true);
-      } finally {
-        inFlight.current = false;
-        setLoading(false);
-      }
-    },
-    [username, kind]
-  );
-
-  useEffect(() => {
-    if (!visible) return;
-    nextStart.current = '';
-    setNames([]);
-    setDone(false);
-    loadPage(true);
-  }, [visible, loadPage]);
-
-  useEffect(() => {
-    if (!visible || !currentUsername) return;
-    let cancelled = false;
-    setMyFollowing(null);
-    const client = getClient();
-    fetchAllFollowing((api, method, params) => client.call(api, method, params), currentUsername)
-      .then((set) => {
-        if (!cancelled) setMyFollowing(set);
-      })
-      .catch((err) => console.warn('[FollowListModal] Failed to load your following list:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, currentUsername]);
-
-  const toggleFollow = async (name: string) => {
-    if (!currentUsername || !myFollowing || pending.has(name)) return;
-    const following = myFollowing.has(name);
-    setPending((p) => new Set(p).add(name));
-    try {
-      await broadcastFollow(currentUsername, name, following ? [] : ['blog']);
-      setMyFollowing((prev) => {
-        const next = new Set(prev ?? []);
-        if (following) next.delete(name);
-        else next.add(name);
-        return next;
-      });
-      changed.current = true;
-      invalidateFollowingCache(currentUsername);
-    } catch (err) {
+  const onToggleFollow = (name: string) => {
+    const following = myFollowing?.has(name) ?? false;
+    toggleFollow(name).catch((err) => {
       console.warn('[FollowListModal] Follow toggle failed:', err);
       Alert.alert(
         following ? 'Unfollow failed' : 'Follow failed',
         err instanceof Error ? err.message : 'Please try again.'
       );
-    } finally {
-      setPending((p) => {
-        const next = new Set(p);
-        next.delete(name);
-        return next;
-      });
-    }
+    });
   };
 
   const close = () => {
-    if (changed.current) {
-      changed.current = false;
-      onFollowChange?.();
-    }
+    if (takeFollowChanged()) onFollowChange?.();
     onClose();
   };
 
@@ -175,7 +97,7 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
           ) : error && names.length === 0 ? (
             <View style={styles.status}>
               <Text style={[styles.emptyText, { color: colors.text }]}>Couldn&apos;t load {title.toLowerCase()}</Text>
-              <Pressable onPress={() => loadPage(true)} accessibilityRole='button' accessibilityLabel={`Retry loading ${title.toLowerCase()}`}>
+              <Pressable onPress={retry} accessibilityRole='button' accessibilityLabel={`Retry loading ${title.toLowerCase()}`}>
                 <Text style={[styles.retry, { color: colors.button }]}>Retry</Text>
               </Pressable>
             </View>
@@ -185,9 +107,7 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
               keyExtractor={(n) => n}
               style={styles.list}
               onEndReachedThreshold={0.5}
-              onEndReached={() => {
-                if (!done && !error) loadPage(false);
-              }}
+              onEndReached={loadMore}
               renderItem={({ item }) => (
                 <Pressable
                   style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
@@ -195,7 +115,12 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
                   accessibilityRole='button'
                   accessibilityLabel={`Open @${item}'s profile`}
                 >
-                  <Image source={{ uri: getAvatarImageUrl(item) }} style={styles.avatar} />
+                  <Image
+                    source={{ uri: getAvatarImageUrl(item) }}
+                    style={styles.avatar}
+                    contentFit='cover'
+                    cachePolicy='memory-disk'
+                  />
                   <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
                     @{item}
                   </Text>
@@ -203,7 +128,7 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
                     <FollowToggle
                       following={myFollowing.has(item)}
                       busy={pending.has(item)}
-                      onPress={() => toggleFollow(item)}
+                      onPress={() => onToggleFollow(item)}
                       username={item}
                       colors={colors}
                     />
@@ -219,7 +144,7 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
                 loading ? (
                   <ActivityIndicator style={styles.footer} color={colors.button} />
                 ) : error ? (
-                  <Pressable onPress={() => loadPage(false)} style={styles.footer} accessibilityRole='button'>
+                  <Pressable onPress={retry} style={styles.footer} accessibilityRole='button'>
                     <Text style={[styles.retry, { color: colors.button }]}>Couldn&apos;t load more · Retry</Text>
                   </Pressable>
                 ) : null
