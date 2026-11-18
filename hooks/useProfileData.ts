@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile } from '../store/context';
@@ -341,10 +341,30 @@ export const useProfileData = (username: string | undefined) => {
     }
   }, [username]);
 
+  /** Re-read only the follower / following counts, without the loading state. */
+  const refreshFollowCounts = useCallback(async (): Promise<void> => {
+    if (!username) return;
+    try {
+      const followCount = await client.database.call('get_follow_count', [username]);
+      setProfile(prev =>
+        prev
+          ? {
+              ...prev,
+              followingCount: followCount.following_count || 0,
+              followersCount: followCount.follower_count || 0,
+            }
+          : prev
+      );
+    } catch (e) {
+      console.warn('Error refreshing follow counts:', e);
+    }
+  }, [username]);
+
   return {
     profile,
     loading,
     globalProps,
     refetch: fetchProfileData,
+    refreshFollowCounts,
   };
 };

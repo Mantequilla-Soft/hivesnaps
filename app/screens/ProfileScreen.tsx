@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeAreaView as SafeAreaViewSA } from 'react-native-safe-area-context';
 import {
   View,
@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
 import { getTheme } from '../../constants/Colors';
 import Snap from '../components/Snap';
@@ -19,6 +19,7 @@ import { ActionButton } from '../components/profile/ActionButton';
 import { StatItem } from '../components/profile/StatItem';
 import { InfoRow } from '../components/profile/InfoRow';
 import { SocialStatItem } from '../components/profile/SocialStatItem';
+import FollowListModal from '../components/FollowListModal';
 import { LoadingState } from '../components/profile/LoadingState';
 import { EditAvatarModal } from '../components/profile/EditAvatarModal';
 import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
@@ -67,6 +68,7 @@ const ProfileScreen = () => {
   // Wallet is accessible only when an active key is stored AND device auth is available.
   // hasActiveKey alone isn't enough — if biometrics aren't set up the key can't be used.
   const [walletAccessible, setWalletAccessible] = useState(false);
+  const [followListKind, setFollowListKind] = useState<'followers' | 'following' | null>(null);
   useEffect(() => {
     if (!isOwnProfile || !hasActiveKey) { setWalletAccessible(false); return; }
     let cancelled = false;
@@ -80,7 +82,18 @@ const ProfileScreen = () => {
     loading,
     globalProps,
     refetch: refetchProfile,
+    refreshFollowCounts,
   } = useProfileData(username);
+
+  // Follows made elsewhere (another profile's list, the feed) change these
+  // counts, so re-read them when this screen comes back into focus.
+  const hasFocused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocused.current) refreshFollowCounts();
+      hasFocused.current = true;
+    }, [refreshFollowCounts])
+  );
 
   // Debug logging
   console.log('ProfileScreen Debug:', {
@@ -275,13 +288,30 @@ const ProfileScreen = () => {
                 count={profile.followersCount || 0}
                 label="Followers"
                 textColor={colors.text}
+                onPress={() => setFollowListKind('followers')}
               />
               <SocialStatItem
                 count={profile.followingCount || 0}
                 label="Following"
                 textColor={colors.text}
+                onPress={() => setFollowListKind('following')}
               />
             </View>
+            {username && followListKind && (
+              <FollowListModal
+                visible
+                username={username}
+                kind={followListKind}
+                total={
+                  followListKind === 'followers'
+                    ? profile.followersCount
+                    : profile.followingCount
+                }
+                currentUsername={currentUsername}
+                onFollowChange={refreshFollowCounts}
+                onClose={() => setFollowListKind(null)}
+              />
+            )}
 
             {/* Action Buttons */}
             {!isOwnProfile && (
