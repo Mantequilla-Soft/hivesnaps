@@ -52,14 +52,15 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
     error,
     loadMore,
     retry,
-    myFollowing,
+    myFollowingError,
+    retryMyFollowing,
+    followState,
     pending,
     toggleFollow,
-    takeFollowChanged,
-  } = useFollowList(username, kind, currentUsername, visible);
+  } = useFollowList(username, kind, currentUsername, visible, onFollowChange);
 
-  const onToggleFollow = (name: string) => {
-    const following = myFollowing?.has(name) ?? false;
+  const onToggleFollow = (name: string): void => {
+    const following = followState(name) === 'following';
     toggleFollow(name).catch((err) => {
       console.warn('[FollowListModal] Follow toggle failed:', err);
       Alert.alert(
@@ -69,13 +70,8 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
     });
   };
 
-  const close = () => {
-    if (takeFollowChanged()) onFollowChange?.();
+  const openProfile = (name: string): void => {
     onClose();
-  };
-
-  const openProfile = (name: string) => {
-    close();
     router.push({ pathname: '/screens/ProfileScreen', params: { username: name } });
   };
 
@@ -83,14 +79,27 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
   const initialLoad = loading && names.length === 0;
 
   return (
-    <Modal visible={visible} transparent animationType='fade' onRequestClose={close}>
+    <Modal visible={visible} transparent animationType='fade' onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={`Close ${title.toLowerCase()} list`} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={`Close ${title.toLowerCase()} list`} />
         <View style={[styles.card, { backgroundColor: colors.background }]}>
           <Text style={[styles.title, { color: colors.text }]}>
             {title}
             {typeof total === 'number' ? ` (${total.toLocaleString()})` : ''}
           </Text>
+          {myFollowingError && (
+            <Pressable
+              onPress={retryMyFollowing}
+              style={styles.notice}
+              accessibilityRole='button'
+              accessibilityLabel='Retry loading follow buttons'
+            >
+              <Text style={[styles.noticeText, { color: colors.textSecondary }]}>
+                Couldn&apos;t load follow buttons ·{' '}
+                <Text style={{ color: colors.button }}>Retry</Text>
+              </Text>
+            </Pressable>
+          )}
 
           {initialLoad ? (
             <ActivityIndicator style={styles.status} color={colors.button} />
@@ -124,9 +133,9 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
                   <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
                     @{item}
                   </Text>
-                  {myFollowing && currentUsername && item !== currentUsername && (
+                  {currentUsername && item !== currentUsername && followState(item) !== 'unknown' && (
                     <FollowToggle
-                      following={myFollowing.has(item)}
+                      following={followState(item) === 'following'}
                       busy={pending.has(item)}
                       onPress={() => onToggleFollow(item)}
                       username={item}
@@ -154,7 +163,7 @@ const FollowListModal: React.FC<FollowListModalProps> = ({
 
           <Pressable
             style={[styles.closeButton, { backgroundColor: colors.button }]}
-            onPress={close}
+            onPress={onClose}
             accessibilityRole='button'
             accessibilityLabel='Close'
           >
@@ -190,9 +199,9 @@ const FollowToggle: React.FC<{
     accessibilityLabel={following ? `Unfollow @${username}` : `Follow @${username}`}
   >
     {busy ? (
-      <ActivityIndicator size='small' color={following ? colors.unfollowButton : '#fff'} />
+      <ActivityIndicator size='small' color={following ? colors.unfollowButton : colors.buttonText} />
     ) : (
-      <Text style={[styles.toggleText, { color: following ? colors.unfollowButton : '#fff' }]}>
+      <Text style={[styles.toggleText, { color: following ? colors.unfollowButton : colors.buttonText }]}>
         {following ? 'Unfollow' : 'Follow'}
       </Text>
     )}
@@ -257,6 +266,14 @@ const styles = StyleSheet.create({
   toggleText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  notice: {
+    alignItems: 'center',
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  noticeText: {
+    fontSize: 13,
   },
   footer: {
     paddingVertical: 12,

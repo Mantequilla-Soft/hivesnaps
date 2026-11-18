@@ -19,24 +19,34 @@ const mockBroadcast = broadcastFollow as jest.Mock;
 const mockInvalidate = jest.fn();
 
 /** Entries as get_followers / get_following return them. */
-const followers = (names: string[]) => names.map((n) => ({ follower: n, following: 'alice', what: ['blog'] }));
-const following = (names: string[]) => names.map((n) => ({ follower: 'me', following: n, what: ['blog'] }));
-const page = (prefix: string, count: number) => Array.from({ length: count }, (_, i) => `${prefix}${String(i).padStart(3, '0')}`);
+const followers = (names: string[]): object[] => names.map((n) => ({ follower: n, following: 'alice', what: ['blog'] }));
+const following = (names: string[]): object[] => names.map((n) => ({ follower: 'me', following: n, what: ['blog'] }));
+const page = (prefix: string, count: number): string[] => Array.from({ length: count }, (_, i) => `${prefix}${String(i).padStart(3, '0')}`);
 
-interface Props { username: string; current: string | null; active: boolean }
+interface Props { username: string; current: string | null; active: boolean; onChange?: () => void }
 
-function renderHook(props: Props) {
+interface Rendered {
+  container: { result: UseFollowListResult };
+  update: (p: Props) => void;
+  unmount: () => void;
+}
+
+function renderHook(props: Props): Rendered {
   const container: { result: UseFollowListResult } = { result: null as unknown as UseFollowListResult };
-  const Test = (p: Props) => {
-    container.result = useFollowList(p.username, 'followers', p.current, p.active);
+  const Test = (p: Props): null => {
+    container.result = useFollowList(p.username, 'followers', p.current, p.active, p.onChange);
     return null;
   };
   let renderer!: ReactTestRenderer;
   act(() => { renderer = create(React.createElement(Test, props)); });
-  return { container, update: (p: Props) => act(() => { renderer.update(React.createElement(Test, p)); }) };
+  return {
+    container,
+    update: (p: Props): void => { act(() => { renderer.update(React.createElement(Test, p)); }); },
+    unmount: (): void => { act(() => { renderer.unmount(); }); },
+  };
 }
 
-const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+const flush = (): Promise<void> => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -77,12 +87,13 @@ it('ignores a slow page from the previous account after switching', async () => 
   expect(container.result.loading).toBe(false);
 });
 
-it('follows and unfollows, updating myFollowing and the cache', async () => {
+it('follows and unfollows, updating myFollowing, the cache and the parent', async () => {
   mockCall.mockImplementation(async (_api: string, method: string) =>
     method === 'get_following' ? following(['bob']) : followers(['bob', 'carol'])
   );
   mockBroadcast.mockResolvedValue(undefined);
-  const { container } = renderHook({ username: 'alice', current: 'me', active: true });
+  const onChange = jest.fn();
+  const { container } = renderHook({ username: 'alice', current: 'me', active: true, onChange });
   await flush();
   expect(container.result.myFollowing).toEqual(new Set(['bob']));
 
@@ -94,8 +105,84 @@ it('follows and unfollows, updating myFollowing and the cache', async () => {
   expect(mockBroadcast).toHaveBeenLastCalledWith('me', 'bob', []);
   expect(container.result.myFollowing?.has('bob')).toBe(false);
   expect(mockInvalidate).toHaveBeenCalledWith('me');
-  expect(container.result.takeFollowChanged()).toBe(true);
-  expect(container.result.takeFollowChanged()).toBe(false);
+  expect(onChange).toHaveBeenCalledTimes(2);
+  expect(container.result.followState('carol')).toBe('following');
+  expect(container.result.followState('bob')).toBe('not-following');
+});
+
+it('still notifies the parent when a follow finishes after the list closes', async () => {
+  mockCall.mockImplementation(async (_api: string, method: string) =>
+    method === 'get_following' ? following([]) : followers(['carol'])
+  );
+  let finish!: () => void;
+  mockBroadcast.mockReturnValue(new Promise<void>((r) => { finish = r; }));
+  const onChange = jest.fn();
+  const { container, unmount } = renderHook({ username: 'alice', current: 'me', active: true, onChange });
+  await flush();
+
+  let toggled!: Promise<void>;
+  act(() => { toggled = container.result.toggleFollow('carol'); });
+  unmount();
+  finish();
+  await toggled;
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(mockInvalidate).toHaveBeenCalledWith('me');
+});
+
+it("drops a late follow result once the logged-in account has changed", async () => {
+  mockCall.mockImplementation(async (_api: string, method: string, params: unknown[]) => {
+    if (method === 'get_following') return params[0] === 'me' ? following(['bob']) : following(['bob']);
+    return followers(['bob']);
+  });
+  let finish!: () => void;
+  mockBroadcast.mockReturnValue(new Promise<void>((r) => { finish = r; }));
+  const { container, update } = renderHook({ username: 'alice', current: 'me', active: true });
+  await flush();
+
+  let toggled!: Promise<void>;
+  act(() => { toggled = container.result.toggleFollow('bob'); }); // me unfollows bob
+  update({ username: 'alice', current: 'other', active: true });
+  await flush();
+  await act(async () => { finish(); await toggled; });
+  // "other" still follows bob; me's unfollow must not touch other's set.
+  expect(container.result.followState('bob')).toBe('following');
+  expect(mockInvalidate).toHaveBeenCalledWith('me');
+});
+
+it('exposes a failed following-set load and retries it', async () => {
+  let failFollowing = true;
+  mockCall.mockImplementation(async (_api: string, method: string) => {
+    if (method === 'get_following') {
+      if (failFollowing) throw new Error('node down');
+      return following(['bob']);
+    }
+    return followers(['bob']);
+  });
+  const { container } = renderHook({ username: 'alice', current: 'me', active: true });
+  await flush();
+  expect(container.result.myFollowingError).toBe(true);
+  expect(container.result.followState('bob')).toBe('unknown');
+
+  failFollowing = false;
+  act(() => { container.result.retryMyFollowing(); });
+  await flush();
+  expect(container.result.myFollowingError).toBe(false);
+  expect(container.result.followState('bob')).toBe('following');
+});
+
+it('reports unknown (no button) for accounts missing from a truncated set', async () => {
+  // 20 full pages of 1,000 hits the safety stop, so the set is incomplete.
+  mockCall.mockImplementation(async (_api: string, method: string, params: unknown[]) => {
+    if (method !== 'get_following') return followers(['zed']);
+    const start = params[1] as string;
+    const n = start ? Number(start.slice(1)) + 1 : 0;
+    return following(Array.from({ length: 1000 }, (_, i) => `f${String(n + i).padStart(6, '0')}`));
+  });
+  const { container } = renderHook({ username: 'alice', current: 'me', active: true });
+  await flush();
+  expect(container.result.myFollowingComplete).toBe(false);
+  expect(container.result.followState('f000000')).toBe('following');
+  expect(container.result.followState('zed')).toBe('unknown');
 });
 
 it('leaves myFollowing unchanged and rejects when the broadcast fails', async () => {
@@ -111,5 +198,4 @@ it('leaves myFollowing unchanged and rejects when the broadcast fails', async ()
   });
   expect(container.result.myFollowing?.has('carol')).toBe(false);
   expect(container.result.pending.size).toBe(0);
-  expect(container.result.takeFollowChanged()).toBe(false);
 });

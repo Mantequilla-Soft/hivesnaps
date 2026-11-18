@@ -1,7 +1,7 @@
 import { fetchAllFollowing, fetchFollowPage, type HiveRpcCall } from '../followList';
 
 /** Fake node holding an alphabetical follower list; `inclusive` repeats the start entry. */
-function fakeNode(all: string[], inclusive = false) {
+function fakeNode(all: string[], inclusive = false): { call: HiveRpcCall; calls: unknown[][] } {
   const calls: unknown[][] = [];
   const call: HiveRpcCall = async (_api, method, params) => {
     const [account, start, , limit] = params as [string, string, string, number];
@@ -17,7 +17,7 @@ function fakeNode(all: string[], inclusive = false) {
   return { call, calls };
 }
 
-async function readAll(call: HiveRpcCall, kind: 'followers' | 'following', limit: number) {
+async function readAll(call: HiveRpcCall, kind: 'followers' | 'following', limit: number): Promise<string[]> {
   const out: string[] = [];
   let start = '';
   for (let i = 0; i < 50; i++) {
@@ -69,14 +69,23 @@ describe('fetchAllFollowing', () => {
   it('reads every page of 1,000 into a set', async () => {
     const many = Array.from({ length: 2500 }, (_, i) => `acct${String(i).padStart(4, '0')}`);
     const { call, calls } = fakeNode(many, true);
-    const set = await fetchAllFollowing(call, 'alice');
-    expect(set.size).toBe(2500);
-    expect(set.has('acct2499')).toBe(true);
+    const { following, complete } = await fetchAllFollowing(call, 'alice');
+    expect(following.size).toBe(2500);
+    expect(following.has('acct2499')).toBe(true);
+    expect(complete).toBe(true);
     expect(calls.every((c) => c[0] === 'get_following' && c[2] === 1000)).toBe(true);
   });
 
   it('returns an empty set for an account that follows nobody', async () => {
     const { call } = fakeNode([]);
-    expect((await fetchAllFollowing(call, 'alice')).size).toBe(0);
+    expect(await fetchAllFollowing(call, 'alice')).toEqual({ following: new Set(), complete: true });
+  });
+
+  it('marks the set incomplete when it stops at the page limit', async () => {
+    const many = Array.from({ length: 2500 }, (_, i) => `acct${String(i).padStart(4, '0')}`);
+    const { call } = fakeNode(many);
+    const { following, complete } = await fetchAllFollowing(call, 'alice', 2);
+    expect(following.size).toBe(2000);
+    expect(complete).toBe(false);
   });
 });

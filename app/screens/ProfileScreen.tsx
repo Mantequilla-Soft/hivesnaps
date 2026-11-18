@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeAreaView as SafeAreaViewSA } from 'react-native-safe-area-context';
 import {
   View,
@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { createProfileScreenStyles } from '../../styles/ProfileScreenStyles';
 import { getTheme } from '../../constants/Colors';
 import Snap from '../components/Snap';
@@ -82,7 +82,18 @@ const ProfileScreen = () => {
     loading,
     globalProps,
     refetch: refetchProfile,
+    refreshFollowCounts,
   } = useProfileData(username);
+
+  // Follows made elsewhere (another profile's list, the feed) change these
+  // counts, so re-read them when this screen comes back into focus.
+  const hasFocused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocused.current) refreshFollowCounts();
+      hasFocused.current = true;
+    }, [refreshFollowCounts])
+  );
 
   // Debug logging
   console.log('ProfileScreen Debug:', {
@@ -297,7 +308,7 @@ const ProfileScreen = () => {
                     : profile.followingCount
                 }
                 currentUsername={currentUsername}
-                onFollowChange={isOwnProfile ? refetchProfile : undefined}
+                onFollowChange={refreshFollowCounts}
                 onClose={() => setFollowListKind(null)}
               />
             )}

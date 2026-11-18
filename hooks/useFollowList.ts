@@ -24,38 +24,53 @@ export interface UseFollowListResult {
   retry: () => void;
   /** Accounts the logged-in user follows; null until loaded or when logged out. */
   myFollowing: Set<string> | null;
+  /** False if `myFollowing` was cut short, so a missing account is unknown. */
+  myFollowingComplete: boolean;
+  /** Loading `myFollowing` failed; the Follow / Unfollow buttons can't be shown. */
+  myFollowingError: boolean;
+  /** Retry loading `myFollowing`. */
+  retryMyFollowing: () => void;
+  /** Whether to show a Follow / Unfollow button for `name`, and which one. */
+  followState: (name: string) => 'following' | 'not-following' | 'unknown';
   /** Accounts with a follow / unfollow being broadcast. */
   pending: Set<string>;
   /** Follow or unfollow `name`; rejects if the broadcast fails. */
   toggleFollow: (name: string) => Promise<void>;
-  /** True if any follow changed since the last call; resets the flag. */
-  takeFollowChanged: () => boolean;
 }
 
 /**
  * State for a profile's followers / following list: paging (100 at a time),
  * plus the logged-in user's own follows for the Follow / Unfollow buttons.
  * Loads from the top whenever `active` turns on or the account/kind changes.
+ *
+ * `onFollowChange` runs after every successful follow / unfollow, even one
+ * that finishes after the list was closed.
  */
 export function useFollowList(
   username: string,
   kind: FollowListKind,
   currentUsername: string | null | undefined,
-  active: boolean
+  active: boolean,
+  onFollowChange?: () => void
 ): UseFollowListResult {
   const [names, setNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [done, setDone] = useState(false);
   const [myFollowing, setMyFollowing] = useState<Set<string> | null>(null);
+  const [myFollowingComplete, setMyFollowingComplete] = useState(true);
+  const [myFollowingError, setMyFollowingError] = useState(false);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const { invalidateFollowingCache } = useFollowCacheManagement();
 
   const nextStart = useRef('');
-  /** Only the latest request may update state; a reset makes older ones stale. */
+  /** Only the latest page request may update state; a reset makes older ones stale. */
   const requestId = useRef(0);
   const inFlight = useRef(false);
-  const changed = useRef(false);
+  /** Bumped when the logged-in account changes; late results for an older one are dropped. */
+  const accountGen = useRef(0);
+  const onFollowChangeRef = useRef(onFollowChange);
+  onFollowChangeRef.current = onFollowChange;
 
   const loadPage = useCallback(
     async (reset: boolean): Promise<void> => {
@@ -95,59 +110,80 @@ export function useFollowList(
     loadPage(true);
   }, [active, loadPage]);
 
-  useEffect(() => {
+  const loadMyFollowing = useCallback(async (): Promise<void> => {
+    const gen = ++accountGen.current;
     setMyFollowing(null);
+    setMyFollowingError(false);
+    setPending(new Set());
     if (!active || !currentUsername) return;
-    let cancelled = false;
-    fetchAllFollowing(rpc, currentUsername)
-      .then((set) => {
-        if (!cancelled) setMyFollowing(set);
-      })
-      .catch((err) => console.warn('[useFollowList] Failed to load your following list:', err));
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const { following, complete } = await fetchAllFollowing(rpc, currentUsername);
+      if (gen !== accountGen.current) return;
+      setMyFollowing(following);
+      setMyFollowingComplete(complete);
+    } catch (err) {
+      console.warn('[useFollowList] Failed to load your following list:', err);
+      if (gen === accountGen.current) setMyFollowingError(true);
+    }
   }, [active, currentUsername]);
 
-  const loadMore = useCallback(() => {
+  useEffect(() => {
+    loadMyFollowing();
+  }, [loadMyFollowing]);
+
+  const loadMore = useCallback((): void => {
     if (!done && !error) loadPage(false);
   }, [done, error, loadPage]);
 
-  const retry = useCallback(() => {
+  const retry = useCallback((): void => {
     loadPage(names.length === 0);
   }, [loadPage, names.length]);
+
+  const retryMyFollowing = useCallback((): void => {
+    loadMyFollowing();
+  }, [loadMyFollowing]);
+
+  const followState = useCallback(
+    (name: string): 'following' | 'not-following' | 'unknown' => {
+      if (!myFollowing) return 'unknown';
+      if (myFollowing.has(name)) return 'following';
+      return myFollowingComplete ? 'not-following' : 'unknown';
+    },
+    [myFollowing, myFollowingComplete]
+  );
 
   const toggleFollow = useCallback(
     async (name: string): Promise<void> => {
       if (!currentUsername || !myFollowing || pending.has(name)) return;
+      const account = currentUsername;
+      const gen = accountGen.current;
       const following = myFollowing.has(name);
       setPending((p) => new Set(p).add(name));
       try {
-        await broadcastFollow(currentUsername, name, following ? [] : ['blog']);
+        await broadcastFollow(account, name, following ? [] : ['blog']);
+        // The broadcast is done either way: refresh caches and counts for the
+        // account that made it, even if the list was closed meanwhile.
+        invalidateFollowingCache(account);
+        onFollowChangeRef.current?.();
+        if (gen !== accountGen.current) return;
         setMyFollowing((prev) => {
           const next = new Set(prev ?? []);
           if (following) next.delete(name);
           else next.add(name);
           return next;
         });
-        changed.current = true;
-        invalidateFollowingCache(currentUsername);
       } finally {
-        setPending((p) => {
-          const next = new Set(p);
-          next.delete(name);
-          return next;
-        });
+        if (gen === accountGen.current) {
+          setPending((p) => {
+            const next = new Set(p);
+            next.delete(name);
+            return next;
+          });
+        }
       }
     },
     [currentUsername, myFollowing, pending, invalidateFollowingCache]
   );
-
-  const takeFollowChanged = useCallback(() => {
-    const was = changed.current;
-    changed.current = false;
-    return was;
-  }, []);
 
   return {
     names,
@@ -157,8 +193,11 @@ export function useFollowList(
     loadMore,
     retry,
     myFollowing,
+    myFollowingComplete,
+    myFollowingError,
+    retryMyFollowing,
+    followState,
     pending,
     toggleFollow,
-    takeFollowChanged,
   };
 }
