@@ -23,6 +23,8 @@ export interface HivePostData {
   json_metadata?: string;
   category?: string;
   tags?: string[];
+  /** Top-level post (not a snap or reply). Only these can be reblogged. */
+  isRootPost?: boolean;
 }
 
 export interface HiveCommentData {
@@ -297,6 +299,7 @@ export const useHivePostData = (
         json_metadata: postData.json_metadata,
         category: postData.category,
         tags,
+        isRootPost: !postData.parent_author,
       };
 
       setState(prev => ({

@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Linking,
   Pressable,
+  Alert,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -23,6 +24,7 @@ import { detectMediaInBody } from '../../utils/mediaDetection';
 import { Dimensions } from 'react-native';
 import { useCurrentUser } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
+import { useReblog } from '../../hooks/useReblog';
 import { useHiveData } from '../../hooks/useHiveData';
 import { useHivePostData } from '../../hooks/useHivePostData';
 import { HivePostScreenStyles } from '../../styles/HivePostScreenStyles';
@@ -134,6 +136,31 @@ const HivePostScreen = () => {
     },
     [router]
   );
+
+  // Reblog (share a top-level post to your blog). Hive can't really undo a
+  // reblog, so confirm first.
+  const { reblogged, pending: reblogPending, canReblog, reblog } = useReblog({
+    author: post?.author,
+    permlink: post?.permlink,
+    currentUser: currentUsername,
+    isRootPost: !!post?.isRootPost,
+  });
+
+  const handleReblogPress = useCallback(() => {
+    if (!post || reblogged || reblogPending) return;
+    Alert.alert('Reblog this post?', `It will appear on your blog and in your followers' feeds, credited to @${post.author}.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reblog',
+        onPress: async () => {
+          const ok = await reblog();
+          if (!ok) {
+            Alert.alert('Reblog failed', 'Could not reblog this post. Please try again.');
+          }
+        },
+      },
+    ]);
+  }, [post, reblogged, reblogPending, reblog]);
 
   // Handle resnap from a Hive Post (same behavior as in Snap/Feed/Conversation)
   const handleResnap = useCallback(() => {
@@ -503,6 +530,20 @@ const HivePostScreen = () => {
             >
               <FontAwesome name='retweet' size={18} color={colors.icon} />
             </TouchableOpacity>
+            {canReblog && (
+              <TouchableOpacity
+                onPress={handleReblogPress}
+                disabled={reblogged || reblogPending}
+                accessibilityRole='button'
+                accessibilityLabel={reblogged ? 'Reblogged' : 'Reblog this post to your blog'}
+                accessibilityState={{ disabled: reblogged || reblogPending, busy: reblogPending }}
+                hitSlop={8}
+                style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16, opacity: reblogPending ? 0.6 : 1 }}
+              >
+                {/* Icon only (like Resnap) so the row fits next to the payout; green once reblogged. */}
+                <FontAwesome name='share-square-o' size={18} color={reblogged ? colors.payout : colors.icon} />
+              </TouchableOpacity>
+            )}
           </View>
           <Text
             style={[HivePostScreenStyles.payoutText, { color: colors.payout }]}

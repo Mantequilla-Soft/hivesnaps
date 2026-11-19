@@ -8,6 +8,8 @@ import {
   ScrollView,
   Linking,
   Alert,
+  Pressable,
+  StyleSheet,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -29,6 +31,7 @@ import { VotingPowerSection } from '../components/profile/VotingPowerSection';
 import { WalletSection } from '../components/profile/WalletSection';
 import { PointsSection } from '../components/profile/PointsSection';
 import { ProfileSnaps } from '../components/profile/ProfileSnaps';
+import { ProfilePostList } from '../components/profile/ProfilePostList';
 // ContentModal removed - now using ComposeScreen for edit
 
 // Import custom hooks
@@ -64,6 +67,20 @@ const ProfileScreen = () => {
 
   // Define isOwnProfile early to avoid undefined issues
   const isOwnProfile = currentUsername === username;
+
+  // Snaps / Posts / Reblogs switch above the profile's content list. A list
+  // loads the first time its tab is opened and then stays mounted (hidden
+  // while another tab is shown), so switching back keeps its pages.
+  const [contentTab, setContentTab] = useState<ProfileContentTab>('snaps');
+  const [openedTabs, setOpenedTabs] = useState<ReadonlySet<ProfileContentTab>>(() => new Set(['snaps']));
+  useEffect(() => {
+    setContentTab('snaps');
+    setOpenedTabs(new Set(['snaps']));
+  }, [username]);
+  const selectContentTab = (tab: ProfileContentTab): void => {
+    setContentTab(tab);
+    setOpenedTabs(prev => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  };
 
   // Wallet is accessible only when an active key is stored AND device auth is available.
   // hasActiveKey alone isn't enough — if biometrics aren't set up the key can't be used.
@@ -485,26 +502,65 @@ const ProfileScreen = () => {
               </View>
             )}
 
-            {/* Recent Snaps Section */}
-            <ProfileSnaps
-              snapsLoaded={snapsLoaded}
-              snapsLoading={snapsLoading}
-              snapsError={snapsError}
-              userSnaps={userSnaps}
-              displayedSnapsCount={displayedSnapsCount}
-              loadMoreLoading={loadMoreLoading}
-              currentUsername={currentUsername}
-              colors={colors}
-              styles={styles}
-              fetchUserSnaps={fetchUserSnaps}
-              loadMoreSnaps={loadMoreSnaps}
-              convertUserSnapToSnapProps={convertUserSnapToSnapProps}
-              openUpvoteModal={openUpvoteModal}
-              handleSnapReply={handleSnapReply}
-              handleSnapPress={handleSnapPress}
-              handleEditPress={handleEditPress}
-              onResnapPress={handleResnapPress}
-            />
+            {/* Snaps / Posts / Reblogs switch */}
+            <View style={[profileTabStyles.tabs, { borderColor: colors.border }]} accessibilityRole="tablist">
+              {PROFILE_CONTENT_TABS.map(({ key: tab, label }) => {
+                const selected = contentTab === tab;
+                return (
+                  <Pressable
+                    key={tab}
+                    onPress={() => selectContentTab(tab)}
+                    style={[profileTabStyles.tab, selected && { borderBottomColor: colors.button }]}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text style={[profileTabStyles.tabText, { color: selected ? colors.text : colors.textSecondary }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={contentTab === 'snaps' ? undefined : profileTabStyles.hidden}>
+              <ProfileSnaps
+                snapsLoaded={snapsLoaded}
+                snapsLoading={snapsLoading}
+                snapsError={snapsError}
+                userSnaps={userSnaps}
+                displayedSnapsCount={displayedSnapsCount}
+                loadMoreLoading={loadMoreLoading}
+                currentUsername={currentUsername}
+                colors={colors}
+                styles={styles}
+                fetchUserSnaps={fetchUserSnaps}
+                loadMoreSnaps={loadMoreSnaps}
+                convertUserSnapToSnapProps={convertUserSnapToSnapProps}
+                openUpvoteModal={openUpvoteModal}
+                handleSnapReply={handleSnapReply}
+                handleSnapPress={handleSnapPress}
+                handleEditPress={handleEditPress}
+                onResnapPress={handleResnapPress}
+              />
+            </View>
+            {username
+              ? (['posts', 'reblogs'] as const).map(kind =>
+                  openedTabs.has(kind) ? (
+                    <View key={kind} style={contentTab === kind ? undefined : profileTabStyles.hidden}>
+                      <ProfilePostList
+                        username={username}
+                        kind={kind}
+                        currentUsername={currentUsername}
+                        colors={colors}
+                        onOpenPost={(author, permlink) =>
+                          router.push({ pathname: '/screens/HivePostScreen', params: { author, permlink } })
+                        }
+                        onAuthorPress={u => router.push({ pathname: '/screens/ProfileScreen', params: { username: u } })}
+                      />
+                    </View>
+                  ) : null
+                )
+              : null}
 
             {/* Account actions - Only show for own profile */}
             {isOwnProfile && (
@@ -612,3 +668,29 @@ const ProfileScreen = () => {
 export default ProfileScreen;
 
 export const options = { headerShown: false };
+
+type ProfileContentTab = 'snaps' | 'posts' | 'reblogs';
+const PROFILE_CONTENT_TABS: readonly { key: ProfileContentTab; label: string }[] = [
+  { key: 'snaps', label: 'Snaps' },
+  { key: 'posts', label: 'Posts' },
+  { key: 'reblogs', label: 'Reblogs' },
+];
+
+const profileTabStyles = StyleSheet.create({
+  hidden: { display: 'none' },
+  tabs: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: { fontSize: 15, fontWeight: '600' },
+});
