@@ -86,6 +86,9 @@ interface RawDelegation {
     min_delegation_time?: unknown;
 }
 
+/** Smallest HBD deposit; used to trigger an HBD savings interest payout. */
+export const COLLECT_INTEREST_HBD = 0.001;
+
 const SECONDS_PER_YEAR = 60 * 60 * 24 * 365;
 // Voting and downvote mana fully regenerate over 5 days.
 const MANA_REGEN_SECONDS = 5 * 24 * 60 * 60;
@@ -226,6 +229,24 @@ export function parseWalletAccount(
         pendingHbdInterest: calcPendingHbdInterest(account, rate, nowMs),
         nextInterestPayout: lastPayment ? new Date(lastPayment.getTime() + INTEREST_PERIOD_MS) : null,
     };
+}
+
+/**
+ * Whether a "Collect interest" deposit would pay out interest now: there is
+ * HBD in savings with interest accrued, the 30-day interval since the last
+ * payout has passed, and there's enough liquid HBD for the token deposit.
+ */
+export function canCollectHbdInterest(
+    w: Pick<WalletData, 'savingsHbd' | 'pendingHbdInterest' | 'nextInterestPayout' | 'hbdBalance'>,
+    nowMs: number = Date.now()
+): boolean {
+    return (
+        w.savingsHbd > 0 &&
+        w.pendingHbdInterest > 0 &&
+        w.nextInterestPayout !== null &&
+        w.nextInterestPayout.getTime() <= nowMs &&
+        w.hbdBalance >= COLLECT_INTEREST_HBD
+    );
 }
 
 export function parseSavingsWithdrawals(raw: unknown): SavingsWithdrawal[] {

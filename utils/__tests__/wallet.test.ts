@@ -1,6 +1,7 @@
 import {
     amountError,
     calcDelegatableVests,
+    canCollectHbdInterest,
     calcPendingHbdInterest,
     formatMax,
     isAmountValid,
@@ -173,6 +174,31 @@ describe('calcDelegatableVests', () => {
     it('never goes below zero', () => {
         const acct = { ...base, voting_manabar: { current_mana: 0, last_update_time: nowSec } };
         expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBe(0);
+    });
+});
+
+describe('canCollectHbdInterest', () => {
+    const now = Date.parse('2026-11-19T00:00:00Z');
+    const due = {
+        savingsHbd: 100,
+        pendingHbdInterest: 1.25,
+        nextInterestPayout: new Date(now - 1000),
+        hbdBalance: 0.001,
+    };
+
+    it('is true once the 30 days have passed and there is HBD for the token deposit', () => {
+        expect(canCollectHbdInterest(due, now)).toBe(true);
+    });
+
+    it('is false before the payout date', () => {
+        expect(canCollectHbdInterest({ ...due, nextInterestPayout: new Date(now + 1000) }, now)).toBe(false);
+    });
+
+    it('is false without liquid HBD, savings or accrued interest', () => {
+        expect(canCollectHbdInterest({ ...due, hbdBalance: 0 }, now)).toBe(false);
+        expect(canCollectHbdInterest({ ...due, savingsHbd: 0 }, now)).toBe(false);
+        expect(canCollectHbdInterest({ ...due, pendingHbdInterest: 0 }, now)).toBe(false);
+        expect(canCollectHbdInterest({ ...due, nextInterestPayout: null }, now)).toBe(false);
     });
 });
 

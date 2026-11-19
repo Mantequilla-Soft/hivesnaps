@@ -16,6 +16,9 @@ interface SavingsCardProps {
     /** The last attempt to load withdrawals failed. */
     loadFailed?: boolean;
     onRetry?: () => void;
+    /** Interest is due and there's liquid HBD for the token deposit that triggers it. */
+    canCollectInterest?: boolean;
+    onCollectInterest?: () => void;
     onDeposit: () => void;
     onWithdraw: () => void;
     onCancelWithdrawal: (w: SavingsWithdrawal) => void;
@@ -34,6 +37,8 @@ export const SavingsCard: React.FC<SavingsCardProps> = ({
     withdrawals,
     loadFailed,
     onRetry,
+    canCollectInterest,
+    onCollectInterest,
     onDeposit,
     onWithdraw,
     onCancelWithdrawal,
@@ -72,10 +77,24 @@ export const SavingsCard: React.FC<SavingsCardProps> = ({
                     Interest earned so far: <Text style={{ color: colors.text, fontWeight: '600' }}>≈ {pendingHbdInterest.toFixed(3)} HBD</Text>
                     {nextInterestPayout
                         ? payoutReady
-                            ? '. It’s paid with your next savings deposit or withdrawal.'
+                            ? canCollectInterest
+                                ? '. Ready to collect.'
+                                : '. It’s paid with your next HBD savings deposit or withdrawal.'
                             : `. Paid out after ${formatDate(nextInterestPayout)}.`
                         : ''}
                 </Text>
+            )}
+
+            {canCollectInterest && onCollectInterest && (
+                <Pressable
+                    style={({ pressed }) => [styles.collect, { borderColor: colors.button, opacity: pressed ? 0.7 : 1 }]}
+                    onPress={onCollectInterest}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Collect about ${pendingHbdInterest.toFixed(3)} HBD of savings interest`}
+                >
+                    <FontAwesome name="download" size={13} color={colors.button} />
+                    <Text style={[styles.collectText, { color: colors.button }]}>Collect interest</Text>
+                </Pressable>
             )}
 
             {withdrawals === null && loadFailed && (
@@ -162,6 +181,17 @@ const styles = StyleSheet.create({
     withdrawalMeta: { fontSize: 12, marginTop: 2 },
     cancelText: { fontSize: 13, fontWeight: '600' },
     retry: { marginTop: 14 },
+    collect: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingVertical: 8,
+        marginTop: 12,
+    },
+    collectText: { fontSize: 14, fontWeight: '600' },
     retryText: { fontSize: 13 },
     buttons: { flexDirection: 'row', gap: 8, marginTop: 16 },
     button: { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },

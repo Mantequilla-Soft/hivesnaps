@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { WalletModalShell, AmountField, ActiveKeyField, Callout, type WalletColors } from './walletUi';
-import { isAmountValid } from '../../../utils/wallet';
+import { isAmountValid, COLLECT_INTEREST_HBD } from '../../../utils/wallet';
 
-export type SavingsMode = 'deposit' | 'withdraw';
+/**
+ * 'collect' deposits a token COLLECT_INTEREST_HBD into HBD savings: Hive
+ * has no claim-interest operation, it pays accrued interest whenever the
+ * HBD savings balance changes (once 30 days have passed since the last payout).
+ */
+export type SavingsMode = 'deposit' | 'withdraw' | 'collect';
 
 interface SavingsModalProps {
     visible: boolean;
@@ -12,6 +17,8 @@ interface SavingsModalProps {
     liquid: { HIVE: number; HBD: number };
     savings: { HIVE: number; HBD: number };
     hbdInterestRate: number;
+    /** Shown in 'collect' mode. */
+    pendingHbdInterest?: number;
     hasStoredKey: boolean;
     loading: boolean;
     success: boolean;
@@ -27,6 +34,7 @@ export const SavingsModal: React.FC<SavingsModalProps> = ({
     liquid,
     savings,
     hbdInterestRate,
+    pendingHbdInterest = 0,
     hasStoredKey,
     loading,
     success,
@@ -49,18 +57,60 @@ export const SavingsModal: React.FC<SavingsModalProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visible]);
 
+    const isCollect = mode === 'collect';
     const isDeposit = mode === 'deposit';
+    const hasKey = hasStoredKey || activeKeyInput.trim().length > 0;
     const available = isDeposit ? liquid[currency] : savings[currency];
-    const isValid = isAmountValid(amount, available) && (hasStoredKey || activeKeyInput.trim().length > 0);
+    const collectAmount = COLLECT_INTEREST_HBD.toFixed(3);
+    const isValid = isCollect
+        ? liquid.HBD >= COLLECT_INTEREST_HBD && hasKey
+        : isAmountValid(amount, available) && hasKey;
 
     const handleConfirm = async (): Promise<void> => {
         setError('');
         try {
-            await onSubmit(mode, amount, currency, hasStoredKey ? undefined : activeKeyInput.trim());
+            await onSubmit(
+                mode,
+                isCollect ? collectAmount : amount,
+                isCollect ? 'HBD' : currency,
+                hasStoredKey ? undefined : activeKeyInput.trim()
+            );
         } catch (err) {
-            setError(err instanceof Error ? err.message : isDeposit ? 'Deposit failed' : 'Withdrawal failed');
+            const fallback = isCollect ? 'Collecting interest failed' : isDeposit ? 'Deposit failed' : 'Withdrawal failed';
+            setError(err instanceof Error ? err.message : fallback);
         }
     };
+
+    if (isCollect) {
+        return (
+            <WalletModalShell
+                visible={visible}
+                title="Collect Interest"
+                term="savings"
+                colors={colors}
+                loading={loading}
+                success={success}
+                successText="Interest collected! It will show in your HBD savings shortly."
+                error={error}
+                confirmLabel="Collect"
+                confirmDisabled={!isValid}
+                onConfirm={handleConfirm}
+                onClose={onClose}
+            >
+                <Callout colors={colors}>
+                    {`Hive pays your savings interest (about ${pendingHbdInterest.toFixed(3)} HBD) whenever your HBD savings change. ` +
+                        `This moves ${collectAmount} HBD from your balance into savings to trigger the payout.`}
+                </Callout>
+                <ActiveKeyField
+                    colors={colors}
+                    hasStoredKey={hasStoredKey}
+                    value={activeKeyInput}
+                    onChangeText={setActiveKeyInput}
+                    editable={!loading}
+                />
+            </WalletModalShell>
+        );
+    }
 
     return (
         <WalletModalShell

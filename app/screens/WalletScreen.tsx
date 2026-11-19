@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../store/context';
 import { createWalletScreenStyles } from '../../styles/WalletScreenStyles';
-import type { SavingsWithdrawal, OutgoingDelegation } from '../../utils/wallet';
+import { canCollectHbdInterest, type SavingsWithdrawal, type OutgoingDelegation } from '../../utils/wallet';
 import { useWalletData } from '../../hooks/useWalletData';
 import { hasPendingRewards } from '../../utils/pendingRewards';
 import { usePendingRewards } from '../../hooks/usePendingRewards';
@@ -198,9 +198,10 @@ const WalletScreen = (): React.JSX.Element => {
 
     const handleSavings = (mode: SavingsMode, amount: string, currency: 'HIVE' | 'HBD', manualKey?: string): Promise<void> =>
         ignoreAuthCancel(() =>
-            mode === 'deposit'
-                ? depositToSavings(amount, currency, manualKey)
-                : withdrawFromSavings(amount, currency, manualKey)
+            // 'collect' is a token HBD deposit that triggers the interest payout.
+            mode === 'withdraw'
+                ? withdrawFromSavings(amount, currency, manualKey)
+                : depositToSavings(amount, currency, manualKey)
         );
 
     const handleCancelWithdrawal = (requestId: number, manualKey?: string): Promise<void> =>
@@ -414,6 +415,8 @@ const WalletScreen = (): React.JSX.Element => {
                             withdrawals={withdrawals}
                             loadFailed={extrasFailed}
                             onRetry={retryExtras}
+                            canCollectInterest={canCollectHbdInterest(walletData)}
+                            onCollectInterest={() => openSavings('collect', 'HBD')}
                             onDeposit={() => openSavings('deposit')}
                             onWithdraw={() => openSavings('withdraw', walletData.savingsHbd > 0 ? 'HBD' : 'HIVE')}
                             onCancelWithdrawal={setWithdrawalToCancel}
@@ -530,6 +533,7 @@ const WalletScreen = (): React.JSX.Element => {
                 liquid={{ HIVE: walletData?.hiveBalance ?? 0, HBD: walletData?.hbdBalance ?? 0 }}
                 savings={{ HIVE: walletData?.savingsHive ?? 0, HBD: walletData?.savingsHbd ?? 0 }}
                 hbdInterestRate={walletData?.hbdInterestRate ?? 0}
+                pendingHbdInterest={walletData?.pendingHbdInterest ?? 0}
                 hasStoredKey={storedKeyAvailable}
                 loading={savingsLoading && savingsMode !== null}
                 success={savingsSuccess && savingsMode !== null}
