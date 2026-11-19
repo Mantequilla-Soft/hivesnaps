@@ -15,7 +15,7 @@ export interface WalletData {
     hbdBalance: number;
     hivePower: number;       // effective HP (own + received − delegated)
     ownHivePower: number;    // own HP not delegated out (powerdown-able)
-    /** Own HP that can still be delegated (excludes HP already scheduled to power down). */
+    /** HP that can be delegated now: limited by voting/downvote mana and excluding HP that is powering down. */
     delegatableHivePower: number;
     delegatedHivePower: number;
     receivedHivePower: number;
@@ -46,7 +46,50 @@ export interface OutgoingDelegation {
     minDelegationTime: Date | null;
 }
 
+/** The fields of a get_accounts record the wallet reads. Values are untrusted RPC data. */
+export interface RawWalletAccount {
+    balance?: unknown;
+    hbd_balance?: unknown;
+    vesting_shares?: unknown;
+    delegated_vesting_shares?: unknown;
+    received_vesting_shares?: unknown;
+    vesting_withdraw_rate?: unknown;
+    to_withdraw?: unknown;
+    withdrawn?: unknown;
+    next_vesting_withdrawal?: unknown;
+    voting_manabar?: { current_mana?: unknown; last_update_time?: unknown } | null;
+    downvote_manabar?: { current_mana?: unknown; last_update_time?: unknown } | null;
+    savings_balance?: unknown;
+    savings_hbd_balance?: unknown;
+    savings_hbd_seconds?: unknown;
+    savings_hbd_seconds_last_update?: unknown;
+    savings_hbd_last_interest_payment?: unknown;
+}
+
+export interface WalletGlobalProps extends GlobalVestingProps {
+    hbd_interest_rate?: number;
+    /** Share of max mana available for downvotes, in basis points (2500 = 25%). */
+    downvote_pool_percent?: number;
+}
+
+interface RawSavingsWithdrawal {
+    request_id?: unknown;
+    to?: unknown;
+    amount?: unknown;
+    memo?: unknown;
+    complete?: unknown;
+}
+
+interface RawDelegation {
+    delegatee?: unknown;
+    vesting_shares?: unknown;
+    min_delegation_time?: unknown;
+}
+
 const SECONDS_PER_YEAR = 60 * 60 * 24 * 365;
+// Voting and downvote mana fully regenerate over 5 days.
+const MANA_REGEN_SECONDS = 5 * 24 * 60 * 60;
+const HIVE_100_PERCENT = 10000;
 const INTEREST_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Numeric part of a Hive asset string ("1.234 HIVE") or number; 0 when unparseable. */
@@ -93,9 +136,68 @@ export function calcPendingHbdInterest(
     return Math.max(0, Math.floor(interestMilli)) / 1000;
 }
 
+/** Integer chain amounts (micro-VESTS) arrive as numbers or strings. */
+function toInt(value: unknown): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function regenerate(
+    bar: { current_mana?: unknown; last_update_time?: unknown } | null | undefined,
+    maxMana: number,
+    nowMs: number
+): number {
+    if (maxMana <= 0) return 0;
+    const current = toInt(bar?.current_mana);
+    const last = toInt(bar?.last_update_time);
+    const elapsed = last > 0 ? Math.max(0, nowMs / 1000 - last) : MANA_REGEN_SECONDS;
+    return Math.min(maxMana, current + (maxMana * elapsed) / MANA_REGEN_SECONDS);
+}
+
+/**
+ * VESTS the account can delegate right now, mirroring hived's
+ * delegate_vesting_shares check (HF20+): delegation spends voting and
+ * downvote mana, received delegations can't be passed on, and VESTS still
+ * scheduled to power down are excluded. All amounts are in VESTS.
+ */
+export function calcDelegatableVests(
+    account: RawWalletAccount,
+    props: Pick<WalletGlobalProps, 'downvote_pool_percent'>,
+    nowMs: number = Date.now()
+): number {
+    const vesting = parseAsset(account.vesting_shares);
+    const delegated = parseAsset(account.delegated_vesting_shares);
+    const received = parseAsset(account.received_vesting_shares);
+    const weeklyRate = parseAsset(account.vesting_withdraw_rate);
+    const remainingWithdraw = Math.max(0, (toInt(account.to_withdraw) - toInt(account.withdrawn)) / 1e6);
+    const weeklyWithdraw = Math.min(weeklyRate, remainingWithdraw);
+
+    // Effective shares exclude this week's withdrawal; mana is tracked in micro-VESTS.
+    const maxMana = Math.max(0, (vesting - delegated + received - weeklyWithdraw) * 1e6);
+    const votingMana = regenerate(account.voting_manabar, maxMana, nowMs);
+
+    const pct = Number(props.downvote_pool_percent) || 0;
+    let downvoteAvailable = votingMana;
+    if (pct > 0) {
+        const downvoteMana = regenerate(account.downvote_manabar, (maxMana * pct) / HIVE_100_PERCENT, nowMs);
+        downvoteAvailable = (downvoteMana * HIVE_100_PERCENT) / pct;
+    }
+
+    // Received VESTS are spent first and can't be delegated onwards.
+    const notReceived = maxMana - received * 1e6;
+    let available = Math.min(votingMana, downvoteAvailable, notReceived);
+
+    // Nothing that is still powering down can be delegated (current week is
+    // already out of max mana, so only subtract the rest).
+    if (remainingWithdraw > weeklyWithdraw) {
+        available -= (remainingWithdraw - weeklyWithdraw) * 1e6;
+    }
+    return Math.max(0, Math.floor(available)) / 1e6;
+}
+
 export function parseWalletAccount(
-    account: Record<string, any>,
-    props: GlobalVestingProps & { hbd_interest_rate?: number },
+    account: RawWalletAccount,
+    props: WalletGlobalProps,
     nowMs: number = Date.now()
 ): WalletData {
     const toHp = (vests: number): number =>
@@ -105,9 +207,6 @@ export function parseWalletAccount(
     const delegatedVests = parseAsset(account.delegated_vesting_shares);
     const receivedVests = parseAsset(account.received_vesting_shares);
     const withdrawRate = parseAsset(account.vesting_withdraw_rate);
-    // Still-to-be-paid-out part of an active power down, in VESTS.
-    const remainingWithdraw = Math.max(0, (Number(account.to_withdraw) - Number(account.withdrawn)) / 1e6 || 0);
-
     const ownVests = vestingShares - delegatedVests;
     const rate = Number(props.hbd_interest_rate) || 0;
     const lastPayment = parseHiveTime(account.savings_hbd_last_interest_payment);
@@ -117,7 +216,7 @@ export function parseWalletAccount(
         hbdBalance: parseAsset(account.hbd_balance),
         hivePower: toHp(ownVests + receivedVests),
         ownHivePower: toHp(ownVests),
-        delegatableHivePower: Math.max(0, toHp(ownVests - remainingWithdraw)),
+        delegatableHivePower: toHp(calcDelegatableVests(account, props, nowMs)),
         delegatedHivePower: toHp(delegatedVests),
         receivedHivePower: toHp(receivedVests),
         activePowerDownRate: toHp(withdrawRate),
@@ -132,7 +231,7 @@ export function parseWalletAccount(
 export function parseSavingsWithdrawals(raw: unknown): SavingsWithdrawal[] {
     if (!Array.isArray(raw)) return [];
     return raw
-        .map((w: any): SavingsWithdrawal => {
+        .map((w: RawSavingsWithdrawal | null): SavingsWithdrawal => {
             const amountStr = String(w?.amount ?? '');
             return {
                 requestId: Number(w?.request_id),
@@ -150,7 +249,7 @@ export function parseSavingsWithdrawals(raw: unknown): SavingsWithdrawal[] {
 export function parseOutgoingDelegations(raw: unknown, props: GlobalVestingProps): OutgoingDelegation[] {
     if (!Array.isArray(raw)) return [];
     return raw
-        .map((d: any): OutgoingDelegation => {
+        .map((d: RawDelegation | null): OutgoingDelegation => {
             const vests = parseAsset(d?.vesting_shares);
             return {
                 delegatee: String(d?.delegatee ?? ''),
@@ -188,9 +287,17 @@ export function amountError(raw: string, available: number, decimals = 3): strin
     return null;
 }
 
+/** Same syntax the broadcast path accepts (useWalletOperations' parsePositiveAmount). */
+export const COMPLETE_AMOUNT = /^\d*\.?\d+$/;
+
+/**
+ * True when the amount can be submitted. A trailing "." ("1.") gets no error
+ * message while typing but isn't submittable until finished.
+ */
 export function isAmountValid(raw: string, available: number, decimals = 3): boolean {
-    const n = parseFloat(raw.trim());
-    return Number.isFinite(n) && n > 0 && amountError(raw, available, decimals) === null;
+    const trimmed = raw.trim();
+    const n = parseFloat(trimmed);
+    return COMPLETE_AMOUNT.test(trimmed) && Number.isFinite(n) && n > 0 && amountError(raw, available, decimals) === null;
 }
 
 /** Truncate (not round) to `decimals`, so MAX never exceeds the balance. */

@@ -1,13 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { PrivateKey } from '@hiveio/dhive';
+import { PrivateKey, type Operation } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
 import { accountStorageService } from '../services/AccountStorageService';
 import { localAuthService, AuthCancelledError } from '../services/LocalAuthService';
 import { hpToVests } from '../utils/hiveCalculations';
-import { newSavingsRequestId } from '../utils/wallet';
+import { newSavingsRequestId, COMPLETE_AMOUNT } from '../utils/wallet';
 import { buildClaimRewardOp, type PendingRewards } from '../utils/pendingRewards';
 
 const client = getClient();
+
+export type WalletOperationKind = 'transfer' | 'powerUp' | 'powerDown' | 'savings' | 'delegate';
 
 interface UseWalletOperationsReturn {
     transferLoading: boolean;
@@ -32,7 +34,8 @@ interface UseWalletOperationsReturn {
     claimLoading: boolean;
     /** Claim pending author/curation rewards (posting key, no biometric prompt). */
     claimRewards: (rewards: Pick<PendingRewards, 'hive' | 'hbd' | 'vests'>) => Promise<void>;
-    resetOperationSuccess: () => void;
+    /** Clear one operation's success flag, or all of them when no kind is given. */
+    resetOperationSuccess: (kind?: WalletOperationKind) => void;
     checkStoredKeyAvailable: () => Promise<boolean>;
     getStoredActiveKey: () => Promise<string | null>;
 }
@@ -146,7 +149,7 @@ export const useWalletOperations = (
 
     const parsePositiveAmount = (raw: string, assetLabel: string): number => {
         const normalized = raw.trim();
-        if (!/^\d*\.?\d+$/.test(normalized)) {
+        if (!COMPLETE_AMOUNT.test(normalized)) {
             throw new Error(`Invalid ${assetLabel} amount. Please enter a numeric value.`);
         }
         const value = Number.parseFloat(normalized);
@@ -276,7 +279,7 @@ export const useWalletOperations = (
         setLoading: (v: boolean) => void,
         setSuccess: (v: boolean) => void,
         manualKey: string | undefined,
-        buildOps: (username: string) => any[]
+        buildOps: (username: string) => Operation[]
     ): Promise<void> => {
         const username = requireUsername();
         setLoading(true);
@@ -345,12 +348,12 @@ export const useWalletOperations = (
         }
     };
 
-    const resetOperationSuccess = useCallback((): void => {
-        setTransferSuccess(false);
-        setPowerUpSuccess(false);
-        setPowerDownSuccess(false);
-        setSavingsSuccess(false);
-        setDelegateSuccess(false);
+    const resetOperationSuccess = useCallback((kind?: WalletOperationKind): void => {
+        if (!kind || kind === 'transfer') setTransferSuccess(false);
+        if (!kind || kind === 'powerUp') setPowerUpSuccess(false);
+        if (!kind || kind === 'powerDown') setPowerDownSuccess(false);
+        if (!kind || kind === 'savings') setSavingsSuccess(false);
+        if (!kind || kind === 'delegate') setDelegateSuccess(false);
     }, []);
 
     return {

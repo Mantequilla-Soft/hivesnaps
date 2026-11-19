@@ -8,7 +8,11 @@ import type { OutgoingDelegation } from '../../../utils/wallet';
 
 interface DelegationsCardProps {
     colors: WalletColors;
-    delegations: OutgoingDelegation[];
+    /** null when the list hasn't loaded yet. */
+    delegations: OutgoingDelegation[] | null;
+    /** The last attempt to load delegations failed. */
+    loadFailed?: boolean;
+    onRetry?: () => void;
     receivedHivePower: number;
     onAdd: () => void;
     onEdit: (d: OutgoingDelegation) => void;
@@ -33,7 +37,15 @@ const DelegationRow: React.FC<{ d: OutgoingDelegation; colors: WalletColors; onP
     );
 };
 
-export const DelegationsCard: React.FC<DelegationsCardProps> = ({ colors, delegations, receivedHivePower, onAdd, onEdit }) => (
+export const DelegationsCard: React.FC<DelegationsCardProps> = ({
+    colors,
+    delegations,
+    loadFailed,
+    onRetry,
+    receivedHivePower,
+    onAdd,
+    onEdit,
+}) => (
     <View style={[styles.card, { backgroundColor: colors.bubble }]}>
         <View style={styles.header}>
             <Text style={[styles.title, { color: colors.textSecondary }]}>DELEGATIONS</Text>
@@ -44,7 +56,17 @@ export const DelegationsCard: React.FC<DelegationsCardProps> = ({ colors, delega
             </Pressable>
         </View>
 
-        {delegations.length === 0 ? (
+        {delegations === null ? (
+            loadFailed ? (
+                <Pressable onPress={onRetry} accessibilityRole="button">
+                    <Text style={[styles.empty, { color: colors.textSecondary }]}>
+                        Couldn’t load your delegations. <Text style={{ color: colors.button, fontWeight: '600' }}>Retry</Text>
+                    </Text>
+                </Pressable>
+            ) : (
+                <Text style={[styles.empty, { color: colors.textSecondary }]}>Loading delegations…</Text>
+            )
+        ) : delegations.length === 0 ? (
             <Text style={[styles.empty, { color: colors.textSecondary }]}>You aren’t delegating any Hive Power.</Text>
         ) : (
             <View style={styles.list}>

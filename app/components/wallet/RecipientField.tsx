@@ -45,6 +45,11 @@ export const RecipientField: React.FC<RecipientFieldProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status]);
 
+    // Clear the parent's lookup status when this field leaves the tree, so a
+    // stale 'not-found' can't keep blocking a form that no longer shows it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => () => onStatusChange('idle'), []);
+
     useEffect(() => {
         const trimmed = normalizeUsername(value);
         if (!trimmed) {

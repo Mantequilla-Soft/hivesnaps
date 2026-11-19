@@ -227,7 +227,7 @@ export const AmountField: React.FC<AmountFieldProps> = ({
                     {term && <TermInfo term={term} color={colors.textSecondary} size={12} />}
                 </View>
                 <Text style={[styles.balanceValue, { color: colors.text }]}>
-                    {available.toFixed(3)} {unit}
+                    {formatMax(available)} {unit}
                 </Text>
             </View>
             <View style={styles.field}>

@@ -1,5 +1,6 @@
 import {
     amountError,
+    calcDelegatableVests,
     calcPendingHbdInterest,
     formatMax,
     isAmountValid,
@@ -110,6 +111,71 @@ describe('parseWalletAccount', () => {
     });
 });
 
+describe('calcDelegatableVests', () => {
+    const now = Date.parse('2026-11-19T00:00:00Z');
+    const nowSec = now / 1000;
+    const base = {
+        vesting_shares: '1000.000000 VESTS',
+        delegated_vesting_shares: '0.000000 VESTS',
+        received_vesting_shares: '0.000000 VESTS',
+        vesting_withdraw_rate: '0.000000 VESTS',
+        to_withdraw: 0,
+        withdrawn: 0,
+        voting_manabar: { current_mana: 1000_000000, last_update_time: nowSec },
+        downvote_manabar: { current_mana: 250_000000, last_update_time: nowSec },
+    };
+
+    it('allows all owned VESTS with full mana', () => {
+        expect(calcDelegatableVests(base, { downvote_pool_percent: 2500 }, now)).toBeCloseTo(1000);
+    });
+
+    it('is limited by spent voting mana', () => {
+        const acct = { ...base, voting_manabar: { current_mana: 400_000000, last_update_time: nowSec } };
+        expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBeCloseTo(400);
+    });
+
+    it('regenerates voting mana over 5 days', () => {
+        // 400 + 1000 × (1 day / 5 days) = 600
+        const acct = { ...base, voting_manabar: { current_mana: 400_000000, last_update_time: nowSec - 86400 } };
+        expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBeCloseTo(600);
+    });
+
+    it('is limited by spent downvote mana (scaled by the downvote pool)', () => {
+        // 50 of 250 downvote mana left → 50 / 25% = 200 VESTS.
+        const acct = { ...base, downvote_manabar: { current_mana: 50_000000, last_update_time: nowSec } };
+        expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBeCloseTo(200);
+    });
+
+    it('cannot pass on received delegations', () => {
+        const acct = {
+            ...base,
+            received_vesting_shares: '500.000000 VESTS',
+            voting_manabar: { current_mana: 1500_000000, last_update_time: nowSec },
+            downvote_manabar: { current_mana: 375_000000, last_update_time: nowSec },
+        };
+        expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBeCloseTo(1000);
+    });
+
+    it('excludes VESTS still scheduled to power down', () => {
+        // 1000 VESTS powering down at 100/week, 600 left: this week's 100 is
+        // already outside max mana, the other 500 can't be delegated.
+        const acct = {
+            ...base,
+            vesting_withdraw_rate: '100.000000 VESTS',
+            to_withdraw: 1000_000000,
+            withdrawn: 400_000000,
+            voting_manabar: { current_mana: 900_000000, last_update_time: nowSec },
+            downvote_manabar: { current_mana: 225_000000, last_update_time: nowSec },
+        };
+        expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBeCloseTo(400);
+    });
+
+    it('never goes below zero', () => {
+        const acct = { ...base, voting_manabar: { current_mana: 0, last_update_time: nowSec } };
+        expect(calcDelegatableVests(acct, { downvote_pool_percent: 2500 }, now)).toBe(0);
+    });
+});
+
 describe('parseSavingsWithdrawals', () => {
     it('maps and sorts requests by completion time', () => {
         const list = parseSavingsWithdrawals([
@@ -150,6 +216,13 @@ describe('amount validation', () => {
         expect(amountError('abc', 10)).toBe('Enter a number');
         expect(amountError('10.001', 10)).toBe('Amount exceeds available balance');
         expect(amountError('10', 10)).toBeNull();
+    });
+
+    it('requires a complete amount the broadcast path accepts', () => {
+        // "1." shows no error while typing but can't be submitted yet.
+        expect(amountError('1.', 10)).toBeNull();
+        expect(isAmountValid('1.', 10)).toBe(false);
+        expect(isAmountValid('.5', 10)).toBe(true);
     });
 
     it('requires a positive amount', () => {

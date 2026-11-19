@@ -14,8 +14,11 @@ interface PendingRewardsBannerProps {
   /** Screen-reader hint for what tapping does; defaults to opening the profile. */
   actionHint?: string;
   loading?: boolean;
-  /** Optional trailing node after the title, e.g. a "What is this?" button. */
-  titleAccessory?: React.ReactNode;
+  /**
+   * Optional extra control (e.g. a "What is this?" button) rendered after the
+   * claim button as its own sibling, so screen readers can focus it separately.
+   */
+  accessory?: React.ReactNode;
 }
 
 /** "You have rewards to claim" strip shown above the home feed and in the wallet. */
@@ -26,7 +29,7 @@ const PendingRewardsBanner: React.FC<PendingRewardsBannerProps> = ({
   ctaLabel = 'Claim ›',
   actionHint = 'Open your profile to claim.',
   loading = false,
-  titleAccessory,
+  accessory,
 }) => {
   const colors = useAppColors();
   const amount = formatPendingRewards(rewards);
@@ -43,10 +46,7 @@ const PendingRewardsBanner: React.FC<PendingRewardsBannerProps> = ({
       >
         <FontAwesome name='gift' size={18} color={colors.payout} style={styles.icon} />
         <View style={styles.textCol}>
-          <View style={styles.titleRow}>
-            <Text style={[styles.title, { color: colors.text }]}>Rewards ready to claim</Text>
-            {titleAccessory}
-          </View>
+          <Text style={[styles.title, { color: colors.text }]}>Rewards ready to claim</Text>
           <Text style={[styles.amount, { color: colors.payout }]} numberOfLines={1}>
             {amount}
           </Text>
@@ -57,6 +57,7 @@ const PendingRewardsBanner: React.FC<PendingRewardsBannerProps> = ({
           <Text style={[styles.cta, { color: colors.button }]}>{ctaLabel}</Text>
         )}
       </Pressable>
+      {accessory ? <View style={styles.accessory}>{accessory}</View> : null}
       {onDismiss ? (
         <Pressable
           onPress={onDismiss}
@@ -99,9 +100,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  accessory: {
+    paddingLeft: 4,
+    paddingVertical: 12,
   },
   title: {
     fontSize: 14,

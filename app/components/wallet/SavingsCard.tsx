@@ -11,7 +11,11 @@ interface SavingsCardProps {
     hbdInterestRate: number;
     pendingHbdInterest: number;
     nextInterestPayout: Date | null;
-    withdrawals: SavingsWithdrawal[];
+    /** null when the list hasn't loaded yet. */
+    withdrawals: SavingsWithdrawal[] | null;
+    /** The last attempt to load withdrawals failed. */
+    loadFailed?: boolean;
+    onRetry?: () => void;
     onDeposit: () => void;
     onWithdraw: () => void;
     onCancelWithdrawal: (w: SavingsWithdrawal) => void;
@@ -28,6 +32,8 @@ export const SavingsCard: React.FC<SavingsCardProps> = ({
     pendingHbdInterest,
     nextInterestPayout,
     withdrawals,
+    loadFailed,
+    onRetry,
     onDeposit,
     onWithdraw,
     onCancelWithdrawal,
@@ -72,7 +78,15 @@ export const SavingsCard: React.FC<SavingsCardProps> = ({
                 </Text>
             )}
 
-            {withdrawals.length > 0 && (
+            {withdrawals === null && loadFailed && (
+                <Pressable onPress={onRetry} style={styles.retry} accessibilityRole="button">
+                    <Text style={[styles.retryText, { color: colors.textSecondary }]}>
+                        Couldn’t load pending withdrawals. <Text style={{ color: colors.button, fontWeight: '600' }}>Retry</Text>
+                    </Text>
+                </Pressable>
+            )}
+
+            {withdrawals && withdrawals.length > 0 && (
                 <View style={styles.withdrawals}>
                     <Text style={[styles.subTitle, { color: colors.text }]}>Pending withdrawals</Text>
                     {withdrawals.map((w) => (
@@ -147,6 +161,8 @@ const styles = StyleSheet.create({
     withdrawalAmount: { fontSize: 14, fontWeight: '600' },
     withdrawalMeta: { fontSize: 12, marginTop: 2 },
     cancelText: { fontSize: 13, fontWeight: '600' },
+    retry: { marginTop: 14 },
+    retryText: { fontSize: 13 },
     buttons: { flexDirection: 'row', gap: 8, marginTop: 16 },
     button: { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
     outline: { borderWidth: 1 },
