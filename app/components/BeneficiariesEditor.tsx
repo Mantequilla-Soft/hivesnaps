@@ -142,6 +142,16 @@ export const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
                         </View>
                     ))}
 
+                    {/* Above the inputs, so it stays visible when the keyboard covers what's below them. */}
+                    {error ? (
+                        <Text style={[styles.message, { color: colors.error }]}>{error}</Text>
+                    ) : overAllocated ? (
+                        <Text style={[styles.message, { color: colors.error }]}>
+                            Beneficiaries add up to more than 100% (@{SNAPIE_BENEFICIARY}’s share grows to {formatPercent(snapieWeight)} with video or audio). Remove some before publishing.
+                        </Text>
+                    ) : (
+                        <Text style={[styles.message, { color: colors.info }]}>{formatPercent(remaining)} left to share</Text>
+                    )}
                     <View style={styles.addRow}>
                         <TextInput
                             style={[inputStyle, styles.accountInput]}
@@ -182,15 +192,6 @@ export const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                    {error ? (
-                        <Text style={[styles.message, { color: colors.error }]}>{error}</Text>
-                    ) : overAllocated ? (
-                        <Text style={[styles.message, { color: colors.error }]}>
-                            Beneficiaries add up to more than 100% (@{SNAPIE_BENEFICIARY}’s share grows to {formatPercent(snapieWeight)} with video or audio). Remove some before publishing.
-                        </Text>
-                    ) : (
-                        <Text style={[styles.message, { color: colors.info }]}>{formatPercent(remaining)} left to share</Text>
-                    )}
                 </View>
             )}
         </View>
