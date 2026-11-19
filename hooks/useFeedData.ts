@@ -3,6 +3,7 @@ import { getClient } from '../services/HiveClient';
 import { useFollowingList, useMutedList, useCurrentUser } from '../store/context';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
+import { matchesFeedFilter, isModerationBlocked, type FeedFilter } from '../utils/feedFilter';
 import { fetchMutedList, didLastMutedListFetchFail } from '../services/HiveMuteService';
 import { CACHE_DURATIONS } from '../store/types';
 import { usePatronList } from './usePatronList';
@@ -81,7 +82,7 @@ export interface Snap {
   [key: string]: any;
 }
 
-export type FeedFilter = 'following' | 'newest' | 'trending' | 'patrons';
+export type { FeedFilter };
 
 // Container metadata with ordered dictionary structure
 interface ContainerMetadata {
@@ -368,74 +369,29 @@ export function useFeedData(): UseFeedDataReturn {
         `🔍 [applyFilter] Applying filter "${filter}" to ${snaps.length} snaps`
       );
 
-      let filteredSnaps = snaps;
+      const followingSet = new Set(followingList || []);
+      const filteredSnaps = snaps.filter(snap => matchesFeedFilter(snap, filter, followingSet, patronSet));
 
-      switch (filter) {
-        case 'following':
-          // Filter by following list - use passed parameter directly to avoid stale closure
-          console.log('🔍 [applyFilter] followingList length:', followingList?.length || 0);
-          const followingSet = new Set(followingList || []);
-          filteredSnaps = snaps.filter(snap => followingSet.has(snap.author));
-          console.log(
-            `🔍 [applyFilter] Following filter: ${snaps.length} → ${filteredSnaps.length} snaps`
-          );
-          break;
-
-        case 'newest':
-          // All snaps, sorted by newest (already sorted by default from containers)
-          filteredSnaps = snaps;
-          console.log(
-            `🔍 [applyFilter] Newest filter: ${snaps.length} snaps (no filtering)`
-          );
-          break;
-
-        case 'trending':
-          // Sort by payout (trending) - create a new array to avoid mutating original
-          filteredSnaps = [...snaps].sort((a, b) => {
-            const payoutA =
-              parseFloat(a.pending_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(a.total_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(a.curator_payout_value?.replace(' HBD', '') || '0');
-            const payoutB =
-              parseFloat(b.pending_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(b.total_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(b.curator_payout_value?.replace(' HBD', '') || '0');
-            return payoutB - payoutA;
-          });
-          console.log(
-            `🔍 [applyFilter] Trending filter: ${snaps.length} snaps sorted by payout`
-          );
-          break;
-
-        case 'patrons':
-          // Snaps from accounts on the patrons list (people who support the
-          // creator monthly) — same Set-membership shape as 'following'.
-          filteredSnaps = snaps.filter(snap => patronSet.has(snap.author));
-          console.log(
-            `🔍 [applyFilter] Patrons filter: ${snaps.length} → ${filteredSnaps.length} snaps`
-          );
-          break;
-
-        default:
-          console.log(
-            `🔍 [applyFilter] Unknown filter "${filter}", using all snaps`
-          );
-          filteredSnaps = snaps;
+      if (filter === 'trending') {
+        // Sort by payout (trending) - filter() already returned a new array
+        filteredSnaps.sort((a, b) => {
+          const payoutA =
+            parseFloat(a.pending_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(a.total_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(a.curator_payout_value?.replace(' HBD', '') || '0');
+          const payoutB =
+            parseFloat(b.pending_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(b.total_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(b.curator_payout_value?.replace(' HBD', '') || '0');
+          return payoutB - payoutA;
+        });
       }
+      console.log(
+        `🔍 [applyFilter] ${filter} filter: ${snaps.length} → ${filteredSnaps.length} snaps`
+      );
 
       // Moderation: drop items blocked by allowlisted moderators
-      // Fast path: if active_votes present on snaps, apply immediately.
-      const afterModeration = filteredSnaps.filter(s => {
-        // If we already have a cached verdict and it is blocked, drop now
-        const cached = ModerationService.getCached(s.author, s.permlink);
-        if (cached?.isBlocked) return false;
-        // If active_votes exist, evaluate once and cache
-        if (Array.isArray(s.active_votes)) {
-          const verdict = ModerationService.fromActiveVotes(s.author, s.permlink, s.active_votes);
-          if (verdict?.isBlocked) return false;
-        }
-        return true;
-      });
+      const afterModeration = filteredSnaps.filter(s => !isModerationBlocked(s));
 
       return afterModeration;
     },

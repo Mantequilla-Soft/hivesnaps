@@ -20,7 +20,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import ImageView from 'react-native-image-viewing';
 import { createFeedScreenStyles } from '../../styles/FeedScreenStyles';
 import { buildImageGalleryFromSnap, findImageIndexInGallery } from '../../utils/imageGallery';
@@ -40,6 +40,9 @@ import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
 import { usePendingRewards } from '../../hooks/usePendingRewards';
 import PendingRewardsBanner from '../components/PendingRewardsBanner';
+import NewSnapsBanner from '../components/NewSnapsBanner';
+import { useNewSnaps } from '../../hooks/useNewSnaps';
+import { matchesFeedFilter, isModerationBlocked } from '../../utils/feedFilter';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
@@ -326,6 +329,54 @@ const FeedScreenRefactored = () => {
 
   // Refs
   const flatListRef = useRef<FlatList<any>>(null);
+
+  // "N new snaps" banner: poll for snaps newer than the feed while it's on
+  // screen, and merge them in only when the banner is tapped, so reading
+  // isn't interrupted.
+  const isFocused = useIsFocused();
+  const [mergingNewSnaps, setMergingNewSnaps] = useState(false);
+  const followingSet = useMemo(() => new Set(followingList || []), [followingList]);
+  const isRelevantNewSnap = useCallback(
+    (s: Parameters<typeof isVisible>[0] & { permlink: string; created: string }) =>
+      isVisible(s) && matchesFeedFilter(s, currentFilter, followingSet, patronSet) && !isModerationBlocked(s),
+    [isVisible, currentFilter, followingSet, patronSet]
+  );
+  const { newSnaps, reset: resetNewSnaps } = useNewSnaps({
+    // Trending is sorted by payout, so "newer" doesn't mean "on top" there.
+    enabled:
+      isFocused &&
+      activeFeed === 'snaps' &&
+      currentFilter !== 'trending' &&
+      !feedLoading &&
+      !globalRefreshing,
+    known: snaps,
+    isRelevant: isRelevantNewSnap,
+    currentUser: username,
+  });
+
+  // Scroll up as soon as the merged snaps reach the list, rather than when
+  // refreshSnaps resolves (it also waits on background moderation checks).
+  const scrollAfterMergeRef = useRef(false);
+  const finishNewSnapsMerge = useCallback(() => {
+    if (!scrollAfterMergeRef.current) return;
+    scrollAfterMergeRef.current = false;
+    resetNewSnaps();
+    setMergingNewSnaps(false);
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [resetNewSnaps]);
+
+  useEffect(() => {
+    finishNewSnapsMerge();
+  }, [snaps, finishNewSnapsMerge]);
+
+  const showNewSnaps = useCallback(() => {
+    if (scrollAfterMergeRef.current) return;
+    scrollAfterMergeRef.current = true;
+    setMergingNewSnaps(true);
+    // refreshSnaps merges the latest container into the existing list
+    // (older containers are kept). If it changes nothing, finish here.
+    refreshSnaps().finally(finishNewSnapsMerge);
+  }, [refreshSnaps, finishNewSnapsMerge]);
   const hasInitialFetch = useRef(false);
   const hasOpenedBlogsRef = useRef(false);
   // Tracks the username each fetch last ran with (undefined = never fetched),
@@ -1125,6 +1176,15 @@ const FeedScreenRefactored = () => {
             </Text>
           </View>
         ) : (
+          <>
+          {newSnaps.length > 0 && (
+            <NewSnapsBanner
+              count={newSnaps.length}
+              authors={newSnaps.map(s => s.author)}
+              loading={mergingNewSnaps}
+              onPress={showNewSnaps}
+            />
+          )}
           <FlatList
             key="snaps-feed"
             ref={flatListRef}
@@ -1227,6 +1287,7 @@ const FeedScreenRefactored = () => {
             onScroll={handleScroll}
             scrollEventThrottle={16} // Throttle scroll events for performance
           />
+          </>
         )}
       </View>
 
