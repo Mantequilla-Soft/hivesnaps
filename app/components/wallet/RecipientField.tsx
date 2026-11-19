@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { getClient } from '../../../services/HiveClient';
+import { hiveAccountExists, normalizeUsername } from '../../../utils/hiveUsername';
 import { useAvatar } from '../../../hooks/useAvatar';
 import { walletUiStyles, type WalletColors } from './walletUi';
-
-const client = getClient();
 
 export type UsernameLookupStatus = 'idle' | 'checking' | 'found' | 'not-found';
 
@@ -13,8 +11,8 @@ export type UsernameLookupStatus = 'idle' | 'checking' | 'found' | 'not-found';
 // this spends a network call — same debounce snapie-io's WalletModal uses.
 const USERNAME_LOOKUP_DEBOUNCE_MS = 1000;
 
-/** "@Foo " → "foo" */
-export const normalizeUsername = (raw: string): string => raw.trim().replace(/^@/, '').toLowerCase();
+// Re-exported for the wallet modals that already import it from here.
+export { normalizeUsername };
 
 interface RecipientFieldProps {
     colors: WalletColors;
@@ -67,8 +65,8 @@ export const RecipientField: React.FC<RecipientFieldProps> = ({
         let cancelled = false;
         const timeoutId = setTimeout(async () => {
             try {
-                const accounts = await client.database.getAccounts([trimmed]);
-                if (!cancelled) setStatus(accounts.length > 0 ? 'found' : 'not-found');
+                const exists = await hiveAccountExists(trimmed);
+                if (!cancelled) setStatus(exists ? 'found' : 'not-found');
             } catch {
                 // Network hiccup — don't block on a failed check, just drop
                 // back to no verdict shown.

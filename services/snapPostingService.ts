@@ -19,6 +19,12 @@ interface PostSnapOptions {
   hasHangout?: boolean; // Adds 3% beneficiary to @snapie for hangout announcements
   /** Extra beneficiaries chosen by the author (blog posts), merged with @snapie's share. */
   beneficiaries?: Beneficiary[];
+  /**
+   * @snapie's share in basis points, when the caller has already worked it
+   * out (the blog composer shows and validates against it). Overrides the
+   * share derived from hasVideo/hasAudio/hasHangout.
+   */
+  snapieWeight?: number;
 }
 
 /**
@@ -54,8 +60,12 @@ export async function postSnapWithBeneficiaries(
     },
   ];
 
-  // If no video, audio, hangout or chosen beneficiaries, just broadcast the comment
-  if (!hasVideo && !hasAudio && !hasHangout && extra.length === 0) {
+  // @snapie: the caller's share if given, else video/audio → 10%, hangout → 3%, otherwise none.
+  const snapieWeight =
+    options.snapieWeight ?? (hasVideo || hasAudio || hasHangout ? snapieShare(!!(hasVideo || hasAudio)) : 0);
+
+  // No beneficiaries at all: just broadcast the comment
+  if (snapieWeight === 0 && extra.length === 0) {
     const result = await client.broadcast.comment(
       {
         parent_author: parentAuthor,
@@ -71,9 +81,8 @@ export async function postSnapWithBeneficiaries(
     return result.id || 'unknown';
   }
 
-  // @snapie: video/audio → 10%, hangout → 3%, otherwise none; then the
-  // author's own picks. Throws before broadcasting if Hive would reject it.
-  const snapieWeight = hasVideo || hasAudio || hasHangout ? snapieShare(!!(hasVideo || hasAudio)) : 0;
+  // @snapie's share plus the author's own picks. Throws before
+  // broadcasting if Hive would reject the list.
   const beneficiaries = buildBeneficiaries(extra, snapieWeight);
 
   const commentOptionsOp: Operation = [

@@ -1,5 +1,7 @@
 import {
+    allocatedWeight,
     beneficiaryError,
+    validateBeneficiary,
     buildBeneficiaries,
     formatPercent,
     parsePercent,
@@ -18,6 +20,7 @@ describe('parsePercent', () => {
         ['0,5', 50],
         ['0.01', 1],
         [' 100 ', 10000],
+        ['.5', 50],
     ])('%s → %d basis points', (input, bp) => expect(parsePercent(input)).toBe(bp));
 
     it.each(['', '0', '100.01', '-5', 'abc', '1.234', '5%'])('rejects %p', (input) => expect(parsePercent(input)).toBeNull());
@@ -104,4 +107,19 @@ describe('buildBeneficiaries', () => {
         expect(() => buildBeneficiaries([{ account: 'bad_name', weight: 10 }], 300)).toThrow(/Invalid/);
         expect(() => buildBeneficiaries([{ account: 'alice', weight: 10.5 }], 300)).toThrow(/Invalid/);
     });
+});
+
+describe('validateBeneficiary', () => {
+    it('normalizes the input into a beneficiary', () => {
+        expect(validateBeneficiary([], ' @Alice ', '12,5', ctx)).toEqual({ ok: true, beneficiary: { account: 'alice', weight: 1250 } });
+    });
+
+    it('returns a single error for bad input', () => {
+        expect(validateBeneficiary([], 'alice', 'x', ctx)).toEqual({ ok: false, error: 'Enter a percentage between 0.01 and 100.' });
+        expect(validateBeneficiary([], 'bad_name', '5', ctx)).toEqual({ ok: false, error: expect.stringMatching(/valid/) });
+    });
+});
+
+it('allocatedWeight adds @snapie to the user’s entries', () => {
+    expect(allocatedWeight([{ account: 'a-b', weight: 700 }], 300)).toBe(1000);
 });

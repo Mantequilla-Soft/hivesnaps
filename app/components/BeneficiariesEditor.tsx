@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { getClient } from '../../services/HiveClient';
-import { normalizeUsername } from '../../utils/hiveUsername';
+import { hiveAccountExists } from '../../utils/hiveUsername';
 import {
-    beneficiaryError,
+    allocatedWeight,
     formatPercent,
-    parsePercent,
     remainingWeight,
+    validateBeneficiary,
     SNAPIE_BENEFICIARY,
     MAX_BENEFICIARY_WEIGHT,
     type Beneficiary,
@@ -50,33 +49,50 @@ export const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
     const [percent, setPercent] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [checking, setChecking] = useState(false);
+    // Blocks a second tap before `checking` re-renders the button disabled.
+    const inFlightRef = useRef(false);
+    // Latest list and share, for re-checking after the (async) lookup.
+    const latestRef = useRef({ beneficiaries, snapieWeight });
+    latestRef.current = { beneficiaries, snapieWeight };
 
-    const allocated = snapieWeight + beneficiaries.reduce((sum, b) => sum + b.weight, 0);
+    const allocated = allocatedWeight(beneficiaries, snapieWeight);
     const overAllocated = allocated > MAX_BENEFICIARY_WEIGHT;
     const remaining = remainingWeight(beneficiaries, snapieWeight);
 
     const add = async (): Promise<void> => {
-        const name = normalizeUsername(account);
-        const weight = parsePercent(percent);
-        const problem = beneficiaryError(beneficiaries, name, weight, { author, snapieWeight });
-        if (problem || weight === null) {
-            setError(problem ?? 'Enter a percentage between 0.01 and 100.');
+        if (inFlightRef.current) return;
+        const first = validateBeneficiary(beneficiaries, account, percent, { author, snapieWeight });
+        if (!first.ok) {
+            setError(first.error);
             return;
         }
+        const { account: name } = first.beneficiary;
+        inFlightRef.current = true;
         setChecking(true);
         setError(null);
         try {
-            const found = await getClient().database.getAccounts([name]);
-            if (!found.length) {
+            if (!(await hiveAccountExists(name))) {
                 setError(`@${name} doesn't exist on Hive.`);
                 return;
             }
-            onAdd({ account: name, weight });
+            // The list or @snapie's share (video/audio attached) may have
+            // changed while we waited; check again against the latest.
+            const latest = latestRef.current;
+            const again = validateBeneficiary(latest.beneficiaries, account, percent, {
+                author,
+                snapieWeight: latest.snapieWeight,
+            });
+            if (!again.ok) {
+                setError(again.error);
+                return;
+            }
+            onAdd(again.beneficiary);
             setAccount('');
             setPercent('');
         } catch {
             setError('Couldn’t check that account. Try again.');
         } finally {
+            inFlightRef.current = false;
             setChecking(false);
         }
     };
@@ -135,6 +151,7 @@ export const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
                             placeholderTextColor={colors.info}
                             autoCapitalize="none"
                             autoCorrect={false}
+                            editable={!checking}
                             accessibilityLabel="Beneficiary account"
                         />
                         <TextInput
@@ -144,6 +161,7 @@ export const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
                             placeholder="%"
                             placeholderTextColor={colors.info}
                             keyboardType="decimal-pad"
+                            editable={!checking}
                             accessibilityLabel="Beneficiary percentage"
                         />
                         <TouchableOpacity

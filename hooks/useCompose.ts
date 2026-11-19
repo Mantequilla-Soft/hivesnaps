@@ -18,7 +18,7 @@ import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
 import { awardPoints } from '../services/pointsService';
 import { isPointsEnabled } from '../utils/pointsConfig';
-import { snapieShare, type Beneficiary } from '../utils/beneficiaries';
+import { allocatedWeight, snapieShare, MAX_BENEFICIARY_WEIGHT, type Beneficiary } from '../utils/beneficiaries';
 
 const client = getClient();
 
@@ -81,7 +81,7 @@ type ComposeAction =
     | { type: 'SET_USER'; payload: { username: string | null; avatarUrl: string | null } }
     | { type: 'CLEAR_FORM' };
 
-const initialState: ComposeState = {
+export const initialComposeState: ComposeState = {
     title: '',
     tags: '',
     text: '',
@@ -103,7 +103,7 @@ const initialState: ComposeState = {
     avatarUrl: null,
 };
 
-function composeReducer(state: ComposeState, action: ComposeAction): ComposeState {
+export function composeReducer(state: ComposeState, action: ComposeAction): ComposeState {
     switch (action.type) {
         case 'SET_TITLE':
             return { ...state, title: action.payload };
@@ -130,6 +130,8 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
         case 'CLEAR_AUDIO':
             return { ...state, audioEmbedUrl: null, audioDuration: 0 };
         case 'ADD_BENEFICIARY':
+            // One entry per account, even if an add is dispatched twice.
+            if (state.beneficiaries.some(b => b.account === action.payload.account)) return state;
             return { ...state, beneficiaries: [...state.beneficiaries, action.payload] };
         case 'REMOVE_BENEFICIARY':
             return { ...state, beneficiaries: state.beneficiaries.filter(b => b.account !== action.payload) };
@@ -201,7 +203,7 @@ export function useCompose({
     initialText,
     onSuccess,
 }: UseComposeParams) {
-    const [state, dispatch] = useReducer(composeReducer, initialState);
+    const [state, dispatch] = useReducer(composeReducer, initialComposeState);
 
     // Sub-hooks for specialized functionality
     // Snap/reply/edit videos are shorts; blog-post videos aren't — matching
@@ -568,8 +570,14 @@ export function useCompose({
         dispatch({ type: 'REMOVE_BENEFICIARY', payload: account });
     }, []);
 
-    /** @snapie's fixed share of a blog post: 10% with video/audio, else 3%. */
+    /**
+     * @snapie's fixed share of a blog post: 10% with video/audio, else 3%.
+     * The editor shows and validates against this, and submitBlogPost
+     * broadcasts exactly this, so the two can't disagree.
+     */
     const snapieWeight = snapieShare(!!video.videoEmbedUrl || !!state.audioEmbedUrl);
+    const beneficiariesOverLimit =
+        mode === 'blog' && allocatedWeight(state.beneficiaries, snapieWeight) > MAX_BENEFICIARY_WEIGHT;
 
     // ===== Validation =====
 
@@ -588,7 +596,13 @@ export function useCompose({
 
     const hasDraftContent = useMemo(() => {
         if (mode === 'blog') {
-            return Boolean(state.title.trim() || state.text.trim() || state.images.length > 0 || state.gifs.length > 0);
+            return Boolean(
+                state.title.trim() ||
+                state.text.trim() ||
+                state.images.length > 0 ||
+                state.gifs.length > 0 ||
+                state.beneficiaries.length > 0
+            );
         }
         return Boolean(
             state.text.trim() ||
@@ -598,15 +612,15 @@ export function useCompose({
             state.audioEmbedUrl ||
             state.audioUploading
         );
-    }, [mode, state.title, state.text, state.images.length, state.gifs.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
+    }, [mode, state.title, state.text, state.images.length, state.gifs.length, state.beneficiaries.length, video.hasVideo, state.audioEmbedUrl, state.audioUploading]);
 
     const isSubmitting = useMemo(() => {
         return state.posting || reply.posting || edit.editing || video.uploading || state.audioUploading;
     }, [state.posting, reply.posting, edit.editing, video.uploading, state.audioUploading]);
 
     const canSubmit = useMemo(() => {
-        return hasPostableContent && !isSubmitting;
-    }, [hasPostableContent, isSubmitting]);
+        return hasPostableContent && !isSubmitting && !beneficiariesOverLimit;
+    }, [hasPostableContent, isSubmitting, beneficiariesOverLimit]);
 
     // ===== Submit Operations =====
 
@@ -918,6 +932,7 @@ export function useCompose({
                     // attached (hasVideo/hasAudio wins), else 3% via this flag.
                     hasHangout: true,
                     beneficiaries: state.beneficiaries,
+                    snapieWeight,
                 },
                 postingKey
             );
@@ -944,7 +959,7 @@ export function useCompose({
         } finally {
             dispatch({ type: 'SET_POSTING', payload: false });
         }
-    }, [video, hasPostableContent, state, onSuccess]);
+    }, [video, hasPostableContent, state, snapieWeight, onSuccess]);
 
     const submit = useCallback(async () => {
         if (mode === 'reply') {

@@ -62,3 +62,16 @@ it('refuses to broadcast beneficiaries over 100%', async () => {
     ).rejects.toThrow(/100%/);
     expect(client.broadcast.sendOperations).not.toHaveBeenCalled();
 });
+
+it('uses the caller’s @snapie share when given', async () => {
+    const client = makeClient();
+    await postSnapWithBeneficiaries(
+        client as never,
+        { ...base, hasHangout: true, hasAudio: true, snapieWeight: 300, beneficiaries: [{ account: 'alice', weight: 100 }] },
+        key
+    );
+    expect(beneficiariesOf(client)).toEqual([
+        { account: 'alice', weight: 100 },
+        { account: 'snapie', weight: 300 },
+    ]);
+});

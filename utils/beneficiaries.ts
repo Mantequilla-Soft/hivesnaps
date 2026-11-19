@@ -17,16 +17,18 @@ export function snapieShare(hasMedia: boolean): number {
     return hasMedia ? 1000 : 300;
 }
 
+const PERCENT_ERROR = 'Enter a percentage between 0.01 and 100.';
+
 export const formatPercent = (weight: number): string => `${Number((weight / 100).toFixed(2))}%`;
 
 /**
- * Parse a percentage typed by the user ("12.5", "12,5") into basis points.
+ * Parse a percentage typed by the user ("12.5", "12,5", ".5") into basis points.
  * Returns null unless it's a number above 0 and at most 100 with no more
  * than two decimals (Hive weights are whole basis points).
  */
 export function parsePercent(input: string): number | null {
     const text = input.trim().replace(',', '.');
-    if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
+    if (!/^(\d+(\.\d{1,2})?|\.\d{1,2})$/.test(text)) return null;
     const weight = Math.round(parseFloat(text) * 100);
     return weight > 0 && weight <= MAX_BENEFICIARY_WEIGHT ? weight : null;
 }
@@ -49,15 +51,39 @@ export function beneficiaryError(
     if (existing.some((b) => b.account === account)) return `@${account} is already a beneficiary.`;
     // One slot is taken by @snapie.
     if (existing.length + 1 >= MAX_BENEFICIARIES) return `Hive allows at most ${MAX_BENEFICIARIES} beneficiaries, including @${SNAPIE_BENEFICIARY}.`;
-    if (weight === null) return 'Enter a percentage between 0.01 and 100.';
+    if (weight === null) return PERCENT_ERROR;
     const remaining = remainingWeight(existing, snapieWeight);
     if (weight > remaining) return `Only ${formatPercent(remaining)} is left to share.`;
     return null;
 }
 
+/** Total basis points shared: @snapie plus the user's entries. */
+export function allocatedWeight(existing: readonly Beneficiary[], snapieWeight: number): number {
+    return snapieWeight + existing.reduce((sum, b) => sum + b.weight, 0);
+}
+
 /** Basis points still available for more beneficiaries. */
 export function remainingWeight(existing: readonly Beneficiary[], snapieWeight: number): number {
-    return Math.max(0, MAX_BENEFICIARY_WEIGHT - snapieWeight - existing.reduce((sum, b) => sum + b.weight, 0));
+    return Math.max(0, MAX_BENEFICIARY_WEIGHT - allocatedWeight(existing, snapieWeight));
+}
+
+export type BeneficiaryInputResult = { ok: true; beneficiary: Beneficiary } | { ok: false; error: string };
+
+/**
+ * Turn what the user typed (account, percentage) into a beneficiary that
+ * can be added next to `existing`, or the reason it can't.
+ */
+export function validateBeneficiary(
+    existing: readonly Beneficiary[],
+    accountInput: string,
+    percentInput: string,
+    ctx: { author: string | null; snapieWeight: number }
+): BeneficiaryInputResult {
+    const account = normalizeUsername(accountInput);
+    const weight = parsePercent(percentInput);
+    const error = beneficiaryError(existing, account, weight, ctx);
+    if (error !== null || weight === null) return { ok: false, error: error ?? PERCENT_ERROR };
+    return { ok: true, beneficiary: { account, weight } };
 }
 
 /**
