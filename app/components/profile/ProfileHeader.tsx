@@ -16,7 +16,7 @@ interface ProfileHeaderProps {
     isOwnProfile: boolean;
     colors: ColorScheme;
     styles: ReturnType<typeof createProfileScreenStyles>;
-    onEditAvatarPress: () => void;
+    onEditProfilePress: () => void;
 }
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
@@ -26,7 +26,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     isOwnProfile,
     colors,
     styles,
-    onEditAvatarPress,
+    onEditProfilePress,
 }) => {
     return (
         <>
@@ -55,15 +55,16 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 )}
             </View>
 
-            {/* Edit Profile Image Button (Only for own profile) */}
+            {/* Edit Profile Button (Only for own profile) */}
             {isOwnProfile && (
                 <TouchableOpacity
                     style={styles.editAvatarButton}
-                    onPress={onEditAvatarPress}
+                    onPress={onEditProfilePress}
+                    accessibilityRole="button"
                 >
-                    <FontAwesome name='camera' size={16} color={colors.icon} />
+                    <FontAwesome name='pencil' size={16} color={colors.icon} />
                     <Text style={[styles.editAvatarText, { color: colors.icon }]}>
-                        Edit Profile Image
+                        Edit Profile
                     </Text>
                 </TouchableOpacity>
             )}
