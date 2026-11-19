@@ -40,6 +40,10 @@ export function usePendingRewards(username: string | null | undefined) {
   }, [username]);
 
   useEffect(() => {
+    // Never show (or claim) the previous account's rewards; also drop any
+    // request still in flight for it.
+    requestId.current++;
+    setRewards(null);
     setDismissLoaded(false);
     setDismissedSig(null);
     if (!username) return;

@@ -11,10 +11,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
-import { getClient } from '../../services/HiveClient';
 import { useAuth } from '../../store/context';
 import { createWalletScreenStyles } from '../../styles/WalletScreenStyles';
-import { vestsToHp } from '../../utils/hiveCalculations';
+import { canCollectHbdInterest, type SavingsWithdrawal, type OutgoingDelegation } from '../../utils/wallet';
+import { useWalletData } from '../../hooks/useWalletData';
+import { hasPendingRewards } from '../../utils/pendingRewards';
+import { usePendingRewards } from '../../hooks/usePendingRewards';
+import PendingRewardsBanner from '../components/PendingRewardsBanner';
+import { SavingsModal, type SavingsMode } from '../components/wallet/SavingsModal';
+import { SavingsCard } from '../components/wallet/SavingsCard';
+import { CancelWithdrawModal } from '../components/wallet/CancelWithdrawModal';
+import { DelegateModal } from '../components/wallet/DelegateModal';
+import { DelegationsCard } from '../components/wallet/DelegationsCard';
+import { TermInfo } from '../components/wallet/walletUi';
 import { useWalletOperations } from '../../hooks/useWalletOperations';
 import { useAccountHistory } from '../../hooks/useAccountHistory';
 import { TransferModal } from '../components/wallet/TransferModal';
@@ -27,14 +36,18 @@ import { ScanPaymentModal } from '../components/wallet/ScanPaymentModal';
 import { AuthCancelledError } from '../../services/LocalAuthService';
 import { currencyFromAmount, valueFromAmount, HiveTransferQRData } from '../../utils/hiveQr';
 
-const client = getClient();
 
-interface WalletData {
-    hiveBalance: number;
-    hbdBalance: number;
-    hivePower: number;       // effective HP (own + received delegations)
-    ownHivePower: number;    // own HP only (powerdown-able)
-    activePowerDownRate: number; // weekly HP payout, 0 = inactive
+const SUCCESS_DISMISS_MS = 2500;
+
+/** Runs `onDismiss` once, SUCCESS_DISMISS_MS after `success` turns true. */
+function useDismissAfterSuccess(success: boolean, onDismiss: () => void): void {
+    const latest = useRef(onDismiss);
+    latest.current = onDismiss;
+    useEffect(() => {
+        if (!success) return;
+        const id = setTimeout(() => latest.current(), SUCCESS_DISMISS_MS);
+        return () => clearTimeout(id);
+    }, [success]);
 }
 
 const WalletScreen = (): React.JSX.Element => {
@@ -63,10 +76,6 @@ const WalletScreen = (): React.JSX.Element => {
     };
 
     // Wallet data state
-    const [walletData, setWalletData] = useState<WalletData | null>(null);
-    const [globalProps, setGlobalProps] = useState<{ total_vesting_fund_hive: string; total_vesting_shares: string } | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
     // Modal visibility
     const [transferHiveVisible, setTransferHiveVisible] = useState(false);
@@ -76,11 +85,14 @@ const WalletScreen = (): React.JSX.Element => {
     const [requestPaymentVisible, setRequestPaymentVisible] = useState(false);
     const [scanPaymentVisible, setScanPaymentVisible] = useState(false);
     const [transferPrefill, setTransferPrefill] = useState<{ to: string; amount: string; memo: string } | null>(null);
+    const [savingsMode, setSavingsMode] = useState<SavingsMode | null>(null);
+    const [savingsCurrency, setSavingsCurrency] = useState<'HIVE' | 'HBD'>('HBD');
+    const [withdrawalToCancel, setWithdrawalToCancel] = useState<SavingsWithdrawal | null>(null);
+    const [delegateVisible, setDelegateVisible] = useState(false);
+    const [delegationToEdit, setDelegationToEdit] = useState<OutgoingDelegation | null>(null);
 
     // Stored key availability (checked once on mount)
     const [storedKeyAvailable, setStoredKeyAvailable] = useState(false);
-
-    const fetchSeq = useRef(0);
 
     const {
         transactions,
@@ -89,79 +101,49 @@ const WalletScreen = (): React.JSX.Element => {
         fetchHistory,
     } = useAccountHistory(currentUsername, 10);
 
-    // Define fetchWalletData before passing it to the hook as onRefresh
-    const fetchWalletData = useCallback(async (silent = false): Promise<void> => {
-        if (!currentUsername) {
-            fetchSeq.current++;
-            setWalletData(null);
-            setGlobalProps(null);
-            setStoredKeyAvailable(false);
-            setLoading(false);
-            setRefreshing(false);
-            return;
-        }
-        const seq = ++fetchSeq.current;
-        if (!silent) setLoading(true);
-        else setRefreshing(true);
-        try {
-            const [accounts, props] = await Promise.all([
-                client.database.call('get_accounts', [[currentUsername]]),
-                client.database.getDynamicGlobalProperties(),
-            ]);
-            if (seq !== fetchSeq.current) return;
-            if (!accounts || !accounts[0]) throw new Error('Account not found');
-            const account = accounts[0];
+    const {
+        walletData,
+        globalProps,
+        withdrawals,
+        delegations,
+        extrasFailed,
+        loading,
+        refreshing,
+        loadError,
+        reload: fetchWalletData,
+    } = useWalletData(currentUsername);
 
-            const gProps = {
-                total_vesting_fund_hive: props.total_vesting_fund_hive?.toString() ?? '0 HIVE',
-                total_vesting_shares: props.total_vesting_shares?.toString() ?? '0 VESTS',
-            };
-            setGlobalProps(gProps);
+    useEffect(() => {
+        if (loadError) Alert.alert('Error', loadError);
+    }, [loadError]);
 
-            const parseBalance = (val: string | undefined, fallback: string, suffix: string): number => {
-                const num = parseFloat((val || fallback).replace(suffix, ''));
-                return Number.isNaN(num) ? 0 : num;
-            };
-            const hiveBalance = parseBalance(account.balance, '0.000 HIVE', ' HIVE');
-            const hbdBalance = parseBalance(account.hbd_balance, '0.000 HBD', ' HBD');
-            const vestingShares = parseBalance(account.vesting_shares, '0.000000 VESTS', ' VESTS');
-            const delegatedVests = parseBalance(account.delegated_vesting_shares, '0.000000 VESTS', ' VESTS');
-            const receivedVests = parseBalance(account.received_vesting_shares, '0.000000 VESTS', ' VESTS');
-            const withdrawRate = parseBalance(account.vesting_withdraw_rate, '0.000000 VESTS', ' VESTS');
+    // Silent reloads reject when an optional list still fails; the card keeps
+    // showing its Retry prompt, so there's nothing more to report here.
+    const retryExtras = useCallback((): void => {
+        fetchWalletData(true).catch(() => {});
+    }, [fetchWalletData]);
 
-            const effectiveVests = vestingShares - delegatedVests + receivedVests;
-            const ownVests = vestingShares - delegatedVests;
-
-            const hivePower = vestsToHp(effectiveVests, gProps.total_vesting_fund_hive, gProps.total_vesting_shares);
-            const ownHivePower = vestsToHp(ownVests, gProps.total_vesting_fund_hive, gProps.total_vesting_shares);
-            const activePowerDownRate = vestsToHp(withdrawRate, gProps.total_vesting_fund_hive, gProps.total_vesting_shares);
-
-            setWalletData({ hiveBalance, hbdBalance, hivePower, ownHivePower, activePowerDownRate });
-        } catch (err) {
-            if (seq !== fetchSeq.current) return;
-            if (!silent) {
-                Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load wallet');
-            } else {
-                throw err instanceof Error ? err : new Error('Failed to load wallet');
-            }
-        } finally {
-            if (seq !== fetchSeq.current) return;
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [currentUsername]);
+    const { rewards: pendingRewards, refresh: refreshRewards } = usePendingRewards(currentUsername);
+    const showRewards = !!pendingRewards && hasPendingRewards(pendingRewards);
 
     const {
         transferLoading, transferSuccess,
         powerUpLoading, powerUpSuccess,
         powerDownLoading, powerDownSuccess,
+        savingsLoading, savingsSuccess,
+        delegateLoading, delegateSuccess,
+        claimLoading,
         transfer, powerUp, powerDown, cancelPowerDown,
+        depositToSavings, withdrawFromSavings, cancelSavingsWithdraw,
+        delegate, claimRewards,
         resetOperationSuccess,
         checkStoredKeyAvailable,
     } = useWalletOperations(currentUsername, async () => {
         await fetchWalletData(true);
         await fetchHistory();
+        await refreshRewards();
     });
+
 
     useEffect(() => {
         fetchWalletData();
@@ -176,35 +158,78 @@ const WalletScreen = (): React.JSX.Element => {
         return () => { cancelled = true; };
     }, [checkStoredKeyAvailable]);
 
-    // Dismiss success state and close modal after 2.5s
-    useEffect(() => {
-        if (!transferSuccess) return;
-        const id = setTimeout(() => {
-            setTransferHiveVisible(false);
-            setTransferHbdVisible(false);
-            setTransferPrefill(null);
-            resetOperationSuccess();
-        }, 2500);
-        return () => clearTimeout(id);
-    }, [transferSuccess, resetOperationSuccess]);
+    // Dismiss each operation's success state and close its modal after 2.5s.
+    // Each timer only resets its own operation, so two that finish close
+    // together don't cancel each other's dismissal.
+    useDismissAfterSuccess(transferSuccess, () => {
+        setTransferHiveVisible(false);
+        setTransferHbdVisible(false);
+        setTransferPrefill(null);
+        resetOperationSuccess('transfer');
+    });
+    useDismissAfterSuccess(powerUpSuccess, () => {
+        setPowerUpVisible(false);
+        resetOperationSuccess('powerUp');
+    });
+    useDismissAfterSuccess(powerDownSuccess, () => {
+        setPowerDownVisible(false);
+        resetOperationSuccess('powerDown');
+    });
+    useDismissAfterSuccess(savingsSuccess, () => {
+        setSavingsMode(null);
+        setWithdrawalToCancel(null);
+        resetOperationSuccess('savings');
+    });
+    useDismissAfterSuccess(delegateSuccess, () => {
+        setDelegateVisible(false);
+        setDelegationToEdit(null);
+        resetOperationSuccess('delegate');
+    });
 
-    useEffect(() => {
-        if (!powerUpSuccess) return;
-        const id = setTimeout(() => {
-            setPowerUpVisible(false);
-            resetOperationSuccess();
-        }, 2500);
-        return () => clearTimeout(id);
-    }, [powerUpSuccess, resetOperationSuccess]);
+    /** Drops a cancelled biometric prompt silently; any other error goes back to the modal. */
+    const ignoreAuthCancel = async (op: () => Promise<unknown>): Promise<void> => {
+        try {
+            await op();
+        } catch (err) {
+            if (err instanceof AuthCancelledError) return;
+            throw err;
+        }
+    };
 
-    useEffect(() => {
-        if (!powerDownSuccess) return;
-        const id = setTimeout(() => {
-            setPowerDownVisible(false);
-            resetOperationSuccess();
-        }, 2500);
-        return () => clearTimeout(id);
-    }, [powerDownSuccess, resetOperationSuccess]);
+    const handleSavings = (mode: SavingsMode, amount: string, currency: 'HIVE' | 'HBD', manualKey?: string): Promise<void> =>
+        ignoreAuthCancel(() =>
+            // 'collect' is a token HBD deposit that triggers the interest payout.
+            mode === 'withdraw'
+                ? withdrawFromSavings(amount, currency, manualKey)
+                : depositToSavings(amount, currency, manualKey)
+        );
+
+    const handleCancelWithdrawal = (requestId: number, manualKey?: string): Promise<void> =>
+        ignoreAuthCancel(() => cancelSavingsWithdraw(requestId, manualKey));
+
+    const handleDelegate = (delegatee: string, amountHp: string, manualKey?: string): Promise<void> => {
+        if (!globalProps) return Promise.reject(new Error('Wallet data not loaded. Please wait and try again.'));
+        return ignoreAuthCancel(() => delegate(delegatee, amountHp, globalProps, manualKey));
+    };
+
+    const handleClaim = async (): Promise<void> => {
+        if (!pendingRewards) return;
+        try {
+            await claimRewards(pendingRewards);
+        } catch (err) {
+            Alert.alert('Couldn\u2019t claim rewards', err instanceof Error ? err.message : 'Please try again.');
+        }
+    };
+
+    const openSavings = (mode: SavingsMode, currency: 'HIVE' | 'HBD' = 'HBD'): void => {
+        setSavingsCurrency(currency);
+        setSavingsMode(mode);
+    };
+
+    const openDelegate = (existing: OutgoingDelegation | null): void => {
+        setDelegationToEdit(existing);
+        setDelegateVisible(true);
+    };
 
     const handleTransfer = async (currency: 'HIVE' | 'HBD', to: string, amount: string, memo: string, manualKey?: string): Promise<void> => {
         try {
@@ -276,6 +301,16 @@ const WalletScreen = (): React.JSX.Element => {
             onPress: () => setPowerDownVisible(true),
         },
         {
+            label: 'Delegate\nHP',
+            icon: 'handshake-o' as const,
+            onPress: () => openDelegate(null),
+        },
+        {
+            label: 'HBD\nSavings',
+            icon: 'bank' as const,
+            onPress: () => openSavings('deposit', 'HBD'),
+        },
+        {
             label: 'Request\nPayment',
             icon: 'qrcode' as const,
             onPress: () => setRequestPaymentVisible(true),
@@ -310,24 +345,47 @@ const WalletScreen = (): React.JSX.Element => {
                 </View>
             ) : (
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                    {/* Pending rewards — claim straight from the wallet */}
+                    {showRewards && pendingRewards && (
+                        <View style={{ marginHorizontal: -12, marginTop: -8, marginBottom: 16 }}>
+                            <PendingRewardsBanner
+                                rewards={pendingRewards}
+                                onPress={handleClaim}
+                                ctaLabel="Claim"
+                                actionHint="Tap to claim them into your wallet."
+                                loading={claimLoading}
+                                accessory={<TermInfo term="pendingRewards" color={theme.textSecondary} size={15} />}
+                            />
+                        </View>
+                    )}
+
                     {/* Balance card */}
                     {walletData && (
                         <View style={styles.balanceCard}>
                             <Text style={styles.balanceCardTitle}>Balances</Text>
                             <View style={styles.balanceRow}>
                                 <View style={styles.balanceItem}>
-                                    <Text style={styles.balanceValue}>{walletData.hiveBalance.toFixed(3)}</Text>
-                                    <Text style={styles.balanceLabel}>HIVE</Text>
+                                    <Text style={styles.balanceValue} numberOfLines={1} adjustsFontSizeToFit>{walletData.hiveBalance.toFixed(3)}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={styles.balanceLabel}>HIVE</Text>
+                                        <TermInfo term="hive" color={theme.textSecondary} size={12} />
+                                    </View>
                                 </View>
                                 <View style={styles.balanceDivider} />
                                 <View style={styles.balanceItem}>
-                                    <Text style={styles.balanceValue}>{walletData.hbdBalance.toFixed(3)}</Text>
-                                    <Text style={styles.balanceLabel}>HBD</Text>
+                                    <Text style={styles.balanceValue} numberOfLines={1} adjustsFontSizeToFit>{walletData.hbdBalance.toFixed(3)}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={styles.balanceLabel}>HBD</Text>
+                                        <TermInfo term="hbd" color={theme.textSecondary} size={12} />
+                                    </View>
                                 </View>
                                 <View style={styles.balanceDivider} />
                                 <View style={styles.balanceItem}>
-                                    <Text style={styles.balanceValue}>{walletData.hivePower.toFixed(3)}</Text>
-                                    <Text style={styles.balanceLabel}>HP</Text>
+                                    <Text style={styles.balanceValue} numberOfLines={1} adjustsFontSizeToFit>{walletData.hivePower.toFixed(3)}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={styles.balanceLabel}>HP</Text>
+                                        <TermInfo term="hp" color={theme.textSecondary} size={12} />
+                                    </View>
                                 </View>
                             </View>
                         </View>
@@ -344,6 +402,37 @@ const WalletScreen = (): React.JSX.Element => {
                                 {walletData.activePowerDownRate.toFixed(3)} HP per week
                             </Text>
                         </View>
+                    )}
+
+                    {walletData && (
+                        <SavingsCard
+                            colors={colors}
+                            savingsHive={walletData.savingsHive}
+                            savingsHbd={walletData.savingsHbd}
+                            hbdInterestRate={walletData.hbdInterestRate}
+                            pendingHbdInterest={walletData.pendingHbdInterest}
+                            nextInterestPayout={walletData.nextInterestPayout}
+                            withdrawals={withdrawals}
+                            loadFailed={extrasFailed}
+                            onRetry={retryExtras}
+                            canCollectInterest={canCollectHbdInterest(walletData)}
+                            onCollectInterest={() => openSavings('collect', 'HBD')}
+                            onDeposit={() => openSavings('deposit')}
+                            onWithdraw={() => openSavings('withdraw', walletData.savingsHbd > 0 ? 'HBD' : 'HIVE')}
+                            onCancelWithdrawal={setWithdrawalToCancel}
+                        />
+                    )}
+
+                    {walletData && (
+                        <DelegationsCard
+                            colors={colors}
+                            delegations={delegations}
+                            loadFailed={extrasFailed}
+                            onRetry={retryExtras}
+                            receivedHivePower={walletData.receivedHivePower}
+                            onAdd={() => openDelegate(null)}
+                            onEdit={openDelegate}
+                        />
                     )}
 
                     {/* Action grid */}
@@ -434,6 +523,47 @@ const WalletScreen = (): React.JSX.Element => {
                 onClose={() => setPowerDownVisible(false)}
                 onPowerDown={handlePowerDown}
                 onCancelPowerDown={handleCancelPowerDown}
+            />
+
+            {/* Savings deposit / withdraw */}
+            <SavingsModal
+                visible={savingsMode !== null}
+                mode={savingsMode ?? 'deposit'}
+                initialCurrency={savingsCurrency}
+                liquid={{ HIVE: walletData?.hiveBalance ?? 0, HBD: walletData?.hbdBalance ?? 0 }}
+                savings={{ HIVE: walletData?.savingsHive ?? 0, HBD: walletData?.savingsHbd ?? 0 }}
+                hbdInterestRate={walletData?.hbdInterestRate ?? 0}
+                pendingHbdInterest={walletData?.pendingHbdInterest ?? 0}
+                hasStoredKey={storedKeyAvailable}
+                loading={savingsLoading && savingsMode !== null}
+                success={savingsSuccess && savingsMode !== null}
+                colors={colors}
+                onClose={() => setSavingsMode(null)}
+                onSubmit={handleSavings}
+            />
+
+            {/* Cancel a pending savings withdrawal */}
+            <CancelWithdrawModal
+                withdrawal={withdrawalToCancel}
+                hasStoredKey={storedKeyAvailable}
+                loading={savingsLoading && withdrawalToCancel !== null}
+                success={savingsSuccess && withdrawalToCancel !== null}
+                colors={colors}
+                onClose={() => setWithdrawalToCancel(null)}
+                onConfirm={handleCancelWithdrawal}
+            />
+
+            {/* Delegate HP (new or edit/remove) */}
+            <DelegateModal
+                visible={delegateVisible}
+                existing={delegationToEdit ? { delegatee: delegationToEdit.delegatee, hp: delegationToEdit.hp } : null}
+                delegatableHivePower={walletData?.delegatableHivePower ?? 0}
+                hasStoredKey={storedKeyAvailable}
+                loading={delegateLoading}
+                success={delegateSuccess}
+                colors={colors}
+                onClose={() => { setDelegateVisible(false); setDelegationToEdit(null); }}
+                onDelegate={handleDelegate}
             />
 
             {/* Request Payment (QR) */}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PrivateKey } from '@hiveio/dhive';
 import { getClient } from '../services/HiveClient';
 import { accountStorageService } from '../services/AccountStorageService';
+import { buildClaimRewardOp } from '../utils/pendingRewards';
 
 const client = getClient();
 
@@ -34,30 +35,9 @@ export const useRewardsManagement = (
       }
       const postingKey = PrivateKey.fromString(postingKeyStr);
 
-      // Format reward balances for the claim operation
-      const rewardHiveBalance = `${unclaimedHive.toFixed(3)} HIVE`;
-      const rewardHbdBalance = `${unclaimedHbd.toFixed(3)} HBD`;
-      const rewardVestingBalance = `${unclaimedVests.toFixed(6)} VESTS`;
-
-      console.log('Claiming rewards:', {
-        rewardHiveBalance,
-        rewardHbdBalance,
-        rewardVestingBalance,
-      });
-
       // Broadcast the claim_reward_balance operation
       await client.broadcast.sendOperations(
-        [
-          [
-            'claim_reward_balance',
-            {
-              account: currentUsername,
-              reward_hive: rewardHiveBalance,
-              reward_hbd: rewardHbdBalance,
-              reward_vests: rewardVestingBalance,
-            },
-          ],
-        ],
+        [buildClaimRewardOp(currentUsername, { hive: unclaimedHive, hbd: unclaimedHbd, vests: unclaimedVests })],
         postingKey
       );
 
