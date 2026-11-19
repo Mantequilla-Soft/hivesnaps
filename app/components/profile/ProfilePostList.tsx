@@ -2,37 +2,39 @@ import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { BlogCard } from '../BlogCard';
-import { useAccountReblogs } from '../../../hooks/useAccountReblogs';
+import { useAccountPostList, type AccountPostKind } from '../../../hooks/useAccountPostList';
 import { hasUserVoted } from '../../../utils/votes';
 
-interface ProfileReblogsProps {
+interface ProfilePostListProps {
     username: string;
+    kind: AccountPostKind;
     currentUsername: string | null;
     colors: { text: string; textSecondary?: string; button: string; buttonText: string; icon: string };
     onOpenPost: (author: string, permlink: string) => void;
     onAuthorPress: (username: string) => void;
 }
 
-/** Posts this account has reblogged; loads when first shown. */
-export const ProfileReblogs: React.FC<ProfileReblogsProps> = ({
+/** The account's own blog posts, or the posts it reblogged; loads when first shown. */
+export const ProfilePostList: React.FC<ProfilePostListProps> = ({
     username,
+    kind,
     currentUsername,
     colors,
     onOpenPost,
     onAuthorPress,
 }) => {
-    const { reblogs, loading, hasMore, error, loadMore, refresh } = useAccountReblogs(username);
+    const { posts, loading, hasMore, error, loadMore, refresh } = useAccountPostList(username, kind);
     const secondary = colors.textSecondary ?? colors.icon;
 
-    // First page when the tab is opened (or the profile changes).
+    // First page when the tab is opened (or the profile / list changes).
+    // loadMore is recreated for each account+kind, after the hook's reset.
     useEffect(() => {
-        if (reblogs.length === 0 && hasMore && !loading && !error) loadMore();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [username]);
+        loadMore();
+    }, [loadMore]);
 
     return (
         <View>
-            {reblogs.map((post) => (
+            {posts.map((post) => (
                 <BlogCard
                     key={`${post.author}/${post.permlink}`}
                     post={post}
@@ -45,15 +47,17 @@ export const ProfileReblogs: React.FC<ProfileReblogsProps> = ({
             {loading ? (
                 <ActivityIndicator style={styles.status} color={colors.icon} />
             ) : error ? (
-                <TouchableOpacity onPress={reblogs.length ? loadMore : refresh} style={styles.status} accessibilityRole="button">
+                <TouchableOpacity onPress={posts.length ? loadMore : refresh} style={styles.status} accessibilityRole="button">
                     <Text style={[styles.message, { color: secondary }]}>
                         {error} <Text style={{ color: colors.button, fontWeight: '600' }}>Retry</Text>
                     </Text>
                 </TouchableOpacity>
-            ) : reblogs.length === 0 && !hasMore ? (
+            ) : posts.length === 0 && !hasMore ? (
                 <View style={styles.status}>
-                    <FontAwesome name="share-square-o" size={22} color={secondary} />
-                    <Text style={[styles.message, { color: secondary }]}>No reblogs yet.</Text>
+                    <FontAwesome name={kind === 'posts' ? 'file-text-o' : 'share-square-o'} size={22} color={secondary} />
+                    <Text style={[styles.message, { color: secondary }]}>
+                        {kind === 'posts' ? 'No blog posts yet.' : 'No reblogs yet.'}
+                    </Text>
                 </View>
             ) : hasMore ? (
                 <TouchableOpacity
@@ -62,7 +66,7 @@ export const ProfileReblogs: React.FC<ProfileReblogsProps> = ({
                     accessibilityRole="button"
                 >
                     <Text style={[styles.moreText, { color: colors.buttonText }]}>
-                        {reblogs.length === 0 ? 'Look further back' : 'Load more'}
+                        {posts.length === 0 ? 'Look further back' : 'Load more'}
                     </Text>
                 </TouchableOpacity>
             ) : null}

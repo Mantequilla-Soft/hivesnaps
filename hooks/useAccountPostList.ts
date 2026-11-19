@@ -3,14 +3,21 @@ import { getClient } from '../services/HiveClient';
 import { getAvatarImageUrl } from '../services/AvatarService';
 import { parseBlogPosts, type BlogPost, type RawBlogPost } from './useBlogFeed';
 
-export const REBLOGS_PAGE_SIZE = 20;
+export const ACCOUNT_POSTS_PAGE_SIZE = 20;
+
+/** 'posts': the account's own blog posts. 'reblogs': other authors' posts it reblogged. */
+export type AccountPostKind = 'posts' | 'reblogs';
+
+/** Bridge sort for each list: 'posts' is own top-level posts, 'blog' interleaves own posts and reblogs. */
+const BRIDGE_SORT: Record<AccountPostKind, string> = { posts: 'posts', reblogs: 'blog' };
 
 /**
- * Keep only reblogs (someone else's post on this account's blog) that we
- * haven't already listed.
+ * Keep the posts that belong in this list (own posts, or someone else's for
+ * reblogs) that we haven't already listed.
  */
-export function onlyNewReblogs<T extends { author: string; permlink: string }>(
+export function onlyNewPosts<T extends { author: string; permlink: string }>(
     account: string,
+    kind: AccountPostKind,
     batch: readonly T[],
     existing: readonly T[]
 ): T[] {
@@ -18,14 +25,15 @@ export function onlyNewReblogs<T extends { author: string; permlink: string }>(
     const lower = account.toLowerCase();
     return batch.filter((p) => {
         const key = `${p.author}/${p.permlink}`;
-        if (p.author.toLowerCase() === lower || seen.has(key)) return false;
+        const own = p.author.toLowerCase() === lower;
+        if (own !== (kind === 'posts') || seen.has(key)) return false;
         seen.add(key);
         return true;
     });
 }
 
-export interface UseAccountReblogsResult {
-    reblogs: BlogPost[];
+export interface UseAccountPostListResult {
+    posts: BlogPost[];
     loading: boolean;
     hasMore: boolean;
     error: string | null;
@@ -36,21 +44,21 @@ export interface UseAccountReblogsResult {
 }
 
 /**
- * Posts an account has reblogged, from bridge.get_account_posts sort 'blog'
- * (own posts and reblogs interleaved, newest first) with the account's own
- * posts filtered out. The cursor advances by the raw page, so paging keeps
- * going even when a page happens to contain no reblogs. Nothing loads until
- * loadMore is first called (the tab is opened).
+ * An account's own blog posts or its reblogs, from bridge.get_account_posts,
+ * newest first. The cursor advances by the raw page, so paging keeps going
+ * even when a page happens to contain nothing for this list (a stretch of
+ * own posts while listing reblogs). Nothing loads until loadMore is first
+ * called (the tab is opened).
  */
-export function useAccountReblogs(account: string | null | undefined): UseAccountReblogsResult {
-    const [reblogs, setReblogs] = useState<BlogPost[]>([]);
+export function useAccountPostList(account: string | null | undefined, kind: AccountPostKind): UseAccountPostListResult {
+    const [posts, setPosts] = useState<BlogPost[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const cursorRef = useRef<{ start_author: string; start_permlink: string }>({ start_author: '', start_permlink: '' });
     const inFlightRef = useRef(false);
     const hasMoreRef = useRef(true);
-    const reblogsRef = useRef<BlogPost[]>([]);
+    const postsRef = useRef<BlogPost[]>([]);
     const generationRef = useRef(0);
 
     const resetState = useCallback((): void => {
@@ -58,17 +66,17 @@ export function useAccountReblogs(account: string | null | undefined): UseAccoun
         cursorRef.current = { start_author: '', start_permlink: '' };
         inFlightRef.current = false;
         hasMoreRef.current = true;
-        reblogsRef.current = [];
-        setReblogs([]);
+        postsRef.current = [];
+        setPosts([]);
         setHasMore(true);
         setError(null);
         setLoading(false);
     }, []);
 
-    // A different profile starts from scratch.
+    // A different profile or list starts from scratch.
     useEffect(() => {
         resetState();
-    }, [account, resetState]);
+    }, [account, kind, resetState]);
 
     const loadMore = useCallback(async (): Promise<void> => {
         if (!account || inFlightRef.current || !hasMoreRef.current) return;
@@ -77,10 +85,10 @@ export function useAccountReblogs(account: string | null | undefined): UseAccoun
         setLoading(true);
         setError(null);
         try {
-            const raw: (RawBlogPost & { reblogged_by?: string[] })[] = await getClient().call('bridge', 'get_account_posts', {
-                sort: 'blog',
+            const raw: RawBlogPost[] = await getClient().call('bridge', 'get_account_posts', {
+                sort: BRIDGE_SORT[kind],
                 account,
-                limit: REBLOGS_PAGE_SIZE,
+                limit: ACCOUNT_POSTS_PAGE_SIZE,
                 observer: '',
                 ...cursorRef.current,
             });
@@ -89,32 +97,32 @@ export function useAccountReblogs(account: string | null | undefined): UseAccoun
             const batch = Array.isArray(raw) ? raw : [];
             const last = batch[batch.length - 1];
             if (last) cursorRef.current = { start_author: last.author, start_permlink: last.permlink };
-            const more = batch.length === REBLOGS_PAGE_SIZE;
+            const more = batch.length === ACCOUNT_POSTS_PAGE_SIZE;
             hasMoreRef.current = more;
             setHasMore(more);
 
-            const fresh = onlyNewReblogs(account, parseBlogPosts(batch), reblogsRef.current).map((p) => ({
+            const fresh = onlyNewPosts(account, kind, parseBlogPosts(batch), postsRef.current).map((p) => ({
                 ...p,
                 avatarUrl: p.avatarUrl || getAvatarImageUrl(p.author),
             }));
-            reblogsRef.current = [...reblogsRef.current, ...fresh];
-            setReblogs(reblogsRef.current);
+            postsRef.current = [...postsRef.current, ...fresh];
+            setPosts(postsRef.current);
         } catch (err) {
             if (generation !== generationRef.current) return;
-            console.warn('[useAccountReblogs] load failed:', err);
-            setError('Couldn’t load reblogs.');
+            console.warn(`[useAccountPostList] ${kind} load failed:`, err);
+            setError(kind === 'posts' ? 'Couldn’t load posts.' : 'Couldn’t load reblogs.');
         } finally {
             if (generation === generationRef.current) {
                 inFlightRef.current = false;
                 setLoading(false);
             }
         }
-    }, [account]);
+    }, [account, kind]);
 
     const refresh = useCallback(async (): Promise<void> => {
         resetState();
         await loadMore();
     }, [resetState, loadMore]);
 
-    return { reblogs, loading, hasMore, error, loadMore, refresh };
+    return { posts, loading, hasMore, error, loadMore, refresh };
 }
