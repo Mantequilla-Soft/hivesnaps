@@ -17,6 +17,7 @@ const snap = (author: string, created: string): FilterableSnap => ({ author, per
 
 interface Props {
     enabled: boolean;
+    paused?: boolean;
     known: FilterableSnap[];
     isRelevant?: (s: FilterableSnap) => boolean;
 }
@@ -28,6 +29,7 @@ function renderHook(props: Props): { container: { result: NewSnapsState<Filterab
     const Test = (p: Props): null => {
         container.result = useNewSnaps({
             enabled: p.enabled,
+            paused: p.paused,
             known: p.known,
             isRelevant: p.isRelevant ?? all,
             currentUser: 'me',
@@ -138,4 +140,17 @@ it('does not loop when `known` is a new array on every render', async () => {
     update({ enabled: true, known: [...known] });
     update({ enabled: true, known: [...known] });
     expect(container.result.newSnaps).toBe(first);
+});
+
+it('stops polling while paused but keeps reporting the count', async () => {
+    const { container, update } = renderHook({ enabled: true, known });
+    latest = [snap('bob', '2026-11-19T10:02:00'), ...known];
+    await tick();
+    expect(container.result.newSnaps).toHaveLength(1);
+
+    update({ enabled: true, paused: true, known });
+    mockCall.mockClear();
+    await tick();
+    expect(mockCall).not.toHaveBeenCalled();
+    expect(container.result.newSnaps).toHaveLength(1);
 });

@@ -24,8 +24,10 @@ export interface NewSnapsState<T extends FilterableSnap> {
 }
 
 interface Options<T extends FilterableSnap> {
-    /** Poll only while true (feed focused, snaps tab, a filter where "new" makes sense). */
+    /** The banner applies here (feed focused, snaps tab, a filter where "new" makes sense). False hides it and stops polling. */
     enabled: boolean;
+    /** Stop polling but keep reporting the current count (feed loading, paginating or merging). */
+    paused?: boolean;
     /** Snaps currently in the feed. */
     known: readonly FilterableSnap[];
     /** Tab filter + mutes + moderation for the current view. */
@@ -41,6 +43,7 @@ interface Options<T extends FilterableSnap> {
  */
 export function useNewSnaps<T extends FilterableSnap>({
     enabled,
+    paused = false,
     known,
     isRelevant,
     currentUser,
@@ -75,7 +78,7 @@ export function useNewSnaps<T extends FilterableSnap>({
     }, []);
 
     useEffect(() => {
-        if (!enabled || !appActive) return;
+        if (!enabled || paused || !appActive) return;
         let cancelled = false;
         let inFlight = false;
 
@@ -108,7 +111,7 @@ export function useNewSnaps<T extends FilterableSnap>({
             cancelled = true;
             clearInterval(id);
         };
-    }, [enabled, appActive, intervalMs, recompute]);
+    }, [enabled, paused, appActive, intervalMs, recompute]);
 
     const reset = useCallback((): void => {
         latestRef.current = [];
