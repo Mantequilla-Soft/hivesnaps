@@ -3,7 +3,7 @@
     "name": "hivesnaps",
     "owner": "menobass",
     "slug": "hivesnaps",
-    "version": "1.3.1",
+    "version": "1.4.0",
     "orientation": "portrait",
     "platforms": ["ios", "android"],
     "icon": "./assets/images/appicon.png",
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jose.antonio.mena.hivesnaps",
-      "buildNumber": "1.3.1",
+      "buildNumber": "1.4.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app uses the camera to take photos, record videos, and scan payment QR codes.",
