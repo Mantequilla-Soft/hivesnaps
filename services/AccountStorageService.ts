@@ -16,6 +16,7 @@ import { PrivateKey } from '@hiveio/dhive';
 import type { PublicKey, Client } from '@hiveio/dhive';
 import { getAvatarImageUrl } from './AvatarService';
 import { getClient } from './HiveClient';
+import { HIVE_USERNAME_REGEX } from '../utils/hiveUsername';
 
 /**
  * Custom error classes for better error handling and testing
@@ -62,10 +63,6 @@ const activeKeyStorageKey = (username: string) =>
 
 // Node list removed — uses centralized HiveClient
 
-// Hive username validation regex: 3-16 characters, starts with letter, ends with letter/number, allows dots and hyphens
-// Dots are intentionally permitted to support legacy Hive accounts (e.g. smooth.witness).
-// New account registrations cannot use dots, but existing accounts with dots must remain valid.
-const HIVE_USERNAME_REGEX = /^[a-z][a-z0-9\-.]{1,14}[a-z0-9]$/;
 
 // Maximum number of accounts that can be stored
 const MAX_ACCOUNTS = 10;

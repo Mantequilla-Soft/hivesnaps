@@ -31,6 +31,7 @@ import { useCompose } from '../../hooks/useCompose';
 import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
+import { BeneficiariesEditor } from '../components/BeneficiariesEditor';
 import { getTheme } from '../../constants/Colors';
 import { styles } from './ComposeScreen.styles';
 
@@ -363,7 +364,7 @@ export default function ComposeScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* User info */}
           <View style={styles.userRow}>
             {compose.state.avatarUrl ? (
@@ -448,6 +449,14 @@ export default function ComposeScreen() {
               <Text style={[styles.tagsHint, { color: colors.info }]}>
                 e.g. photography travel hive — posted to the HiveSnaps community
               </Text>
+              <BeneficiariesEditor
+                beneficiaries={compose.state.beneficiaries}
+                snapieWeight={compose.snapieWeight}
+                author={compose.state.currentUsername}
+                onAdd={compose.addBeneficiary}
+                onRemove={compose.removeBeneficiary}
+                colors={colors}
+              />
             </>
           )}
 
