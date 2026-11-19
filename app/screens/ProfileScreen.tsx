@@ -23,8 +23,6 @@ import { InfoRow } from '../components/profile/InfoRow';
 import { SocialStatItem } from '../components/profile/SocialStatItem';
 import FollowListModal from '../components/FollowListModal';
 import { LoadingState } from '../components/profile/LoadingState';
-import { EditAvatarModal } from '../components/profile/EditAvatarModal';
-import { ActiveKeyModal } from '../components/profile/ActiveKeyModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { RewardsSection } from '../components/profile/RewardsSection';
 import { VotingPowerSection } from '../components/profile/VotingPowerSection';
@@ -38,7 +36,7 @@ import { ProfilePostList } from '../components/profile/ProfilePostList';
 import { useProfileData } from '../../hooks/useProfileData';
 import { useFollowManagement } from '../../hooks/useFollowManagement';
 import { useUserSnaps } from '../../hooks/useUserSnaps';
-import { useAvatarManagement } from '../../hooks/useAvatarManagement';
+import { consumeProfileSaved } from '../../services/ProfileService';
 import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
@@ -103,13 +101,19 @@ const ProfileScreen = () => {
   } = useProfileData(username);
 
   // Follows made elsewhere (another profile's list, the feed) change these
-  // counts, so re-read them when this screen comes back into focus.
+  // counts, so re-read them when this screen comes back into focus. After
+  // the profile was edited, re-read the whole profile once instead.
   const hasFocused = useRef(false);
+  // refetchProfile is a new function every render; read it through a ref so
+  // the focus effect doesn't re-run (and refetch) on every render.
+  const refetchProfileRef = useRef(refetchProfile);
+  refetchProfileRef.current = refetchProfile;
   useFocusEffect(
     useCallback(() => {
-      if (hasFocused.current) refreshFollowCounts();
+      if (username && consumeProfileSaved(username)) refetchProfileRef.current();
+      else if (hasFocused.current) refreshFollowCounts();
       hasFocused.current = true;
-    }, [refreshFollowCounts])
+    }, [username, refreshFollowCounts])
   );
 
   // Debug logging
@@ -143,21 +147,6 @@ const ProfileScreen = () => {
     convertUserSnapToSnapProps,
     updateSnap,
   } = useUserSnaps(username);
-  const {
-    editAvatarModalVisible,
-    newAvatarImage,
-    avatarUploading,
-    avatarUpdateLoading,
-    avatarUpdateSuccess,
-    activeKeyModalVisible,
-    activeKeyInput,
-    setActiveKeyInput,
-    handleEditAvatarPress,
-    handleSelectNewAvatar,
-    handleNextStep,
-    handleUpdateAvatar,
-    closeModals,
-  } = useAvatarManagement(currentUsername);
   const { claimLoading, processing, handleClaimRewards } = useRewardsManagement(
     currentUsername,
     profile,
@@ -296,7 +285,7 @@ const ProfileScreen = () => {
               isOwnProfile={isOwnProfile}
               colors={colors}
               styles={styles}
-              onEditAvatarPress={handleEditAvatarPress}
+              onEditProfilePress={() => router.push('/screens/EditProfileScreen')}
             />
 
             {/* Follower/Following Counts */}
@@ -613,38 +602,6 @@ const ProfileScreen = () => {
           </Text>
         </View>
       )}
-
-      {/* Edit Avatar Modal */}
-      <EditAvatarModal
-        visible={editAvatarModalVisible}
-        currentAvatarUrl={profile?.avatarUrl}
-        newAvatarImage={newAvatarImage}
-        avatarUploading={avatarUploading}
-        avatarUpdateLoading={avatarUpdateLoading}
-        avatarUpdateSuccess={avatarUpdateSuccess}
-        colors={colors}
-        onClose={closeModals}
-        onSelectNewAvatar={handleSelectNewAvatar}
-        onNextStep={handleNextStep}
-      />
-
-      {/* Active Key Input Modal (Second Step) */}
-      <ActiveKeyModal
-        visible={activeKeyModalVisible}
-        currentAvatarUrl={profile?.avatarUrl}
-        newAvatarImage={newAvatarImage}
-        activeKeyInput={activeKeyInput}
-        avatarUpdateLoading={avatarUpdateLoading}
-        avatarUpdateSuccess={avatarUpdateSuccess}
-        colors={colors}
-        onClose={closeModals}
-        onBack={() => {
-          closeModals();
-          handleEditAvatarPress();
-        }}
-        onUpdateAvatar={handleUpdateAvatar}
-        onActiveKeyChange={setActiveKeyInput}
-      />
 
       {/* Upvote Modal */}
       <UpvoteModal

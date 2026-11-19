@@ -105,7 +105,7 @@ if (!result.canceled && result.assets && result.assets[0]) {
 const converted = await convertToJPEG(asset.uri, 0.8);
 ```
 
-**Avatar Uploads (`hooks/useAvatarManagement.ts`):**
+**Profile image uploads (`utils/pickImage.ts`, used by Edit Profile):**
 ```typescript
 // Convert HEIC and other formats to JPEG
 const converted = await convertToJPEG(asset.uri, 0.8);
@@ -191,7 +191,7 @@ describe('imageConverter', () => {
 - `utils/imageConverter.ts` - Core conversion utility
 - `hooks/useReply.ts` - Reply image upload integration
 - `hooks/useEdit.ts` - Edit image upload integration  
-- `hooks/useAvatarManagement.ts` - Avatar upload integration
+- `utils/pickImage.ts` - Avatar / cover upload integration (Edit Profile)
 - `tests/imageConverter.test.ts` - Unit tests
 
 ## Commit History
