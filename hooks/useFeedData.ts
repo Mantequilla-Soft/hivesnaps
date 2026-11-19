@@ -3,6 +3,7 @@ import { getClient } from '../services/HiveClient';
 import { useFollowingList, useMutedList, useCurrentUser } from '../store/context';
 import { avatarService } from '../services/AvatarService';
 import { ModerationService } from '../services/ModerationService';
+import { matchesFeedFilter, isModerationBlocked, type FeedFilter } from '../utils/feedFilter';
 import { fetchMutedList, didLastMutedListFetchFail } from '../services/HiveMuteService';
 import { CACHE_DURATIONS } from '../store/types';
 import { usePatronList } from './usePatronList';
@@ -81,7 +82,7 @@ export interface Snap {
   [key: string]: any;
 }
 
-export type FeedFilter = 'following' | 'newest' | 'trending' | 'patrons';
+export type { FeedFilter };
 
 // Container metadata with ordered dictionary structure
 interface ContainerMetadata {
@@ -92,8 +93,9 @@ interface ContainerMetadata {
   fetchedAt: number; // When this container was fetched by the app
 }
 
-// Ordered container map - Map maintains insertion order
-class OrderedContainerMap {
+// Ordered container map - Map maintains insertion order (newest container
+// first, older ones appended by pagination). Exported for tests.
+export class OrderedContainerMap {
   containers: Map<string, ContainerMetadata> = new Map();
   private maxSize: number;
 
@@ -103,7 +105,9 @@ class OrderedContainerMap {
 
   // Set a container (maintains insertion order)
   set(permlink: string, container: ContainerMetadata): void {
-    if (this.containers.size >= this.maxSize) {
+    // Replacing a container we already hold doesn't change the count, so
+    // it's always allowed (refreshSnaps updates the latest one this way).
+    if (!this.containers.has(permlink) && this.containers.size >= this.maxSize) {
       // Temporary solution: warn if max size reached
       console.warn(
         '📦 [OrderedContainerMap] Max size reached, cannot add more containers'
@@ -229,21 +233,25 @@ class OrderedContainerMap {
     return this.containers.has(key);
   }
 
-  // Add public method to prepend a container and handle max size
+  /**
+   * Put a container at the front (it's newer than everything held).
+   * An existing key is replaced in place. At capacity, the oldest container
+   * (the last one) is dropped to make room, so a new latest container is
+   * never lost; pagination can fetch the dropped one again later.
+   */
   prepend(permlink: string, container: ContainerMetadata): void {
-    if (this.containers.size >= this.maxSize) {
-      console.warn(
-        '📦 [OrderedContainerMap] Max size reached, cannot add more containers'
-      );
+    if (this.containers.has(permlink)) {
+      this.containers.set(permlink, container);
       return;
     }
-
-    // TODO: Implement a more robust prepend logic, and shift out the oldest if needed
     const entries = Array.from(this.containers.entries());
-    // if (this.containers.size >= this.maxSize) {
-    //   // Remove the oldest (first) entry
-    //   entries.shift();
-    // }
+    if (entries.length >= this.maxSize) {
+      const dropped = entries.splice(this.maxSize - 1);
+      console.log(
+        '📦 [OrderedContainerMap] At capacity; dropping oldest container(s) for the new latest one:',
+        dropped.map(([key]) => key)
+      );
+    }
     this.containers = new Map([[permlink, container], ...entries]);
   }
 }
@@ -261,7 +269,10 @@ interface UseFeedDataReturn extends FeedState {
   followingList: string[]; // From shared state
   mutedList: string[]; // From shared state
   fetchSnaps: (useCache?: boolean) => Promise<void>; // Remove filter parameter
-  refreshSnaps: () => Promise<void>; // Remove filter parameter
+  /** Merge the latest container into the feed. Resolves true on success, false if loading failed. */
+  refreshSnaps: () => Promise<boolean>;
+  /** Every snap in the loaded containers, before the tab filter (for new-snap detection). */
+  loadedSnaps: Snap[];
   loadMoreSnaps: () => Promise<void>; // Remove filter parameter
   clearError: () => void;
   clearContainerMap: () => void;
@@ -368,74 +379,29 @@ export function useFeedData(): UseFeedDataReturn {
         `🔍 [applyFilter] Applying filter "${filter}" to ${snaps.length} snaps`
       );
 
-      let filteredSnaps = snaps;
+      const followingSet = new Set(followingList || []);
+      const filteredSnaps = snaps.filter(snap => matchesFeedFilter(snap, filter, followingSet, patronSet));
 
-      switch (filter) {
-        case 'following':
-          // Filter by following list - use passed parameter directly to avoid stale closure
-          console.log('🔍 [applyFilter] followingList length:', followingList?.length || 0);
-          const followingSet = new Set(followingList || []);
-          filteredSnaps = snaps.filter(snap => followingSet.has(snap.author));
-          console.log(
-            `🔍 [applyFilter] Following filter: ${snaps.length} → ${filteredSnaps.length} snaps`
-          );
-          break;
-
-        case 'newest':
-          // All snaps, sorted by newest (already sorted by default from containers)
-          filteredSnaps = snaps;
-          console.log(
-            `🔍 [applyFilter] Newest filter: ${snaps.length} snaps (no filtering)`
-          );
-          break;
-
-        case 'trending':
-          // Sort by payout (trending) - create a new array to avoid mutating original
-          filteredSnaps = [...snaps].sort((a, b) => {
-            const payoutA =
-              parseFloat(a.pending_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(a.total_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(a.curator_payout_value?.replace(' HBD', '') || '0');
-            const payoutB =
-              parseFloat(b.pending_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(b.total_payout_value?.replace(' HBD', '') || '0') +
-              parseFloat(b.curator_payout_value?.replace(' HBD', '') || '0');
-            return payoutB - payoutA;
-          });
-          console.log(
-            `🔍 [applyFilter] Trending filter: ${snaps.length} snaps sorted by payout`
-          );
-          break;
-
-        case 'patrons':
-          // Snaps from accounts on the patrons list (people who support the
-          // creator monthly) — same Set-membership shape as 'following'.
-          filteredSnaps = snaps.filter(snap => patronSet.has(snap.author));
-          console.log(
-            `🔍 [applyFilter] Patrons filter: ${snaps.length} → ${filteredSnaps.length} snaps`
-          );
-          break;
-
-        default:
-          console.log(
-            `🔍 [applyFilter] Unknown filter "${filter}", using all snaps`
-          );
-          filteredSnaps = snaps;
+      if (filter === 'trending') {
+        // Sort by payout (trending) - filter() already returned a new array
+        filteredSnaps.sort((a, b) => {
+          const payoutA =
+            parseFloat(a.pending_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(a.total_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(a.curator_payout_value?.replace(' HBD', '') || '0');
+          const payoutB =
+            parseFloat(b.pending_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(b.total_payout_value?.replace(' HBD', '') || '0') +
+            parseFloat(b.curator_payout_value?.replace(' HBD', '') || '0');
+          return payoutB - payoutA;
+        });
       }
+      console.log(
+        `🔍 [applyFilter] ${filter} filter: ${snaps.length} → ${filteredSnaps.length} snaps`
+      );
 
       // Moderation: drop items blocked by allowlisted moderators
-      // Fast path: if active_votes present on snaps, apply immediately.
-      const afterModeration = filteredSnaps.filter(s => {
-        // If we already have a cached verdict and it is blocked, drop now
-        const cached = ModerationService.getCached(s.author, s.permlink);
-        if (cached?.isBlocked) return false;
-        // If active_votes exist, evaluate once and cache
-        if (Array.isArray(s.active_votes)) {
-          const verdict = ModerationService.fromActiveVotes(s.author, s.permlink, s.active_votes);
-          if (verdict?.isBlocked) return false;
-        }
-        return true;
-      });
+      const afterModeration = filteredSnaps.filter(s => !isModerationBlocked(s));
 
       return afterModeration;
     },
@@ -675,7 +641,7 @@ export function useFeedData(): UseFeedDataReturn {
     ]
   );
 
-  const refreshSnaps = useCallback(async () => {
+  const refreshSnaps = useCallback(async (): Promise<boolean> => {
     console.log('🔄 [useFeedData] refreshSnaps called');
 
     // Fetch the latest container
@@ -691,7 +657,7 @@ export function useFeedData(): UseFeedDataReturn {
       );
       if (!discussions || discussions.length === 0) {
         setState(prev => ({ ...prev, loading: false }));
-        return;
+        return false;
       }
       const containerPost = discussions[0];
       const replies: Snap[] = await client.database.call(
@@ -763,6 +729,7 @@ export function useFeedData(): UseFeedDataReturn {
         );
       } catch { }
       updateSnapsWithAvatars(containerMetadata.snaps);
+      return true;
     } catch (error) {
       console.error('❌ [refreshSnaps] Error refreshing snaps:', error);
       setState(prev => ({
@@ -770,6 +737,7 @@ export function useFeedData(): UseFeedDataReturn {
         loading: false,
         error: 'Failed to refresh snaps',
       }));
+      return false;
     }
   }, [applyFilter, updateSnapsWithAvatars, username]);
 
@@ -1168,10 +1136,19 @@ export function useFeedData(): UseFeedDataReturn {
     return true;
   }, [state.containerMap]);
 
+  // The container map is mutated in place, but every change to it also
+  // re-filters state.snaps, so that's the signal to re-read it.
+  const loadedSnaps = useMemo(
+    () => state.containerMap.getAllSnaps(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.snaps, state.containerMap]
+  );
+
   return {
     ...state,
     // Use the snaps directly from state, which are already filtered and enriched
     snaps: state.snaps,
+    loadedSnaps,
     followingList: followingList || [], // Include following list from shared state
     mutedList: mutedList || [], // Include muted list from shared state
     fetchSnaps,

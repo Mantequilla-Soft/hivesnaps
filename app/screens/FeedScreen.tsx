@@ -20,7 +20,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import ImageView from 'react-native-image-viewing';
 import { createFeedScreenStyles } from '../../styles/FeedScreenStyles';
 import { buildImageGalleryFromSnap, findImageIndexInGallery } from '../../utils/imageGallery';
@@ -40,6 +40,9 @@ import { useSearch } from '../../hooks/useSearch';
 import { useHiveData } from '../../hooks/useHiveData';
 import { usePendingRewards } from '../../hooks/usePendingRewards';
 import PendingRewardsBanner from '../components/PendingRewardsBanner';
+import NewSnapsBanner from '../components/NewSnapsBanner';
+import { useNewSnaps } from '../../hooks/useNewSnaps';
+import { matchesFeedFilter, isModerationBlocked } from '../../utils/feedFilter';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useHangoutsCount } from '../../hooks/useHangoutsCount';
 import { useVotingPower } from '../../hooks/useVotingPower';
@@ -135,6 +138,7 @@ const FeedScreenRefactored = () => {
   // Feed data and related functions
   const {
     snaps,
+    loadedSnaps,
     followingList,
     mutedList,
     loading: feedLoading,
@@ -326,6 +330,65 @@ const FeedScreenRefactored = () => {
 
   // Refs
   const flatListRef = useRef<FlatList<any>>(null);
+
+  // "N new snaps" banner: poll for snaps newer than the feed while it's on
+  // screen, and merge them in only when the banner is tapped, so reading
+  // isn't interrupted.
+  const isFocused = useIsFocused();
+  const [mergingNewSnaps, setMergingNewSnaps] = useState(false);
+  const followingSet = useMemo(() => new Set(followingList || []), [followingList]);
+  const isRelevantNewSnap = useCallback(
+    (s: Parameters<typeof isVisible>[0] & { permlink: string; created: string }) =>
+      isVisible(s) && matchesFeedFilter(s, currentFilter, followingSet, patronSet) && !isModerationBlocked(s),
+    [isVisible, currentFilter, followingSet, patronSet]
+  );
+  const { newSnaps, reset: resetNewSnaps } = useNewSnaps({
+    // Trending is sorted by payout, so "newer" doesn't mean "on top" there.
+    enabled: isFocused && activeFeed === 'snaps' && currentFilter !== 'trending',
+    // Keep the banner but don't poll while the feed is busy.
+    paused: feedLoading || loadingMore || globalRefreshing || mergingNewSnaps,
+    // Everything loaded, before the tab filter: an empty Following/Patrons
+    // tab still has a baseline, so its first new snap is announced.
+    known: loadedSnaps,
+    isRelevant: isRelevantNewSnap,
+    currentUser: username,
+  });
+
+  // While a banner merge runs: the snaps it announced (author/permlink).
+  const pendingMergeRef = useRef<Set<string> | null>(null);
+
+  const finishNewSnapsMerge = useCallback(() => {
+    pendingMergeRef.current = null;
+    resetNewSnaps();
+    setMergingNewSnaps(false);
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [resetNewSnaps]);
+
+  // Scroll up as soon as the announced snaps reach the list, rather than
+  // when refreshSnaps resolves (it also waits on background moderation checks).
+  useEffect(() => {
+    const pending = pendingMergeRef.current;
+    if (pending && loadedSnaps.some(s => pending.has(`${s.author}/${s.permlink}`))) {
+      finishNewSnapsMerge();
+    }
+  }, [loadedSnaps, finishNewSnapsMerge]);
+
+  const showNewSnaps = useCallback(() => {
+    if (pendingMergeRef.current) return;
+    pendingMergeRef.current = new Set(newSnaps.map(s => `${s.author}/${s.permlink}`));
+    setMergingNewSnaps(true);
+    // refreshSnaps merges the latest container into the existing list.
+    refreshSnaps().then(ok => {
+      if (!pendingMergeRef.current) return; // already finished above
+      if (ok) {
+        finishNewSnapsMerge();
+      } else {
+        // Keep the banner so they can try again; nothing was merged.
+        pendingMergeRef.current = null;
+        setMergingNewSnaps(false);
+      }
+    });
+  }, [newSnaps, refreshSnaps, finishNewSnapsMerge]);
   const hasInitialFetch = useRef(false);
   const hasOpenedBlogsRef = useRef(false);
   // Tracks the username each fetch last ran with (undefined = never fetched),
@@ -1226,6 +1289,16 @@ const FeedScreenRefactored = () => {
             onViewableItemsChanged={onViewableItemsChanged}
             onScroll={handleScroll}
             scrollEventThrottle={16} // Throttle scroll events for performance
+          />
+        )}
+        {/* Rendered last so it floats over the list or the empty state. Only
+            non-empty on the snaps tab (useNewSnaps is disabled elsewhere). */}
+        {newSnaps.length > 0 && (
+          <NewSnapsBanner
+            count={newSnaps.length}
+            authors={newSnaps.map(s => s.author)}
+            loading={mergingNewSnaps}
+            onPress={showNewSnaps}
           />
         )}
       </View>
