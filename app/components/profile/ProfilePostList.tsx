@@ -34,6 +34,18 @@ export const ProfilePostList: React.FC<ProfilePostListProps> = ({
 
     return (
         <View>
+            {posts.length > 0 && (
+                <TouchableOpacity
+                    onPress={refresh}
+                    disabled={loading}
+                    style={styles.refresh}
+                    accessibilityRole="button"
+                    accessibilityLabel={kind === 'posts' ? 'Refresh posts' : 'Refresh reblogs'}
+                >
+                    <FontAwesome name="refresh" size={13} color={colors.button} />
+                    <Text style={[styles.refreshText, { color: colors.button }]}>Refresh</Text>
+                </TouchableOpacity>
+            )}
             {posts.map((post) => (
                 <BlogCard
                     key={`${post.author}/${post.permlink}`}
@@ -47,7 +59,9 @@ export const ProfilePostList: React.FC<ProfilePostListProps> = ({
             {loading ? (
                 <ActivityIndicator style={styles.status} color={colors.icon} />
             ) : error ? (
-                <TouchableOpacity onPress={posts.length ? loadMore : refresh} style={styles.status} accessibilityRole="button">
+                // Retry the page that failed, keeping the cursor (a reblogs list may
+                // have walked several pages of own posts without listing any yet).
+                <TouchableOpacity onPress={loadMore} style={styles.status} accessibilityRole="button">
                     <Text style={[styles.message, { color: secondary }]}>
                         {error} <Text style={{ color: colors.button, fontWeight: '600' }}>Retry</Text>
                     </Text>
@@ -75,6 +89,8 @@ export const ProfilePostList: React.FC<ProfilePostListProps> = ({
 };
 
 const styles = StyleSheet.create({
+    refresh: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 6, paddingVertical: 8, paddingHorizontal: 4 },
+    refreshText: { fontSize: 13, fontWeight: '600' },
     status: { alignItems: 'center', paddingVertical: 20, gap: 8 },
     message: { fontSize: 14, textAlign: 'center' },
     more: { alignSelf: 'center', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 9, marginVertical: 12 },

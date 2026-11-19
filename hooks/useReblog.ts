@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { broadcastReblog, fetchRebloggedBy } from '../services/HiveFollowService';
 import { awardPoints } from '../services/pointsService';
+import { isPointsEnabled } from '../utils/pointsConfig';
 
 export interface UseReblogResult {
     /** You've reblogged this post (from this app or any other). */
@@ -31,13 +32,27 @@ const sameUser = (a?: string | null, b?: string | null): boolean =>
  * Snapie Points.
  */
 export function useReblog({ author, permlink, currentUser, isRootPost }: Options): UseReblogResult {
-    const [reblogged, setReblogged] = useState(false);
+    const [reblogged, setRebloggedState] = useState(false);
     const [pending, setPending] = useState(false);
+    // Refs mirror the latest state, so a reblog() captured by an open
+    // confirmation sees a lookup that finished in the meantime.
+    const rebloggedRef = useRef(false);
     const pendingRef = useRef(false);
+    // Bumped when the account or post changes; a broadcast that finishes
+    // afterwards must not touch the new post's state.
+    const generationRef = useRef(0);
+
+    const setReblogged = useCallback((value: boolean): void => {
+        rebloggedRef.current = value;
+        setRebloggedState(value);
+    }, []);
 
     const canReblog = !!currentUser && !!author && !!permlink && isRootPost && !sameUser(author, currentUser);
 
     useEffect(() => {
+        generationRef.current++;
+        pendingRef.current = false;
+        setPending(false);
         setReblogged(false);
         if (!canReblog || !author || !permlink) return;
         let cancelled = false;
@@ -47,27 +62,30 @@ export function useReblog({ author, permlink, currentUser, isRootPost }: Options
         return () => {
             cancelled = true;
         };
-    }, [author, permlink, currentUser, canReblog]);
+    }, [author, permlink, currentUser, canReblog, setReblogged]);
 
     const reblog = useCallback(async (): Promise<boolean> => {
         if (!canReblog || !author || !permlink || !currentUser) return false;
-        if (reblogged || pendingRef.current) return reblogged;
+        if (rebloggedRef.current || pendingRef.current) return rebloggedRef.current;
+        const generation = generationRef.current;
         pendingRef.current = true;
         setPending(true);
         setReblogged(true);
         try {
             await broadcastReblog(currentUser, author, permlink);
-            awardPoints('reblog', currentUser, author, permlink);
+            if (isPointsEnabled(currentUser)) awardPoints('reblog', currentUser, author, permlink);
             return true;
         } catch (err) {
             console.warn('[useReblog] reblog failed:', err);
-            setReblogged(false);
+            if (generation === generationRef.current) setReblogged(false);
             return false;
         } finally {
-            pendingRef.current = false;
-            setPending(false);
+            if (generation === generationRef.current) {
+                pendingRef.current = false;
+                setPending(false);
+            }
         }
-    }, [canReblog, author, permlink, currentUser, reblogged]);
+    }, [canReblog, author, permlink, currentUser, setReblogged]);
 
     return { reblogged, pending, canReblog, reblog };
 }
