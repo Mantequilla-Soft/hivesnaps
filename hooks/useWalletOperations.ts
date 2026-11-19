@@ -4,6 +4,8 @@ import { getClient } from '../services/HiveClient';
 import { accountStorageService } from '../services/AccountStorageService';
 import { localAuthService, AuthCancelledError } from '../services/LocalAuthService';
 import { hpToVests } from '../utils/hiveCalculations';
+import { newSavingsRequestId } from '../utils/wallet';
+import { buildClaimRewardOp, type PendingRewards } from '../utils/pendingRewards';
 
 const client = getClient();
 
@@ -18,6 +20,18 @@ interface UseWalletOperationsReturn {
     powerUp: (amount: string, manualKey?: string) => Promise<void>;
     powerDown: (amountHp: string, globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string }, manualKey?: string) => Promise<void>;
     cancelPowerDown: (manualKey?: string) => Promise<void>;
+    savingsLoading: boolean;
+    savingsSuccess: boolean;
+    depositToSavings: (amount: string, currency: 'HIVE' | 'HBD', manualKey?: string) => Promise<void>;
+    withdrawFromSavings: (amount: string, currency: 'HIVE' | 'HBD', manualKey?: string) => Promise<void>;
+    cancelSavingsWithdraw: (requestId: number, manualKey?: string) => Promise<void>;
+    delegateLoading: boolean;
+    delegateSuccess: boolean;
+    /** Set the HP delegated to `delegatee` (replaces any existing delegation; '0' removes it). */
+    delegate: (delegatee: string, amountHp: string, globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string }, manualKey?: string) => Promise<void>;
+    claimLoading: boolean;
+    /** Claim pending author/curation rewards (posting key, no biometric prompt). */
+    claimRewards: (rewards: Pick<PendingRewards, 'hive' | 'hbd' | 'vests'>) => Promise<void>;
     resetOperationSuccess: () => void;
     checkStoredKeyAvailable: () => Promise<boolean>;
     getStoredActiveKey: () => Promise<string | null>;
@@ -33,6 +47,11 @@ export const useWalletOperations = (
     const [powerUpSuccess, setPowerUpSuccess] = useState(false);
     const [powerDownLoading, setPowerDownLoading] = useState(false);
     const [powerDownSuccess, setPowerDownSuccess] = useState(false);
+    const [savingsLoading, setSavingsLoading] = useState(false);
+    const [savingsSuccess, setSavingsSuccess] = useState(false);
+    const [delegateLoading, setDelegateLoading] = useState(false);
+    const [delegateSuccess, setDelegateSuccess] = useState(false);
+    const [claimLoading, setClaimLoading] = useState(false);
 
     const pendingTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
     useEffect(() => () => { pendingTimers.current.forEach(clearTimeout); }, []);
@@ -249,10 +268,89 @@ export const useWalletOperations = (
         }
     };
 
+    /**
+     * Sign and broadcast with the active key, driving one loading/success
+     * pair, then refresh balances once the block lands.
+     */
+    const runActiveOp = async (
+        setLoading: (v: boolean) => void,
+        setSuccess: (v: boolean) => void,
+        manualKey: string | undefined,
+        buildOps: (username: string) => any[]
+    ): Promise<void> => {
+        const username = requireUsername();
+        setLoading(true);
+        setSuccess(false);
+        try {
+            const activeKey = await resolveKey(manualKey);
+            await client.broadcast.sendOperations(buildOps(username), activeKey);
+            setSuccess(true);
+            scheduleRefresh();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /** Move liquid HIVE/HBD into your own savings (instant). */
+    const depositToSavings = async (amount: string, currency: 'HIVE' | 'HBD', manualKey?: string): Promise<void> => {
+        const formatted = `${parsePositiveAmount(amount, currency).toFixed(3)} ${currency}`;
+        return runActiveOp(setSavingsLoading, setSavingsSuccess, manualKey, (username) => [
+            ['transfer_to_savings', { from: username, to: username, amount: formatted, memo: '' }],
+        ]);
+    };
+
+    /** Start a savings withdrawal back to your liquid balance (completes in 3 days). */
+    const withdrawFromSavings = async (amount: string, currency: 'HIVE' | 'HBD', manualKey?: string): Promise<void> => {
+        const formatted = `${parsePositiveAmount(amount, currency).toFixed(3)} ${currency}`;
+        return runActiveOp(setSavingsLoading, setSavingsSuccess, manualKey, (username) => [
+            ['transfer_from_savings', { from: username, request_id: newSavingsRequestId(), to: username, amount: formatted, memo: '' }],
+        ]);
+    };
+
+    /** Cancel a pending savings withdrawal; the funds stay in savings. */
+    const cancelSavingsWithdraw = (requestId: number, manualKey?: string): Promise<void> =>
+        runActiveOp(setSavingsLoading, setSavingsSuccess, manualKey, (username) => [
+            ['cancel_transfer_from_savings', { from: username, request_id: requestId }],
+        ]);
+
+    const delegate = async (
+        delegatee: string,
+        amountHp: string,
+        globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string },
+        manualKey?: string
+    ): Promise<void> => {
+        const to = delegatee.trim().replace(/^@/, '').toLowerCase();
+        if (!to) throw new Error('Enter the account to delegate to.');
+        if (to === currentUsername) throw new Error('You can\u2019t delegate to yourself.');
+        const hp = amountHp.trim() === '0' ? 0 : parsePositiveAmount(amountHp, 'HP');
+        const vests = hp === 0 ? 0 : hpToVests(hp, globalProps.total_vesting_fund_hive, globalProps.total_vesting_shares);
+        return runActiveOp(setDelegateLoading, setDelegateSuccess, manualKey, (username) => [
+            ['delegate_vesting_shares', { delegator: username, delegatee: to, vesting_shares: `${vests.toFixed(6)} VESTS` }],
+        ]);
+    };
+
+    const claimRewards = async (rewards: Pick<PendingRewards, 'hive' | 'hbd' | 'vests'>): Promise<void> => {
+        const username = requireUsername();
+        setClaimLoading(true);
+        try {
+            const postingKeyStr = await accountStorageService.getCurrentPostingKey();
+            if (!postingKeyStr) throw new Error('No posting key found. Please log in again.');
+            await client.broadcast.sendOperations(
+                [buildClaimRewardOp(username, rewards)],
+                PrivateKey.fromString(postingKeyStr)
+            );
+            scheduleRefresh();
+        } finally {
+            setClaimLoading(false);
+        }
+    };
+
     const resetOperationSuccess = useCallback((): void => {
         setTransferSuccess(false);
         setPowerUpSuccess(false);
         setPowerDownSuccess(false);
+        setSavingsSuccess(false);
+        setDelegateSuccess(false);
     }, []);
 
     return {
@@ -266,6 +364,16 @@ export const useWalletOperations = (
         powerUp,
         powerDown,
         cancelPowerDown,
+        savingsLoading,
+        savingsSuccess,
+        depositToSavings,
+        withdrawFromSavings,
+        cancelSavingsWithdraw,
+        delegateLoading,
+        delegateSuccess,
+        delegate,
+        claimLoading,
+        claimRewards,
         resetOperationSuccess,
         checkStoredKeyAvailable,
         getStoredActiveKey,
