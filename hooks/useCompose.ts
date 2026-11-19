@@ -18,6 +18,7 @@ import { useGifPicker } from './useGifPickerV2';
 import { uploadAudioTo3Speak } from '../services/audioUploadService';
 import { awardPoints } from '../services/pointsService';
 import { isPointsEnabled } from '../utils/pointsConfig';
+import { snapieShare, type Beneficiary } from '../utils/beneficiaries';
 
 const client = getClient();
 
@@ -34,6 +35,8 @@ interface ComposeState {
     gifs: string[];
     audioEmbedUrl: string | null;
     audioDuration: number;
+    /** Blog posts: beneficiaries the author added (on top of @snapie's share). */
+    beneficiaries: Beneficiary[];
 
     // UI State
     uploading: boolean;
@@ -66,6 +69,8 @@ type ComposeAction =
     | { type: 'REMOVE_GIF'; payload: number }
     | { type: 'SET_AUDIO'; payload: { url: string | null; duration: number } }
     | { type: 'CLEAR_AUDIO' }
+    | { type: 'ADD_BENEFICIARY'; payload: Beneficiary }
+    | { type: 'REMOVE_BENEFICIARY'; payload: string }
     | { type: 'SET_AUDIO_RECORDER_VISIBLE'; payload: boolean }
     | { type: 'SET_UPLOADING'; payload: boolean }
     | { type: 'SET_AUDIO_UPLOADING'; payload: boolean }
@@ -84,6 +89,7 @@ const initialState: ComposeState = {
     gifs: [],
     audioEmbedUrl: null,
     audioDuration: 0,
+    beneficiaries: [],
     uploading: false,
     posting: false,
     audioUploading: false,
@@ -123,6 +129,10 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
             return { ...state, audioEmbedUrl: action.payload.url, audioDuration: action.payload.duration };
         case 'CLEAR_AUDIO':
             return { ...state, audioEmbedUrl: null, audioDuration: 0 };
+        case 'ADD_BENEFICIARY':
+            return { ...state, beneficiaries: [...state.beneficiaries, action.payload] };
+        case 'REMOVE_BENEFICIARY':
+            return { ...state, beneficiaries: state.beneficiaries.filter(b => b.account !== action.payload) };
         case 'SET_AUDIO_RECORDER_VISIBLE':
             return { ...state, audioRecorderVisible: action.payload };
         case 'SET_UPLOADING':
@@ -161,6 +171,7 @@ function composeReducer(state: ComposeState, action: ComposeAction): ComposeStat
                 gifs: [],
                 audioEmbedUrl: null,
                 audioDuration: 0,
+                beneficiaries: [],
                 spoilerButtonText: '',
                 audioRecorderVisible: false,
                 spoilerModalVisible: false,
@@ -548,6 +559,18 @@ export function useCompose({
         dispatch({ type: 'CLEAR_AUDIO' });
     }, []);
 
+    // Callers validate first (see utils/beneficiaries beneficiaryError).
+    const addBeneficiary = useCallback((beneficiary: Beneficiary) => {
+        dispatch({ type: 'ADD_BENEFICIARY', payload: beneficiary });
+    }, []);
+
+    const removeBeneficiary = useCallback((account: string) => {
+        dispatch({ type: 'REMOVE_BENEFICIARY', payload: account });
+    }, []);
+
+    /** @snapie's fixed share of a blog post: 10% with video/audio, else 3%. */
+    const snapieWeight = snapieShare(!!video.videoEmbedUrl || !!state.audioEmbedUrl);
+
     // ===== Validation =====
 
     const hasPostableContent = useMemo(() => {
@@ -894,6 +917,7 @@ export function useCompose({
                     // as hangout-announcement snaps: 10% if video/audio is
                     // attached (hasVideo/hasAudio wins), else 3% via this flag.
                     hasHangout: true,
+                    beneficiaries: state.beneficiaries,
                 },
                 postingKey
             );
@@ -972,6 +996,9 @@ export function useCompose({
             closeAudioRecorder,
             handleAudioRecorded,
             removeAudio,
+            addBeneficiary,
+            removeBeneficiary,
+            snapieWeight,
             submit,
         }),
         [
@@ -1002,6 +1029,9 @@ export function useCompose({
             closeAudioRecorder,
             handleAudioRecorded,
             removeAudio,
+            addBeneficiary,
+            removeBeneficiary,
+            snapieWeight,
             submit,
         ]
     );
