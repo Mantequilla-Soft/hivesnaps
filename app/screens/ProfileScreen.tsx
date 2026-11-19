@@ -8,6 +8,8 @@ import {
   ScrollView,
   Linking,
   Alert,
+  Pressable,
+  StyleSheet,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -29,6 +31,7 @@ import { VotingPowerSection } from '../components/profile/VotingPowerSection';
 import { WalletSection } from '../components/profile/WalletSection';
 import { PointsSection } from '../components/profile/PointsSection';
 import { ProfileSnaps } from '../components/profile/ProfileSnaps';
+import { ProfileReblogs } from '../components/profile/ProfileReblogs';
 // ContentModal removed - now using ComposeScreen for edit
 
 // Import custom hooks
@@ -64,6 +67,12 @@ const ProfileScreen = () => {
 
   // Define isOwnProfile early to avoid undefined issues
   const isOwnProfile = currentUsername === username;
+
+  // Snaps / Reblogs switch above the profile's content list.
+  const [contentTab, setContentTab] = useState<'snaps' | 'reblogs'>('snaps');
+  useEffect(() => {
+    setContentTab('snaps');
+  }, [username]);
 
   // Wallet is accessible only when an active key is stored AND device auth is available.
   // hasActiveKey alone isn't enough — if biometrics aren't set up the key can't be used.
@@ -485,7 +494,37 @@ const ProfileScreen = () => {
               </View>
             )}
 
-            {/* Recent Snaps Section */}
+            {/* Snaps / Reblogs switch */}
+            <View style={[profileTabStyles.tabs, { borderColor: colors.border }]} accessibilityRole="tablist">
+              {(['snaps', 'reblogs'] as const).map(tab => {
+                const selected = contentTab === tab;
+                return (
+                  <Pressable
+                    key={tab}
+                    onPress={() => setContentTab(tab)}
+                    style={[profileTabStyles.tab, selected && { borderBottomColor: colors.button }]}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text style={[profileTabStyles.tabText, { color: selected ? colors.text : colors.textSecondary }]}>
+                      {tab === 'snaps' ? 'Snaps' : 'Reblogs'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {contentTab === 'reblogs' && username ? (
+              <ProfileReblogs
+                username={username}
+                currentUsername={currentUsername}
+                colors={colors}
+                onOpenPost={(author, permlink) =>
+                  router.push({ pathname: '/screens/HivePostScreen', params: { author, permlink } })
+                }
+                onAuthorPress={u => router.push({ pathname: '/screens/ProfileScreen', params: { username: u } })}
+              />
+            ) : (
             <ProfileSnaps
               snapsLoaded={snapsLoaded}
               snapsLoading={snapsLoading}
@@ -505,6 +544,7 @@ const ProfileScreen = () => {
               handleEditPress={handleEditPress}
               onResnapPress={handleResnapPress}
             />
+            )}
 
             {/* Account actions - Only show for own profile */}
             {isOwnProfile && (
@@ -612,3 +652,21 @@ const ProfileScreen = () => {
 export default ProfileScreen;
 
 export const options = { headerShown: false };
+
+const profileTabStyles = StyleSheet.create({
+  tabs: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: { fontSize: 15, fontWeight: '600' },
+});

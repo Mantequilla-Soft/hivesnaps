@@ -9,7 +9,7 @@ import { subscribePostVoted, postVoteKey, POST_VOTED_TTL_MS, type PostVotedEvent
 export const SNAPIE_COMMUNITY = 'hive-178315';
 const PAGE_SIZE = 20;
 
-interface RawBlogPost {
+export interface RawBlogPost {
   author: string;
   permlink: string;
   title?: string;
@@ -72,6 +72,30 @@ function extractThumbnail(item: RawBlogPost): string | null {
     console.error('[useBlogFeed] extractThumbnail threw for', item.author, item.permlink, error);
     return null;
   }
+}
+
+/** Map raw bridge posts (get_ranked_posts / get_account_posts) to BlogCard's shape. */
+export function parseBlogPosts(raw: RawBlogPost[]): BlogPost[] {
+  return raw.map((item) => {
+      const active_votes = Array.isArray(item.active_votes) ? item.active_votes : [];
+      return {
+        author: item.author,
+        permlink: item.permlink,
+        title: item.title ?? '',
+        body: item.body ?? '',
+        json_metadata: item.json_metadata ?? '{}',
+        created: item.created,
+        pending_payout_value: item.pending_payout_value ?? '0.000 HBD',
+        total_payout_value: item.total_payout_value ?? '0.000 HBD',
+        // bridge.get_ranked_posts omits net_votes entirely — derive it from
+        // the voter list so the card doesn't permanently show 0 votes.
+        net_votes: typeof item.net_votes === 'number' ? item.net_votes : deriveNetVotes(active_votes),
+        children: item.children ?? 0,
+        thumbnailUrl: extractThumbnail(item),
+        avatarUrl: '',
+        active_votes,
+      };
+    });
 }
 
 export interface UseBlogFeedResult {
@@ -174,29 +198,6 @@ export function useBlogFeed(): UseBlogFeedResult {
     return enriched;
   }, []);
 
-  const parseRawPosts = useCallback((raw: RawBlogPost[]): BlogPost[] => {
-    return raw.map((item) => {
-      const active_votes = Array.isArray(item.active_votes) ? item.active_votes : [];
-      return {
-        author: item.author,
-        permlink: item.permlink,
-        title: item.title ?? '',
-        body: item.body ?? '',
-        json_metadata: item.json_metadata ?? '{}',
-        created: item.created,
-        pending_payout_value: item.pending_payout_value ?? '0.000 HBD',
-        total_payout_value: item.total_payout_value ?? '0.000 HBD',
-        // bridge.get_ranked_posts omits net_votes entirely — derive it from
-        // the voter list so the card doesn't permanently show 0 votes.
-        net_votes: typeof item.net_votes === 'number' ? item.net_votes : deriveNetVotes(active_votes),
-        children: item.children ?? 0,
-        thumbnailUrl: extractThumbnail(item),
-        avatarUrl: '',
-        active_votes,
-      };
-    });
-  }, []);
-
   const fetchPosts = useCallback(async (): Promise<void> => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -215,7 +216,7 @@ export function useBlogFeed(): UseBlogFeedResult {
         observer: '',
       }) as RawBlogPost[];
 
-      const parsed = parseRawPosts(raw ?? []);
+      const parsed = parseBlogPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
 
       if (!isMountedRef.current) return;
@@ -236,7 +237,7 @@ export function useBlogFeed(): UseBlogFeedResult {
       if (isMountedRef.current) setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [parseRawPosts, enrichWithAvatars, reconcilePendingVotes]);
+  }, [enrichWithAvatars, reconcilePendingVotes]);
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (isFetchingRef.current || !hasMoreRef.current || !cursorRef.current) return;
@@ -256,7 +257,7 @@ export function useBlogFeed(): UseBlogFeedResult {
         observer: '',
       }) as RawBlogPost[];
 
-      const parsed = parseRawPosts(raw ?? []);
+      const parsed = parseBlogPosts(raw ?? []);
       const enriched = await enrichWithAvatars(parsed);
 
       if (!isMountedRef.current) return;
@@ -274,7 +275,7 @@ export function useBlogFeed(): UseBlogFeedResult {
       if (isMountedRef.current) setLoadingMore(false);
       isFetchingRef.current = false;
     }
-  }, [parseRawPosts, enrichWithAvatars, reconcilePendingVotes]);
+  }, [enrichWithAvatars, reconcilePendingVotes]);
 
   const refresh = useCallback(async (): Promise<void> => {
     await fetchPosts();
