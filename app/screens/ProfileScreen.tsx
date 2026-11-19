@@ -281,6 +281,7 @@ const ProfileScreen = () => {
             <ProfileHeader
               username={profile.username}
               avatarUrl={profile.avatarUrl}
+              coverUrl={profile.coverUrl}
               displayName={profile.displayName}
               isOwnProfile={isOwnProfile}
               colors={colors}

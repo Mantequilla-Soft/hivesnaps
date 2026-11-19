@@ -119,8 +119,24 @@ export const createProfileScreenStyles = (isDark: boolean) => {
       textAlign: 'center',
       color: extendedColors.text,
     },
+    coverBanner: {
+      alignSelf: 'stretch',
+      height: 140,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    coverImage: {
+      ...StyleSheet.absoluteFillObject,
+    },
     avatarContainer: {
       marginBottom: 16,
+    },
+    // Pulls the avatar up so it sits over the cover's bottom edge, with a
+    // ring in the page background separating the two.
+    avatarOverCover: {
+      marginTop: -64,
+      borderWidth: 4,
+      borderRadius: 64,
     },
     largeAvatar: {
       width: 120,

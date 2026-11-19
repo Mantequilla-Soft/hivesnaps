@@ -3,7 +3,7 @@ import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile } from '../store/context';
 import { vestsToHp } from '../utils/hiveCalculations';
-import { currentProfile } from '../utils/profileMetadata';
+import { currentProfile, readProfileFields } from '../utils/profileMetadata';
 
 // Profile data interface
 export interface ProfileData {
@@ -17,6 +17,8 @@ export interface ProfileData {
   about?: string;
   location?: string;
   website?: string;
+  /** profile.cover_image from the account metadata; may be a dead link. */
+  coverUrl?: string;
   followingCount?: number;
   followersCount?: number;
   // Unclaimed rewards
@@ -47,6 +49,15 @@ export const useProfileData = (username: string | undefined) => {
       setProfile(prev => (prev ? { ...prev, avatarUrl: cacheBustedUrl } : prev));
     }
   }, [globalProfile?.profile_image, globalProfile?.profile_image_last_updated]);
+
+  // A cover saved in Edit Profile lands in the cached profile right away,
+  // before every API node has the new metadata, so let it win.
+  const cachedCover: string | undefined =
+    typeof globalProfile?.cover_image === 'string' ? globalProfile.cover_image : undefined;
+  useEffect(() => {
+    if (cachedCover === undefined) return;
+    setProfile(prev => (prev && prev.coverUrl !== cachedCover ? { ...prev, coverUrl: cachedCover } : prev));
+  }, [cachedCover]);
 
   const fetchProfileData = async () => {
     if (!username) return;
@@ -235,6 +246,7 @@ export const useProfileData = (username: string | undefined) => {
         about: profileMeta.about,
         location: profileMeta.location,
         website: profileMeta.website,
+        coverUrl: cachedCover ?? readProfileFields(account).cover_image,
         followingCount: account.following_count || 0,
         followersCount: account.follower_count || 0,
         unclaimedHive,
