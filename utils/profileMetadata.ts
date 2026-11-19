@@ -80,6 +80,14 @@ export function normalizeWebsite(input: string): string | null {
     const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
     // A host with at least one dot, no spaces.
     if (!/^https?:\/\/[^\s/?#]+\.[^\s/?#]+([/?#]\S*)?$/i.test(withScheme)) return null;
+    // A port, if any, must be a number in 1–65535. Checked by hand rather than
+    // with URL: React Native's URL doesn't validate input the way Node's does.
+    const host = /^https?:\/\/(?:[^\s/?#@]*@)?([^\s/?#]+)/i.exec(withScheme)?.[1] ?? '';
+    const portSep = host.lastIndexOf(':');
+    if (portSep !== -1) {
+        const port = host.slice(portSep + 1);
+        if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) return null;
+    }
     return withScheme;
 }
 
@@ -107,12 +115,25 @@ export function cleanProfileFields(fields: ProfileFields): ProfileFields {
 }
 
 /**
+ * The fields that differ from `baseline` (what the editor loaded), cleaned.
+ * Saving only these keeps changes another app made since then.
+ */
+export function changedProfileFields(baseline: ProfileFields, edited: ProfileFields): Partial<ProfileFields> {
+    const cleaned = cleanProfileFields(edited);
+    const patch: Partial<ProfileFields> = {};
+    for (const key of Object.keys(cleaned) as (keyof ProfileFields)[]) {
+        if (edited[key] !== baseline[key]) patch[key] = cleaned[key];
+    }
+    return patch;
+}
+
+/**
  * posting_json_metadata with the edited fields applied: every other key —
  * at the top level and inside `profile` — is kept as it is on chain. If the
  * account has no posting profile yet, the legacy json_metadata profile is
  * the starting point so its fields aren't lost.
  */
-export function buildPostingJsonMetadata(account: AccountMetadata, fields: ProfileFields): string {
+export function buildPostingJsonMetadata(account: AccountMetadata, fields: Partial<ProfileFields>): string {
     const posting = parseObject(account.posting_json_metadata) ?? {};
     const profile: JsonObject = { ...currentProfile(account), ...fields, version: 2 };
     return JSON.stringify({ ...posting, profile });

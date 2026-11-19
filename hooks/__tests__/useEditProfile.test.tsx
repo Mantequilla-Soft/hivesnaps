@@ -72,7 +72,7 @@ it('saves, updates the cached profile without dropping its other fields, and ref
     });
     await act(async () => { await h.current().save(); });
 
-    expect(saveProfileFields).toHaveBeenCalledWith('meno', expect.objectContaining({ about: 'Hello', profile_image: 'https://img/new.png' }));
+    expect(saveProfileFields).toHaveBeenCalledWith('meno', expect.objectContaining({ about: 'Hello', profile_image: 'https://img/new.png' }), onChain);
     expect(mockSetUserProfile).toHaveBeenCalledWith(
         'meno',
         expect.objectContaining({ reputation: 70, about: 'Hello', displayName: 'Meno', profile_image: 'https://img/new.png' })

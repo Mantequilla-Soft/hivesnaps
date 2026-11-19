@@ -1,5 +1,6 @@
 import {
     buildPostingJsonMetadata,
+    changedProfileFields,
     cleanProfileFields,
     normalizeWebsite,
     profileFieldsError,
@@ -33,9 +34,10 @@ describe('normalizeWebsite', () => {
         ['example.com', 'https://example.com'],
         ['http://example.com/path?q=1', 'http://example.com/path?q=1'],
         ['HTTPS://Sub.Example.io', 'HTTPS://Sub.Example.io'],
+        ['example.org:8080/x', 'https://example.org:8080/x'],
     ])('%p → %p', (input, out) => expect(normalizeWebsite(input)).toBe(out));
 
-    it.each(['example', 'not a url.com', 'ftp://example.com', 'https://'])('rejects %p', (input) => expect(normalizeWebsite(input)).toBeNull());
+    it.each(['example', 'not a url.com', 'ftp://example.com', 'https://', 'example.org:70000', 'example.org:0', 'example.org:abc'])('rejects %p', (input) => expect(normalizeWebsite(input)).toBeNull());
 });
 
 describe('profileFieldsError', () => {
@@ -48,6 +50,7 @@ describe('profileFieldsError', () => {
         expect(profileFieldsError(fields({ about: 'x'.repeat(161) }))).toMatch(/About/);
         expect(profileFieldsError(fields({ location: 'x'.repeat(31) }))).toMatch(/Location/);
         expect(profileFieldsError(fields({ website: 'nope' }))).toMatch(/web address/);
+        expect(profileFieldsError(fields({ website: 'example.org:70000' }))).toMatch(/web address/);
         expect(profileFieldsError(fields({ website: `${'a'.repeat(95)}.com` }))).toMatch(/at most 100/);
     });
 });
@@ -89,5 +92,18 @@ describe('buildPostingJsonMetadata', () => {
 
     it('builds a fresh object from nothing', () => {
         expect(JSON.parse(buildPostingJsonMetadata({}, fields({ name: 'A' })))).toEqual({ profile: { ...fields({ name: 'A' }), version: 2 } });
+    });
+});
+
+describe('changedProfileFields', () => {
+    it('returns only the edited fields, cleaned', () => {
+        const baseline = fields({ name: 'Meno', about: 'old', website: 'https://a.io' });
+        const edited = { ...baseline, about: ' new ', website: 'b.io' };
+        expect(changedProfileFields(baseline, edited)).toEqual({ about: 'new', website: 'https://b.io' });
+    });
+
+    it('is empty when nothing changed, even if a loaded value would be cleaned', () => {
+        const baseline = fields({ name: ' padded ' });
+        expect(changedProfileFields(baseline, { ...baseline })).toEqual({});
     });
 });

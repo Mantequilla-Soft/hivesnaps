@@ -3,6 +3,7 @@ import { getClient } from './HiveClient';
 import { accountStorageService } from './AccountStorageService';
 import {
     buildPostingJsonMetadata,
+    changedProfileFields,
     cleanProfileFields,
     profileFieldsError,
     readProfileFields,
@@ -21,13 +22,20 @@ export async function fetchProfileFields(username: string): Promise<ProfileField
  * key. Only posting_json_metadata changes (an empty json_metadata leaves
  * that field alone, which is what lets the posting key authorize it), and
  * it's rebuilt from the account's current on-chain value right before
- * broadcasting, so keys other apps keep there survive. Returns the fields
- * as saved (trimmed, website normalized).
+ * broadcasting, so keys other apps keep there survive. With `baseline`
+ * (the fields as the editor loaded them), only the fields that differ from
+ * it are written, so a field another app changed meanwhile isn't reverted.
+ * Returns the profile fields as they now are on chain (edits trimmed,
+ * website normalized).
  */
-export async function saveProfileFields(username: string, fields: ProfileFields): Promise<ProfileFields> {
+export async function saveProfileFields(
+    username: string,
+    fields: ProfileFields,
+    baseline?: ProfileFields
+): Promise<ProfileFields> {
     const problem = profileFieldsError(fields);
     if (problem) throw new Error(problem);
-    const cleaned = cleanProfileFields(fields);
+    const patch = baseline ? changedProfileFields(baseline, fields) : cleanProfileFields(fields);
 
     const postingKeyStr = await accountStorageService.getCurrentPostingKey();
     if (!postingKeyStr) throw new Error('No posting key found. Please log in again.');
@@ -42,12 +50,12 @@ export async function saveProfileFields(username: string, fields: ProfileFields)
         {
             account: username,
             json_metadata: '',
-            posting_json_metadata: buildPostingJsonMetadata(account, cleaned),
+            posting_json_metadata: buildPostingJsonMetadata(account, patch),
             extensions: [],
         },
     ];
     await client.broadcast.sendOperations([op], postingKey);
-    return cleaned;
+    return { ...readProfileFields(account), ...patch };
 }
 
 // Set when a profile is saved, so the profile screen re-reads it once on

@@ -87,7 +87,7 @@ export function useEditProfile(username: string | null): UseEditProfileResult {
         if (!username || saving) return;
         setSaving(true);
         try {
-            const saved = await saveProfileFields(username, fields);
+            const saved = await saveProfileFields(username, fields, initial);
             // The app's own avatar/name caches, so the change shows right away.
             if (saved.profile_image !== initial.profile_image) avatarService.clearCache();
             // setUserProfile replaces the cached entry, so keep what's there (reputation etc.).
@@ -109,7 +109,7 @@ export function useEditProfile(username: string | null): UseEditProfileResult {
         } finally {
             if (mountedRef.current) setSaving(false);
         }
-    }, [username, saving, fields, initial.profile_image, setUserProfile, selectors]);
+    }, [username, saving, fields, initial, setUserProfile, selectors]);
 
     const dirty = useMemo(
         () => (Object.keys(fields) as (keyof ProfileFields)[]).some((k) => fields[k] !== initial[k]),

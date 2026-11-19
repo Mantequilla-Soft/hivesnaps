@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
     View,
     Text,
@@ -15,7 +15,8 @@ import {
 import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../store/context';
 import { useEditProfile, type ProfileImageKind } from '../../hooks/useEditProfile';
@@ -34,6 +35,38 @@ const EditProfileScreen = (): React.JSX.Element => {
     const { fields, uploading, saving, dirty, error } = profile;
     const busy = saving || uploading !== null;
 
+    // Set right before leaving on purpose (Discard, or after a save), so the
+    // removal guard below lets that exit through without asking again.
+    const leavingRef = useRef(false);
+    const leave = (): void => {
+        leavingRef.current = true;
+        router.back();
+    };
+
+    const confirmDiscard = (onDiscard: () => void): void => {
+        Alert.alert('Discard changes?', 'Your profile changes haven’t been saved.', [
+            { text: 'Keep editing', style: 'cancel' },
+            { text: 'Discard', style: 'destructive', onPress: onDiscard },
+        ]);
+    };
+
+    // Back gesture / Android back would otherwise drop unsaved edits silently,
+    // or close the editor mid-save. usePreventRemove (unlike a bare
+    // beforeRemove listener) also stops the native iOS swipe-back.
+    const navigation = useNavigation();
+    usePreventRemove(dirty || saving, ({ data }) => {
+        // Leaving on purpose; `dirty` may not have re-rendered to false yet after a save.
+        if (leavingRef.current) {
+            navigation.dispatch(data.action);
+            return;
+        }
+        if (saving) return;
+        confirmDiscard(() => {
+            leavingRef.current = true;
+            navigation.dispatch(data.action);
+        });
+    });
+
     const changeImage = async (kind: ProfileImageKind): Promise<void> => {
         try {
             await profile.changeImage(kind);
@@ -46,21 +79,20 @@ const EditProfileScreen = (): React.JSX.Element => {
         try {
             await profile.save();
             if (currentUsername) markProfileSaved(currentUsername);
-            router.back();
+            leave();
         } catch (err) {
             Alert.alert('Couldn’t save your profile', err instanceof Error ? err.message : 'Please try again.');
         }
     };
 
     const cancel = (): void => {
-        if (!dirty || saving) {
-            router.back();
+        // The save navigates when it finishes; leaving now would lose the edits if it fails.
+        if (saving) return;
+        if (!dirty) {
+            leave();
             return;
         }
-        Alert.alert('Discard changes?', 'Your profile changes haven’t been saved.', [
-            { text: 'Keep editing', style: 'cancel' },
-            { text: 'Discard', style: 'destructive', onPress: () => router.back() },
-        ]);
+        confirmDiscard(leave);
     };
 
     const field = (
@@ -101,7 +133,13 @@ const EditProfileScreen = (): React.JSX.Element => {
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                    <TouchableOpacity onPress={cancel} style={styles.headerButton} accessibilityRole="button">
+                    <TouchableOpacity
+                        onPress={cancel}
+                        disabled={saving}
+                        style={[styles.headerButton, saving && styles.disabled]}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: saving }}
+                    >
                         <Text style={[styles.headerButtonText, { color: theme.text }]}>Cancel</Text>
                     </TouchableOpacity>
                     <Text style={[styles.title, { color: theme.text }]}>Edit Profile</Text>
@@ -218,6 +256,7 @@ const styles = StyleSheet.create({
     headerButton: { paddingVertical: 6, minWidth: 64 },
     headerButtonText: { fontSize: 16 },
     title: { fontSize: 17, fontWeight: '700' },
+    disabled: { opacity: 0.4 },
     saveButton: { minWidth: 64, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 18, alignItems: 'center' },
     saveText: { fontSize: 15, fontWeight: '700' },
     status: { marginTop: 40, alignItems: 'center', paddingHorizontal: 24 },

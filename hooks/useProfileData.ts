@@ -3,6 +3,7 @@ import { getClient } from '../services/HiveClient';
 import { avatarService } from '../services/AvatarService';
 import { useUserProfile } from '../store/context';
 import { vestsToHp } from '../utils/hiveCalculations';
+import { currentProfile } from '../utils/profileMetadata';
 
 // Profile data interface
 export interface ProfileData {
@@ -160,41 +161,10 @@ export const useProfileData = (username: string | undefined) => {
         typeof fetchedGlobalProps.total_vesting_shares
       );
 
-      // Parse profile metadata - more robust parsing
-      let profileMeta: any = {};
-      try {
-        // Try posting_json_metadata first (most up-to-date)
-        if (account.posting_json_metadata) {
-          try {
-            const postingMeta = JSON.parse(account.posting_json_metadata);
-            if (postingMeta.profile) {
-              profileMeta = { ...profileMeta, ...postingMeta.profile };
-            }
-          } catch (e) {
-            console.log('Error parsing posting_json_metadata:', e);
-          }
-        }
-
-        // If no profile data found in posting_json_metadata, try json_metadata
-        if (
-          account.json_metadata &&
-          !profileMeta.name &&
-          !profileMeta.profile_image
-        ) {
-          try {
-            const jsonMeta = JSON.parse(account.json_metadata);
-            if (jsonMeta.profile) {
-              profileMeta = { ...profileMeta, ...jsonMeta.profile };
-            }
-          } catch (e) {
-            console.log('Error parsing json_metadata:', e);
-          }
-        }
-
-        console.log('Parsed profile metadata:', profileMeta);
-      } catch (e) {
-        console.log('Error parsing profile metadata:', e);
-      }
+      // The profile other apps show: posting_json_metadata's, or the legacy
+      // json_metadata one only when there's no posting profile at all.
+      const profileMeta: Record<string, any> = currentProfile(account);
+      console.log('Parsed profile metadata:', profileMeta);
 
       // Parse balances
       const hiveBalance = parseFloat(account.balance.replace(' HIVE', ''));

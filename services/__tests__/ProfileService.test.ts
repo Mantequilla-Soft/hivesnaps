@@ -43,6 +43,15 @@ it('broadcasts account_update2 with merged posting metadata, signed with the pos
     expect(meta.profile).toEqual(expect.objectContaining({ name: 'New', pinned: 'p', website: 'https://snapie.io', version: 2 }));
 });
 
+it('with a baseline, writes only the edited fields so changes made elsewhere survive', async () => {
+    // Loaded when the profile was still named 'Loaded'; another app renamed it to 'Old' since.
+    const baseline = { ...EMPTY_PROFILE, name: 'Loaded' };
+    const saved = await saveProfileFields('meno', { ...baseline, about: 'Hi' }, baseline);
+    expect(saved).toEqual({ ...EMPTY_PROFILE, name: 'Old', about: 'Hi' });
+    const meta = JSON.parse(sendOperations.mock.calls[0][0][0][1].posting_json_metadata);
+    expect(meta.profile).toEqual(expect.objectContaining({ name: 'Old', about: 'Hi', pinned: 'p' }));
+});
+
 it('validates before touching the chain', async () => {
     await expect(saveProfileFields('meno', { ...EMPTY_PROFILE, website: 'nope' })).rejects.toThrow(/web address/);
     expect(getAccounts).not.toHaveBeenCalled();
