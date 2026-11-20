@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <!-- screenOrientation="portrait" makes Play imply this feature as required, which
+       filters out tablets, Chromebooks/desktop and XR. Declare it optional. -->
+  <uses-feature android:name="android.hardware.screen.portrait" android:required="false"/>
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
