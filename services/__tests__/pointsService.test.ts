@@ -55,6 +55,29 @@ describe('pointsService', () => {
     AsyncStorage.getItem.mockResolvedValue(null);
   });
 
+  describe('fetchPointsTransactions', () => {
+    it('asks for the user\'s latest activity and keeps well-formed entries', async () => {
+      const good = { type: 'earn', label: 'Earned for a vote', delta: 1, createdAt: '2026-11-24T12:00:00.000Z' };
+      mockFetchOnce({ transactions: [good, { type: 'roulette', label: 'Lost', delta: '5' }, null, { ...good, type: 'new_kind' }] });
+
+      const list = await pointsService.fetchPointsTransactions('alice');
+
+      const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+      expect(calledUrl).toBe('https://snapie.io/api/points/transactions?username=alice&limit=50');
+      expect(list).toEqual([good, { ...good, type: 'new_kind' }]);
+    });
+
+    it('returns an empty list for an unexpected body', async () => {
+      mockFetchOnce({});
+      await expect(pointsService.fetchPointsTransactions('alice')).resolves.toEqual([]);
+    });
+
+    it('throws on an HTTP error so the screen can offer a retry', async () => {
+      mockFetchOnce({}, false, 500, 'Server Error');
+      await expect(pointsService.fetchPointsTransactions('alice')).rejects.toThrow(/500/);
+    });
+  });
+
   describe('fetchPointsSummary', () => {
     it('returns the summary from a successful fetch', async () => {
       mockFetchOnce({ username: 'alice', balance: 10, lifetimeEarned: 25, rank: 3 });
