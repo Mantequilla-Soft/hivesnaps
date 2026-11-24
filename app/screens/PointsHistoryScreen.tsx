@@ -18,7 +18,7 @@ const TYPE_ICON: Record<string, IconName> = {
   badge_purchase: 'certificate',
 };
 
-/** "+12" / "-5" with thousands separators. */
+/** "+12" / "−5" (a true minus sign) with thousands separators. */
 function formatDelta(delta: number): string {
   return `${delta >= 0 ? '+' : '−'}${Math.abs(delta).toLocaleString()}`;
 }
@@ -39,7 +39,12 @@ const PointsHistoryScreen = (): React.JSX.Element => {
   const requestRef = useRef(0);
 
   const load = useCallback(async (mode: 'initial' | 'refresh') => {
-    if (!currentUsername) return;
+    if (!currentUsername) {
+      // Not logged in (yet): don't leave the first-load spinner up forever.
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     const request = ++requestRef.current;
     if (mode === 'refresh') setRefreshing(true);
     else setLoading(true);
@@ -87,6 +92,8 @@ const PointsHistoryScreen = (): React.JSX.Element => {
 
       {loading ? (
         <ActivityIndicator style={styles.status} color={theme.icon} />
+      ) : !currentUsername ? (
+        <Text style={[styles.message, { color: theme.textSecondary }]}>Log in to see your points history.</Text>
       ) : error && transactions.length === 0 ? (
         <TouchableOpacity onPress={() => load('initial')} style={styles.status} accessibilityRole="button">
           <Text style={[styles.message, { color: theme.textSecondary }]}>

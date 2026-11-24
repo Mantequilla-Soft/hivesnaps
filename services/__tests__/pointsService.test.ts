@@ -58,7 +58,19 @@ describe('pointsService', () => {
   describe('fetchPointsTransactions', () => {
     it('asks for the user\'s latest activity and keeps well-formed entries', async () => {
       const good = { type: 'earn', label: 'Earned for a vote', delta: 1, createdAt: '2026-11-24T12:00:00.000Z' };
-      mockFetchOnce({ transactions: [good, { type: 'roulette', label: 'Lost', delta: '5' }, null, { ...good, type: { toString: null } }, { ...good, type: undefined }, { ...good, type: 'new_kind' }] });
+      mockFetchOnce({
+        transactions: [
+          good,
+          // Each bad entry breaks exactly one field, so every check is exercised.
+          { ...good, delta: '5' },
+          { ...good, label: 42 },
+          { ...good, createdAt: undefined },
+          { ...good, type: { toString: null } },
+          { ...good, type: undefined },
+          null,
+          { ...good, type: 'new_kind' },
+        ],
+      });
 
       const list = await pointsService.fetchPointsTransactions('alice');
 
