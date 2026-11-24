@@ -91,6 +91,9 @@ export async function fetchPointsTransactions(username: string, limit = POINTS_H
   return data.transactions.filter(
     (t): t is PointsTransaction =>
       !!t && typeof t === 'object' &&
+      // Unknown kinds are fine (they get a generic icon), but a non-string
+      // type would throw when used as the icon lookup key.
+      typeof (t as PointsTransaction).type === 'string' &&
       typeof (t as PointsTransaction).label === 'string' &&
       typeof (t as PointsTransaction).delta === 'number' &&
       typeof (t as PointsTransaction).createdAt === 'string'
