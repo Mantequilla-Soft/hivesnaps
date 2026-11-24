@@ -4,6 +4,7 @@
  */
 
 import { extractAudioPermlink } from '../services/audioUploadService';
+import { SPEAK_AUDIO_URL_PATTERN, toSpeakAudioPlayerUrl } from './speakAudio';
 
 export interface DetectedMedia {
   hasVideo: boolean;
@@ -25,13 +26,12 @@ export const VIDEO_URL_PATTERN =
   /https?:\/\/(play\.)?3speak\.(tv|online)\/[^\s]+/gi;
 
 /**
- * Pattern for 3Speak audio URLs
- * Matches: https://audio.3speak.tv/play?a=...
+ * Pattern for 3Speak audio URLs: audio.3speak.tv/play?a= / ?list= / ?cid=,
+ * and the 3speak.tv/audio?play= and 3speak.tv/playlist/ share links.
  * Note: Using global flag for match() and replace() operations
  * Exported for use in other components that need to remove audio URLs
  */
-export const AUDIO_URL_PATTERN =
-  /https?:\/\/audio\.3speak\.tv\/play\?[^\s]+/gi;
+export const AUDIO_URL_PATTERN = SPEAK_AUDIO_URL_PATTERN;
 
 /**
  * Detect and extract media from snap body content
@@ -45,23 +45,25 @@ export function detectMediaInBody(body: string): DetectedMedia {
   let videoPermlink: string | null = null;
   let audioPermlink: string | null = null;
 
-  // Extract video URL (first match only - one video per snap)
-  const videoMatches = body.match(VIDEO_URL_PATTERN);
-  if (videoMatches && videoMatches.length > 0) {
-    videoUrl = videoMatches[0];
-    // Remove ALL video URLs from body (only first is used, but clean up any extras)
-    cleanBody = cleanBody.replace(VIDEO_URL_PATTERN, '').trim();
-  }
-
-  // Extract audio URL (first match only - one audio per snap)
+  // Extract audio URL first (first match only - one audio per snap): the
+  // 3speak.tv/audio and /playlist share links would otherwise also match the
+  // broad video pattern below. Share links become audio.3speak.tv player URLs.
   const audioMatches = cleanBody.match(AUDIO_URL_PATTERN);
   if (audioMatches && audioMatches.length > 0) {
-    audioUrl = audioMatches[0];
+    audioUrl = toSpeakAudioPlayerUrl(audioMatches[0]) ?? audioMatches[0];
     // Remove ALL audio URLs from body (only first is used, but clean up any extras)
     cleanBody = cleanBody.replace(AUDIO_URL_PATTERN, '').trim();
 
     // Extract audio permlink from URL
     audioPermlink = extractAudioPermlink(audioUrl);
+  }
+
+  // Extract video URL (first match only - one video per snap)
+  const videoMatches = cleanBody.match(VIDEO_URL_PATTERN);
+  if (videoMatches && videoMatches.length > 0) {
+    videoUrl = videoMatches[0];
+    // Remove ALL video URLs from body (only first is used, but clean up any extras)
+    cleanBody = cleanBody.replace(VIDEO_URL_PATTERN, '').trim();
   }
 
   // Extract video permlink from URL (for consistency with audio)
@@ -122,7 +124,7 @@ export function hasVideoEmbed(body: string): boolean {
  * Note: Creates new RegExp to avoid lastIndex state issues with global flag
  */
 export function hasAudioEmbed(body: string): boolean {
-  const pattern = /https?:\/\/audio\.3speak\.tv\/play\?[^\s]+/i;
+  const pattern = new RegExp(SPEAK_AUDIO_URL_PATTERN.source, 'i');
   return pattern.test(body);
 }
 

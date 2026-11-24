@@ -483,7 +483,9 @@ const Snap: React.FC<SnapProps> = ({
 
   // Remove 3Speak audio URLs from text body to avoid showing raw URLs
   // (they're rendered as audio embeds)
-  if (AUDIO_URL_PATTERN.test(textBody)) {
+  // match(), not test(): the pattern is global, and test() would keep its
+  // lastIndex between snaps and miss links.
+  if (textBody.match(AUDIO_URL_PATTERN)) {
     textBody = textBody.replace(AUDIO_URL_PATTERN, '').trim();
     // Clean up extra whitespace
     textBody = textBody
