@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../../hooks/useTheme';
 import { ChangelogEntries } from './ChangelogEntries';
@@ -16,13 +16,31 @@ export const WhatsNewSheet: React.FC<Props> = ({ visible, entries, onDismiss }) 
     const theme = useTheme();
     const router = useRouter();
 
-    const openChangelog = (): void => {
-        onDismiss();
+    // Navigating while the iOS Modal is still animating closed can be
+    // dropped, so on iOS the push waits for the Modal's own onDismiss (which
+    // fires once it's gone). Android has no such callback, and no such issue.
+    const pendingChangelogRef = useRef(false);
+    const pushChangelog = (): void => {
+        pendingChangelogRef.current = false;
         router.push('/screens/ChangelogScreen');
     };
 
+    const openChangelog = (): void => {
+        onDismiss();
+        if (Platform.OS === 'ios') pendingChangelogRef.current = true;
+        else pushChangelog();
+    };
+
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+        <Modal
+            visible={visible}
+            transparent
+            animationType="fade"
+            onRequestClose={onDismiss}
+            onDismiss={() => {
+                if (pendingChangelogRef.current) pushChangelog();
+            }}
+        >
             <View style={styles.backdrop}>
                 <View style={[styles.card, { backgroundColor: theme.background, borderColor: theme.border }]}>
                     <Text style={[styles.heading, { color: theme.text }]}>What’s new</Text>

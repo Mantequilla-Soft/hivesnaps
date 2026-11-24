@@ -5,6 +5,7 @@ import { unseenEntries, type ChangelogEntry } from '../utils/changelog';
 export interface UseWhatsNewResult {
     /** Notes to show in the sheet; empty when there's nothing new. */
     entries: ChangelogEntry[];
+    /** There are unseen notes and the sheet may show now. */
     visible: boolean;
     /** Close the sheet and remember this version's notes were seen. */
     dismiss: () => void;
@@ -12,36 +13,39 @@ export interface UseWhatsNewResult {
 
 /**
  * Shows the installed version's "What's new" once (and any versions skipped
- * since the last one seen). Checks when `enabled` first becomes true, e.g.
- * once the feed is showing for a logged-in user.
+ * since the last one seen).
+ *
+ * @param enabled start the check (once), e.g. once a user is logged in
+ * @param canShow whether the sheet may appear right now, e.g. the feed is
+ *   the focused screen; notes found while it's false wait until it's true,
+ *   so the sheet never pops up over another screen
  */
-export function useWhatsNew(enabled: boolean): UseWhatsNewResult {
+export function useWhatsNew(enabled: boolean, canShow = true): UseWhatsNewResult {
     const [entries, setEntries] = useState<ChangelogEntry[]>([]);
-    const [visible, setVisible] = useState(false);
-    // A ref, not state: setting state here would re-run the effect, and its
-    // cleanup would cancel the check that just started.
+    const [dismissed, setDismissed] = useState(false);
+    // Refs, not state: the check runs once per mount and isn't cancelled
+    // when `enabled` flickers (e.g. during an account switch) — only an
+    // unmount drops its result.
     const checkedRef = useRef(false);
+    const mountedRef = useRef(true);
+    useEffect(() => () => {
+        mountedRef.current = false;
+    }, []);
 
     useEffect(() => {
         if (!enabled || checkedRef.current) return;
         checkedRef.current = true;
-        let cancelled = false;
         (async () => {
             const [all, lastSeen] = await Promise.all([loadChangelog(), getLastSeenVersion()]);
             const fresh = unseenEntries(all, getAppVersion(), lastSeen);
-            if (cancelled || fresh.length === 0) return;
-            setEntries(fresh);
-            setVisible(true);
+            if (mountedRef.current && fresh.length > 0) setEntries(fresh);
         })();
-        return () => {
-            cancelled = true;
-        };
     }, [enabled]);
 
     const dismiss = useCallback((): void => {
-        setVisible(false);
+        setDismissed(true);
         setLastSeenVersion(getAppVersion());
     }, []);
 
-    return { entries, visible, dismiss };
+    return { entries, visible: entries.length > 0 && !dismissed && canShow, dismiss };
 }
