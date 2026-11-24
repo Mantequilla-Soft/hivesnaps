@@ -82,3 +82,29 @@ it('a failed sign-in is not reused by later calls', async () => {
     expect(ok.success).toBe(true);
     expect(backend.challenges).toBe(1);
 });
+
+it('a sign-in with a different key waits its turn and uses its own key', async () => {
+    const backend = fakeBackend();
+    const otherKey = PrivateKey.fromSeed('hivesnaps-auth-test-2').toString();
+    // The first (e.g. stored, outdated) key's verify fails; anything after works.
+    const base = mockRequest.getMockImplementation()!;
+    mockRequest.mockImplementation(async (target: { path: string; body: Record<string, unknown> }) => {
+        if (target.path === '/auth/verify' && target.body.challenge === 'c1') {
+            await new Promise((r) => setTimeout(r, 5));
+            throw new Error('HTTP 401: {"error":"Invalid signature"}');
+        }
+        return base(target);
+    });
+
+    const [stored, typed] = await Promise.all([
+        authService.authenticate('meno', postingKey),
+        authService.authenticate('meno', otherKey),
+    ]);
+
+    expect(stored.success).toBe(false);
+    expect(typed).toEqual({ success: true, token: 'jwt-c2' });
+    // One after the other: the second challenge was requested only after the first sign-in ended.
+    const paths = mockRequest.mock.calls.map(([t]) => `${t.path}:${(t.body as { challenge?: string }).challenge ?? ''}`);
+    expect(paths).toEqual(['/auth/challenge:', '/auth/verify:c1', '/auth/challenge:', '/auth/verify:c2']);
+    expect(backend.challenges).toBe(2);
+});

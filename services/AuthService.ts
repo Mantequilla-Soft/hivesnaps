@@ -45,8 +45,8 @@ export interface AuthResult {
 class AuthServiceImpl {
   private currentToken: string | null = null;
   private currentRefreshToken: string | null = null;
-  /** Sign-ins in flight, per lowercased username (see authenticate). */
-  private inFlight = new Map<string, Promise<AuthResult>>();
+  /** Sign-ins in flight, per lowercased username, with the key each uses (see authenticate). */
+  private inFlight = new Map<string, { postingKey: string; attempt: Promise<AuthResult> }>();
   private readonly DEBUG = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
   // Create elliptic curve instance (secp256k1) for SECRET SAUCE signing
   private ec = new EC('secp256k1');
@@ -322,24 +322,30 @@ class AuthServiceImpl {
   /**
    * Complete authentication flow: challenge -> sign -> verify -> get JWT.
    *
-   * Single-flight per user: the backend keeps only the latest challenge for
-   * a user, so two overlapping sign-ins make the first fail with "Invalid
-   * challenge" (#262). A call while one is already running for the same
-   * user gets that same result instead of requesting a new challenge.
+   * One sign-in at a time per user: the backend keeps only the latest
+   * challenge for a user, so two overlapping sign-ins make the first fail
+   * with "Invalid challenge" (#262).
+   * - Same user and same key as the running sign-in: share its result.
+   * - Same user, different key (e.g. a newly typed key while the stored one
+   *   is still signing in): wait for the running one to finish, then sign
+   *   in with this key, so a result is never reported for the wrong key.
    */
   authenticate(username: string, postingKey: string): Promise<AuthResult> {
-    const key = username.toLowerCase();
-    const running = this.inFlight.get(key);
+    const user = username.toLowerCase();
+    const running = this.inFlight.get(user);
     if (running) {
-      if (this.DEBUG) {
-        console.log(`[AuthService] Sign-in already in progress for ${username}, reusing it`);
+      if (running.postingKey === postingKey) {
+        if (this.DEBUG) {
+          console.log(`[AuthService] Sign-in already in progress for ${username}, reusing it`);
+        }
+        return running.attempt;
       }
-      return running;
+      return running.attempt.then(() => this.authenticate(username, postingKey));
     }
     const attempt = this.runAuthentication(username, postingKey).finally(() => {
-      this.inFlight.delete(key);
+      if (this.inFlight.get(user)?.attempt === attempt) this.inFlight.delete(user);
     });
-    this.inFlight.set(key, attempt);
+    this.inFlight.set(user, { postingKey, attempt });
     return attempt;
   }
 
