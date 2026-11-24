@@ -37,6 +37,7 @@ import { useProfileData } from '../../hooks/useProfileData';
 import { useFollowManagement } from '../../hooks/useFollowManagement';
 import { useUserSnaps } from '../../hooks/useUserSnaps';
 import { consumeProfileSaved } from '../../services/ProfileService';
+import { getAppVersion } from '../../services/changelogService';
 import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
@@ -576,6 +577,19 @@ const ProfileScreen = () => {
                 </View>
 
                 <TouchableOpacity
+                  style={profileTabStyles.whatsNewRow}
+                  onPress={() => router.push('/screens/ChangelogScreen')}
+                  accessibilityRole="button"
+                >
+                  <FontAwesome name='gift' size={16} color={colors.text} />
+                  <Text style={[profileTabStyles.whatsNewText, { color: colors.text }]}>What’s new</Text>
+                  <Text style={[profileTabStyles.whatsNewVersion, { color: colors.textSecondary }]}>
+                    Version {getAppVersion()}
+                  </Text>
+                  <FontAwesome name='chevron-right' size={12} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.logoutButton, { marginBottom: 12 }]}
                   onPress={() => router.push('/screens/AccountSelectionScreen')}
                 >
@@ -635,6 +649,15 @@ const PROFILE_CONTENT_TABS: readonly { key: ProfileContentTab; label: string }[]
 ];
 
 const profileTabStyles = StyleSheet.create({
+  whatsNewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  whatsNewText: { flex: 1, fontSize: 15, fontWeight: '600' },
+  whatsNewVersion: { fontSize: 13 },
   hidden: { display: 'none' },
   tabs: {
     flexDirection: 'row',

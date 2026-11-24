@@ -42,6 +42,8 @@ import { usePendingRewards } from '../../hooks/usePendingRewards';
 import PendingRewardsBanner from '../components/PendingRewardsBanner';
 import NewSnapsBanner from '../components/NewSnapsBanner';
 import { useNewSnaps } from '../../hooks/useNewSnaps';
+import { useWhatsNew } from '../../hooks/useWhatsNew';
+import { WhatsNewSheet } from '../components/changelog/WhatsNewSheet';
 import { matchesFeedFilter, isModerationBlocked } from '../../utils/feedFilter';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useHangoutsCount } from '../../hooks/useHangoutsCount';
@@ -342,6 +344,11 @@ const FeedScreenRefactored = () => {
       isVisible(s) && matchesFeedFilter(s, currentFilter, followingSet, patronSet) && !isModerationBlocked(s),
     [isVisible, currentFilter, followingSet, patronSet]
   );
+  // Release notes once per app version: checked once a user is logged in,
+  // shown only while the feed is the focused screen (never over the
+  // composer or a conversation opened in the meantime).
+  const whatsNew = useWhatsNew(!!username, isFocused);
+
   const { newSnaps, reset: resetNewSnaps } = useNewSnaps({
     // Trending is sorted by payout, so "newer" doesn't mean "on top" there.
     enabled: isFocused && activeFeed === 'snaps' && currentFilter !== 'trending',
@@ -1640,6 +1647,8 @@ const FeedScreenRefactored = () => {
         username={username}
         colors={colors}
       />
+
+      <WhatsNewSheet visible={whatsNew.visible} entries={whatsNew.entries} onDismiss={whatsNew.dismiss} />
     </View>
   );
 };
