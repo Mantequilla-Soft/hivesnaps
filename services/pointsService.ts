@@ -32,6 +32,20 @@ export interface LeaderboardPage {
   hasMore: boolean;
 }
 
+/** One entry of a user's points activity (snapie.io /api/points/transactions). */
+export interface PointsTransaction {
+  /** 'earn' | 'purchase' | 'admin_grant' | 'roulette' | 'badge_purchase' today; kept open for new kinds. */
+  type: string;
+  label: string;
+  /** Signed: positive = credited, negative = spent. */
+  delta: number;
+  /** ISO timestamp. */
+  createdAt: string;
+}
+
+/** The most the endpoint returns in one call (it has no paging). */
+export const POINTS_HISTORY_LIMIT = 50;
+
 let summaryCooldownUntil = 0;
 let leaderboardCooldownUntil = 0;
 
@@ -61,6 +75,29 @@ export async function fetchPointsSummary(username: string): Promise<PointsSummar
     summaryCooldownUntil = Date.now() + ERROR_RETRY_TTL_MS;
     return null;
   }
+}
+
+/**
+ * A user's latest points activity, newest first: earned, bought, granted,
+ * won/lost at roulette, spent on badges. Public, like summary/leaderboard.
+ * Throws on failure so the screen can offer a retry.
+ */
+export async function fetchPointsTransactions(username: string, limit = POINTS_HISTORY_LIMIT): Promise<PointsTransaction[]> {
+  const params = new URLSearchParams({ username, limit: String(limit) });
+  const res = await fetchWithTimeout(`${SNAPIE_API_URL}/api/points/transactions?${params.toString()}`);
+  if (!res.ok) throw new Error(`Points history fetch failed: ${res.status} ${res.statusText}`);
+  const data = (await res.json()) as { transactions?: unknown };
+  if (!Array.isArray(data.transactions)) return [];
+  return data.transactions.filter(
+    (t): t is PointsTransaction =>
+      !!t && typeof t === 'object' &&
+      // Unknown kinds are fine (they get a generic icon), but a non-string
+      // type would throw when used as the icon lookup key.
+      typeof (t as PointsTransaction).type === 'string' &&
+      typeof (t as PointsTransaction).label === 'string' &&
+      typeof (t as PointsTransaction).delta === 'number' &&
+      typeof (t as PointsTransaction).createdAt === 'string'
+  );
 }
 
 export async function fetchLeaderboard(limit = 50, offset = 0): Promise<LeaderboardPage> {

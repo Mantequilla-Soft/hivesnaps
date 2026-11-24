@@ -83,6 +83,21 @@ export const PointsSection: React.FC<PointsSectionProps> = ({ isOwnProfile, prof
                     <FontAwesome name="chevron-right" size={11} color={colors.buttonText} />
                 </TouchableOpacity>
             </View>
+
+            {/* Your own activity (earned, bought, roulette, badges), like snapie.io's wallet History.
+                A text link under the buttons: the half-width card's header has no room for it. */}
+            {isOwnProfile && (
+                <TouchableOpacity
+                    style={localStyles.historyLink}
+                    onPress={() => router.push('/screens/PointsHistoryScreen' as Href)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="View points history"
+                >
+                    <FontAwesome name="history" size={12} color={colors.button} />
+                    <Text style={[localStyles.historyText, { color: colors.button }]}>History</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 };
@@ -111,6 +126,17 @@ const localStyles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '600',
         letterSpacing: 0.8,
+    },
+    historyLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 5,
+        marginTop: 12,
+    },
+    historyText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     balanceRow: {
         flexDirection: 'row',
