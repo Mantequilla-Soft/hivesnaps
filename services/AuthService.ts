@@ -45,6 +45,8 @@ export interface AuthResult {
 class AuthServiceImpl {
   private currentToken: string | null = null;
   private currentRefreshToken: string | null = null;
+  /** Sign-ins in flight, per lowercased username (see authenticate). */
+  private inFlight = new Map<string, Promise<AuthResult>>();
   private readonly DEBUG = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
   // Create elliptic curve instance (secp256k1) for SECRET SAUCE signing
   private ec = new EC('secp256k1');
@@ -318,9 +320,30 @@ class AuthServiceImpl {
   }
 
   /**
-   * Complete authentication flow: challenge -> sign -> verify -> get JWT
+   * Complete authentication flow: challenge -> sign -> verify -> get JWT.
+   *
+   * Single-flight per user: the backend keeps only the latest challenge for
+   * a user, so two overlapping sign-ins make the first fail with "Invalid
+   * challenge" (#262). A call while one is already running for the same
+   * user gets that same result instead of requesting a new challenge.
    */
-  async authenticate(username: string, postingKey: string): Promise<AuthResult> {
+  authenticate(username: string, postingKey: string): Promise<AuthResult> {
+    const key = username.toLowerCase();
+    const running = this.inFlight.get(key);
+    if (running) {
+      if (this.DEBUG) {
+        console.log(`[AuthService] Sign-in already in progress for ${username}, reusing it`);
+      }
+      return running;
+    }
+    const attempt = this.runAuthentication(username, postingKey).finally(() => {
+      this.inFlight.delete(key);
+    });
+    this.inFlight.set(key, attempt);
+    return attempt;
+  }
+
+  private async runAuthentication(username: string, postingKey: string): Promise<AuthResult> {
     try {
       if (this.DEBUG) {
         console.log(`[AuthService] Starting authentication for ${username}`);
