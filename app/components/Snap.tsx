@@ -145,6 +145,12 @@ const PATRON_TIER_CONFIG: Record<PatronTier, { bg: string; border: string; color
   'snaperino':   { bg: 'rgba(148,163,184,0.15)', border: '#94A3B8', color: '#94A3B8', label: 'SNAPERINO' },
 };
 
+const PATRON_TIER_SPOKEN: Record<PatronTier, string> = {
+  'snap-master': 'Snap Master',
+  'snapian': 'Snapian',
+  'snaperino': 'Snaperino',
+};
+
 const PatronBadge: React.FC<{ tier: PatronTier }> = ({ tier }) => {
   const { bg, border, color, label } = PATRON_TIER_CONFIG[tier];
   return (
@@ -168,6 +174,11 @@ type FontAwesomeIconName = ComponentProps<typeof FontAwesome>['name'];
 const DISCOVERY_REASON_CONFIG: Record<'trending' | 'resurrected', { bg: string; border: string; color: string; icon: FontAwesomeIconName; label: string }> = {
   trending:    { bg: 'rgba(249,115,22,0.15)',  border: '#F97316', color: '#F97316', icon: 'fire',    label: 'TRENDING' },
   resurrected: { bg: 'rgba(168,85,247,0.15)',  border: '#A855F7', color: '#A855F7', icon: 'history', label: 'FROM THE VAULT' },
+};
+
+const DISCOVERY_REASON_SPOKEN: Record<'trending' | 'resurrected', string> = {
+  trending: 'Trending',
+  resurrected: 'From the vault',
 };
 
 // Marks content promoted from snapie.io's discovery engine — trending (hot right now)
@@ -693,6 +704,15 @@ const Snap: React.FC<SnapProps> = ({
     return () => { cancelled = true; };
   }, [author, showAuthor, isReply]);
 
+  // The pills sit inside the profile button, so VoiceOver reads them only
+  // through its label: "View alice's profile, Snap Master, Wave".
+  const headerLabels = [
+    patronTier ? PATRON_TIER_SPOKEN[patronTier] : null,
+    isWave ? 'Wave' : null,
+    isDiscovery && discoveryReason ? DISCOVERY_REASON_SPOKEN[discoveryReason] : null,
+  ].filter(Boolean);
+  const headerAccessibilityLabel = [`View ${author}'s profile`, ...headerLabels].join(', ');
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!permlink) return;
@@ -834,7 +854,7 @@ const Snap: React.FC<SnapProps> = ({
               ]}
               disabled={!onUserPress}
               accessibilityRole='button'
-              accessibilityLabel={`View ${author}'s profile`}
+              accessibilityLabel={headerAccessibilityLabel}
             >
               <ExpoImage
                 source={
