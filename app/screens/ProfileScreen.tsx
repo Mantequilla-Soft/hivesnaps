@@ -30,6 +30,7 @@ import { WalletSection } from '../components/profile/WalletSection';
 import { PointsSection } from '../components/profile/PointsSection';
 import { ProfileSnaps } from '../components/profile/ProfileSnaps';
 import { ProfilePostList } from '../components/profile/ProfilePostList';
+import { AccountBadges } from '../components/profile/AccountBadges';
 // ContentModal removed - now using ComposeScreen for edit
 
 // Import custom hooks
@@ -289,6 +290,9 @@ const ProfileScreen = () => {
               styles={styles}
               onEditProfilePress={() => router.push('/screens/EditProfileScreen')}
             />
+
+            {/* PeakD-style account badges */}
+            <AccountBadges username={profile.username} colors={colors} />
 
             {/* Follower/Following Counts */}
             <View style={styles.socialStats}>
