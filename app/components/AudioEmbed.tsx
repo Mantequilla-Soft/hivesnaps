@@ -18,12 +18,21 @@ import {
   AUDIO_PLAYER_MARGIN_VERTICAL,
   AUDIO_PLAYER_BORDER_RADIUS
 } from '../constants/ui';
+import { speakPlaylistId } from '../../utils/speakAudio';
+import SpeakPlaylistEmbed from './SpeakPlaylistEmbed';
 
 interface AudioEmbedProps {
   embedUrl: string;
 }
 
 const AudioEmbed: React.FC<AudioEmbedProps> = ({ embedUrl }) => {
+  // Playlists (audio.3speak.tv/play?list=) get the playlist player, not the single-track one.
+  const listId = speakPlaylistId(embedUrl);
+  if (listId) return <SpeakPlaylistEmbed listId={listId} />;
+  return <SingleAudioEmbed embedUrl={embedUrl} />;
+};
+
+const SingleAudioEmbed: React.FC<AudioEmbedProps> = ({ embedUrl }) => {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
