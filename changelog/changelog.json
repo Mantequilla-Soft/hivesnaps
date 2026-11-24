@@ -1,0 +1,22 @@
+{
+  "entries": [
+    {
+      "version": "1.4.0",
+      "date": "2026-11-24",
+      "title": "Wallet savings, reblogs, profile editing and more",
+      "items": [
+        { "type": "feature", "text": "Edit your whole profile: display name, about, location, website, profile photo and cover image. Saving uses your posting key, and settings other Hive apps keep in your profile are left alone." },
+        { "type": "feature", "text": "Profiles show their cover image, and have Snaps, Posts and Reblogs tabs." },
+        { "type": "feature", "text": "Reblog blog posts from the post page. Reblogging earns Snapie Points." },
+        { "type": "feature", "text": "Share a blog post's rewards with other accounts (reward beneficiaries) when you write it." },
+        { "type": "feature", "text": "Wallet: HBD savings with interest you can collect, and Hive Power delegations, each with a short explainer." },
+        { "type": "feature", "text": "Buy Snapie Points with HBD, and see your points history from the points card on your profile." },
+        { "type": "feature", "text": "Tap a vote count to see who voted, and tap Followers or Following on a profile to see the lists." },
+        { "type": "feature", "text": "Snap-Cast: follow a snap thread live as replies come in." },
+        { "type": "feature", "text": "Mute hashtags to hide snaps with those tags without muting the author. Long-press a #tag to mute it." },
+        { "type": "improvement", "text": "The home feed shows a \"N new snaps\" banner instead of jumping, and a banner when you have rewards to claim." },
+        { "type": "fix", "text": "Blog feed cards show when you've already voted, and your recent votes stay visible after refreshing." }
+      ]
+    }
+  ]
+}
