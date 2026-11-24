@@ -1,4 +1,4 @@
-import { SPEAK_AUDIO_URL_PATTERN, speakPlaylistId, speakPlaylistPageUrl, toSpeakAudioPlayerUrl } from '../speakAudio';
+import { SPEAK_AUDIO_URL_PATTERN, speakPlaylistId, speakPlaylistPageUrl, stripSpeakAudioLinks, toSpeakAudioPlayerUrl } from '../speakAudio';
 
 describe('toSpeakAudioPlayerUrl', () => {
     it.each([
@@ -36,4 +36,22 @@ it('reads playlist ids and builds the 3Speak page', () => {
     expect(speakPlaylistId('https://audio.3speak.tv/play?list=abc')).toBe('abc');
     expect(speakPlaylistId('https://audio.3speak.tv/play?a=abc')).toBeNull();
     expect(speakPlaylistPageUrl('a b')).toBe('https://3speak.tv/playlist/a%20b');
+});
+
+describe('stripSpeakAudioLinks', () => {
+    it('removes playable links and keeps the rest', () => {
+        expect(stripSpeakAudioLinks('a https://3speak.tv/audio?play=x b https://3speak.tv/playlist/p/q c')).toBe('a  b https://3speak.tv/playlist/p/q c');
+    });
+
+    it('strips every text on back-to-back calls (no lastIndex carried over, unlike .test())', () => {
+        const pattern = SPEAK_AUDIO_URL_PATTERN;
+        // The shared pattern is global: .test() leaves lastIndex past the
+        // first match, so a second .test() on a shorter text misses its link.
+        pattern.test('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx https://3speak.tv/audio?play=first');
+        expect(pattern.test('https://3speak.tv/audio?play=b')).toBe(false);
+        pattern.lastIndex = 0;
+        // stripSpeakAudioLinks (what Snap uses) is not affected.
+        stripSpeakAudioLinks('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx https://3speak.tv/audio?play=first');
+        expect(stripSpeakAudioLinks('https://3speak.tv/audio?play=b')).toBe('');
+    });
 });

@@ -2,7 +2,7 @@ jest.mock('../../services/audioUploadService', () => ({
     extractAudioPermlink: (url: string) => new URL(url).searchParams.get('a'),
 }));
 
-import { detectMediaInBody, hasAudioEmbed, AUDIO_URL_PATTERN } from '../mediaDetection';
+import { detectMediaInBody, hasAudioEmbed } from '../mediaDetection';
 
 describe('detectMediaInBody: 3Speak audio', () => {
     it('keeps handling player links', () => {
@@ -37,11 +37,20 @@ describe('detectMediaInBody: 3Speak audio', () => {
         expect(m.videoUrl).toBe('https://play.3speak.tv/watch?v=alice/clip');
     });
 
-    it('works the same on repeated calls (global pattern state)', () => {
-        const body = 'x https://3speak.tv/playlist/p1';
-        expect(detectMediaInBody(body).audioUrl).toBe(detectMediaInBody(body).audioUrl);
-        expect(body.match(AUDIO_URL_PATTERN)).toHaveLength(1);
-        expect(body.match(AUDIO_URL_PATTERN)).toHaveLength(1);
+    it('does not crash on a malformed escape in a playlist link', () => {
+        expect(() => detectMediaInBody('mix https://3speak.tv/playlist/100%')).not.toThrow();
+        expect(detectMediaInBody('mix https://3speak.tv/playlist/100%').audioUrl).toBe('https://audio.3speak.tv/play?list=100%25');
+    });
+
+    it('leaves links it cannot turn into a player as plain links', () => {
+        const m = detectMediaInBody('see https://3speak.tv/playlist/abc/def and https://3speak.tv/audio?play=/');
+        expect(m.hasAudio).toBe(false);
+        expect(m.audioUrl).toBeNull();
+        // (The snap text keeps them: see stripSpeakAudioLinks in speakAudio.test.)
+    });
+
+    it('accepts player links with the id in any parameter position', () => {
+        expect(detectMediaInBody('https://audio.3speak.tv/play?mode=compact&a=x').audioUrl).toBe('https://audio.3speak.tv/play?a=x');
     });
 });
 

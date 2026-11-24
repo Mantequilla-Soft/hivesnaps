@@ -1,6 +1,7 @@
 /**
  * 3Speak audio link shapes, as snapie.io supports them (PRs #345 / #358):
- * - player links: audio.3speak.tv/play?a=<id> (also ?cid=) and ?list=<playlist>
+ * - player links: audio.3speak.tv/play?a=<id> (also ?cid=) and ?list=<playlist>,
+ *   with the parameters in any order
  * - share links:  3speak.tv/audio?play=<id or owner/id>, 3speak.tv/playlist/<id>
  * Share links are turned into player links so one embed handles them all.
  */
@@ -11,7 +12,7 @@
  * part of the link.
  */
 export const SPEAK_AUDIO_URL_PATTERN =
-    /https?:\/\/(?:audio\.3speak\.tv\/play\?(?:a|list|cid)=|(?:www\.)?3speak\.tv\/(?:audio\/?\?play=|playlist\/))[^\s<>"')\]]*[^\s<>"')\].,;:!?]/gi;
+    /https?:\/\/(?:audio\.3speak\.tv\/play\?|(?:www\.)?3speak\.tv\/(?:audio\/?\?play=|playlist\/))[^\s<>"')\]]*[^\s<>"')\].,;:!?]/gi;
 
 const PLAYER = 'https://audio.3speak.tv/play';
 
@@ -45,7 +46,35 @@ export function toSpeakAudioPlayerUrl(link: string): string | null {
             return id ? `${PLAYER}?a=${encodeURIComponent(id)}` : null;
         }
         const playlist = path.match(/^\/playlist\/([^/]+)$/);
-        if (playlist) return `${PLAYER}?list=${encodeURIComponent(decodeURIComponent(playlist[1]))}`;
+        if (playlist) return `${PLAYER}?list=${encodeURIComponent(safeDecode(playlist[1]))}`;
+    }
+    return null;
+}
+
+/** decodeURIComponent that keeps the text as-is when it has a malformed escape ("100%"). */
+function safeDecode(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
+/**
+ * Remove the 3Speak audio links that will be shown as a player (the ones
+ * toSpeakAudioPlayerUrl understands); anything else that merely looks like
+ * one stays in the text as a plain link. No regex state is kept between
+ * calls, unlike .test() on the global pattern.
+ */
+export function stripSpeakAudioLinks(text: string): string {
+    return text.replace(SPEAK_AUDIO_URL_PATTERN, (link) => (toSpeakAudioPlayerUrl(link) ? '' : link));
+}
+
+/** The player URL of the first convertible 3Speak audio link in the text, else null. */
+export function findSpeakAudioPlayerUrl(text: string): string | null {
+    for (const link of text.match(SPEAK_AUDIO_URL_PATTERN) ?? []) {
+        const url = toSpeakAudioPlayerUrl(link);
+        if (url) return url;
     }
     return null;
 }

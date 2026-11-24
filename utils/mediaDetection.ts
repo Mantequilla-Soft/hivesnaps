@@ -4,7 +4,7 @@
  */
 
 import { extractAudioPermlink } from '../services/audioUploadService';
-import { SPEAK_AUDIO_URL_PATTERN, toSpeakAudioPlayerUrl } from './speakAudio';
+import { SPEAK_AUDIO_URL_PATTERN, findSpeakAudioPlayerUrl, stripSpeakAudioLinks } from './speakAudio';
 
 export interface DetectedMedia {
   hasVideo: boolean;
@@ -48,11 +48,12 @@ export function detectMediaInBody(body: string): DetectedMedia {
   // Extract audio URL first (first match only - one audio per snap): the
   // 3speak.tv/audio and /playlist share links would otherwise also match the
   // broad video pattern below. Share links become audio.3speak.tv player URLs.
-  const audioMatches = cleanBody.match(AUDIO_URL_PATTERN);
-  if (audioMatches && audioMatches.length > 0) {
-    audioUrl = toSpeakAudioPlayerUrl(audioMatches[0]) ?? audioMatches[0];
-    // Remove ALL audio URLs from body (only first is used, but clean up any extras)
-    cleanBody = cleanBody.replace(AUDIO_URL_PATTERN, '').trim();
+  // Links that look like 3Speak audio but can't be turned into a player URL
+  // are left alone (no player, still shown as a link).
+  audioUrl = findSpeakAudioPlayerUrl(cleanBody);
+  if (audioUrl) {
+    // Remove ALL playable audio URLs from body (only first is used, but clean up any extras)
+    cleanBody = stripSpeakAudioLinks(cleanBody).trim();
 
     // Extract audio permlink from URL
     audioPermlink = extractAudioPermlink(audioUrl);
@@ -135,6 +136,6 @@ export function hasAudioEmbed(body: string): boolean {
 export function removeMediaUrls(body: string): string {
   let cleaned = body;
   cleaned = cleaned.replace(VIDEO_URL_PATTERN, '').trim();
-  cleaned = cleaned.replace(AUDIO_URL_PATTERN, '').trim();
+  cleaned = stripSpeakAudioLinks(cleaned).trim();
   return cleaned;
 }
