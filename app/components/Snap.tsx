@@ -55,7 +55,7 @@ import VotersModal from './VotersModal';
 import ModerationRequestModal, { ModerationReason, ModerationRequestPayload } from './moderation/ModerationRequestModal';
 import { formatRelativeShort } from '../../utils/time';
 import ActionSheet from './common/ActionSheet';
-import { ICON_SIZE, HEADER_SPACING, BUTTON_TAP_PADDING, TIMESTAMP_MAX_WIDTH, USERNAME_MAX_WIDTH_PCT, HIT_SLOP_SM } from '../constants/ui';
+import { ICON_SIZE, HEADER_SPACING, BUTTON_TAP_PADDING, TIMESTAMP_MAX_WIDTH, HIT_SLOP_SM } from '../constants/ui';
 import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
@@ -146,10 +146,16 @@ const PATRON_TIER_CONFIG: Record<PatronTier, { bg: string; border: string; color
   'snaperino':   { bg: 'rgba(148,163,184,0.15)', border: '#94A3B8', color: '#94A3B8', label: 'SNAPERINO' },
 };
 
+const PATRON_TIER_SPOKEN: Record<PatronTier, string> = {
+  'snap-master': 'Snap Master',
+  'snapian': 'Snapian',
+  'snaperino': 'Snaperino',
+};
+
 const PatronBadge: React.FC<{ tier: PatronTier }> = ({ tier }) => {
   const { bg, border, color, label } = PATRON_TIER_CONFIG[tier];
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
       <FontAwesome name='star' size={9} color={color} style={{ marginRight: 3 }} />
       <Text style={{ color, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{label}</Text>
     </View>
@@ -158,7 +164,7 @@ const PatronBadge: React.FC<{ tier: PatronTier }> = ({ tier }) => {
 
 // Marks content spliced in from snapie.io's Waves (Ecency short-form) rather than a native Hive snap
 const WaveBadge: React.FC = () => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(20,184,166,0.15)', borderWidth: 1, borderColor: '#14B8A6', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 }}>
+  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(20,184,166,0.15)', borderWidth: 1, borderColor: '#14B8A6', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
     <FontAwesome name='bolt' size={9} color='#14B8A6' style={{ marginRight: 3 }} />
     <Text style={{ color: '#14B8A6', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>WAVE</Text>
   </View>
@@ -171,12 +177,17 @@ const DISCOVERY_REASON_CONFIG: Record<'trending' | 'resurrected', { bg: string; 
   resurrected: { bg: 'rgba(168,85,247,0.15)',  border: '#A855F7', color: '#A855F7', icon: 'history', label: 'FROM THE VAULT' },
 };
 
+const DISCOVERY_REASON_SPOKEN: Record<'trending' | 'resurrected', string> = {
+  trending: 'Trending',
+  resurrected: 'From the vault',
+};
+
 // Marks content promoted from snapie.io's discovery engine — trending (hot right now)
 // vs resurrected (old content spiking again), visually distinct per the web app's convention
 const DiscoveryBadge: React.FC<{ reason: 'trending' | 'resurrected' }> = ({ reason }) => {
   const { bg, border, color, icon, label } = DISCOVERY_REASON_CONFIG[reason];
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg, borderWidth: 1, borderColor: border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 }}>
       <FontAwesome name={icon} size={9} color={color} style={{ marginRight: 3 }} />
       <Text style={{ color, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>{label}</Text>
     </View>
@@ -674,6 +685,17 @@ const Snap: React.FC<SnapProps> = ({
   const [translatedBody, setTranslatedBody] = useState<string | null>(null);
   const [showingTranslation, setShowingTranslation] = useState(false);
 
+  // "Posted with HiveSnaps": shown where the author header is shown, but in
+  // the footer so it doesn't take room from the username.
+  const showHiveSnapsMark = viaHiveSnaps && (showAuthor || isReply);
+  const hiveSnapsMark = (
+    <ExpoImage
+      source={require('../../assets/images/hivesnaps-badge.png')}
+      style={styles.hiveSnapsMark}
+      accessibilityLabel='Posted with HiveSnaps'
+    />
+  );
+
   // Patron badge
   const [patronTier, setPatronTier] = useState<PatronTier | null>(null);
   useEffect(() => {
@@ -685,6 +707,15 @@ const Snap: React.FC<SnapProps> = ({
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [author, showAuthor, isReply]);
+
+  // The pills sit inside the profile button, so VoiceOver reads them only
+  // through its label: "View alice's profile, Snap Master, Wave".
+  const headerLabels = [
+    patronTier ? PATRON_TIER_SPOKEN[patronTier] : null,
+    isWave ? 'Wave' : null,
+    isDiscovery && discoveryReason ? DISCOVERY_REASON_SPOKEN[discoveryReason] : null,
+  ].filter(Boolean);
+  const headerAccessibilityLabel = [`View ${author}'s profile`, ...headerLabels].join(', ');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -827,7 +858,7 @@ const Snap: React.FC<SnapProps> = ({
               ]}
               disabled={!onUserPress}
               accessibilityRole='button'
-              accessibilityLabel={`View ${author}'s profile`}
+              accessibilityLabel={headerAccessibilityLabel}
             >
               <ExpoImage
                 source={
@@ -837,25 +868,26 @@ const Snap: React.FC<SnapProps> = ({
                 }
                 style={styles.avatar}
               />
-              <Text
-                style={[styles.username, { color: colors.text }]}
-                numberOfLines={1}
-                ellipsizeMode='tail'
-              >
-                {author}
-              </Text>
+              {/* Name gets the whole first line; tier/label pills go on a
+                  second line under it, only when there are any. */}
+              <View style={styles.nameColumn}>
+                <Text
+                  style={[styles.username, { color: colors.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode='tail'
+                >
+                  {author}
+                </Text>
+                {(patronTier || isWave || (isDiscovery && discoveryReason)) && (
+                  <View style={styles.badgeRow}>
+                    {patronTier && <PatronBadge tier={patronTier} />}
+                    {isWave && <WaveBadge />}
+                    {isDiscovery && discoveryReason && <DiscoveryBadge reason={discoveryReason} />}
+                  </View>
+                )}
+              </View>
             </Pressable>
-            {patronTier && <PatronBadge tier={patronTier} />}
-            {isWave && <WaveBadge />}
-            {isDiscovery && discoveryReason && <DiscoveryBadge reason={discoveryReason} />}
             <View style={styles.topRightCluster}>
-              {viaHiveSnaps && (
-                <ExpoImage
-                  source={require('../../assets/images/hivesnaps-badge.png')}
-                  style={styles.avatar}
-                  accessibilityLabel='Posted with HiveSnaps'
-                />
-              )}
               <Text
                 style={[styles.timestamp, { color: colors.text }]}
                 numberOfLines={1}
@@ -1447,15 +1479,25 @@ const Snap: React.FC<SnapProps> = ({
         )}
 
         {/* The Pile — thrown items, top-level snaps only for now (Phase 1:
-            read display only, see docs/MOBILE_PARITY_PLAN.md) */}
-        {!compactMode && !isReply && permlink && (
-          <PileTray
-            author={author}
-            permlink={permlink}
-            currentUsername={currentUsername}
-            colors={colors}
-          />
-        )}
+            read display only, see docs/MOBILE_PARITY_PLAN.md) — with the
+            small "Posted with HiveSnaps" mark at the right end, opposite
+            Throw. Snaps without a Pile row (replies, compact cards) get the
+            mark on its own right-aligned line. */}
+        {!compactMode && !isReply && permlink ? (
+          <View style={styles.footerRow}>
+            <View style={styles.footerPile}>
+              <PileTray
+                author={author}
+                permlink={permlink}
+                currentUsername={currentUsername}
+                colors={colors}
+              />
+            </View>
+            {showHiveSnapsMark && hiveSnapsMark}
+          </View>
+        ) : showHiveSnapsMark ? (
+          <View style={[styles.footerRow, styles.footerMarkOnly]}>{hiveSnapsMark}</View>
+        ) : null}
 
         {/* Hive Post Previews - Footer Style */}
         {hivePostUrls.length > 0 && (
@@ -1570,6 +1612,37 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     minWidth: 0,
   },
+  nameColumn: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 3,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  footerPile: {
+    flex: 1,
+    minWidth: 0,
+  },
+  footerMarkOnly: {
+    justifyContent: 'flex-end',
+    marginTop: 2,
+  },
+  hiveSnapsMark: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginLeft: 8,
+    marginRight: 4, // line up with the ⋯ menu above
+    marginBottom: 2,
+    opacity: 0.85,
+  },
   topRightCluster: {
     marginLeft: 'auto',
     flexDirection: 'row',
@@ -1586,7 +1659,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 15,
     marginRight: 8,
-    maxWidth: `${USERNAME_MAX_WIDTH_PCT * 100}%`,
   },
   timestamp: {
     fontSize: 13,
