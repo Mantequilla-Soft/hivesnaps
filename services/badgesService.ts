@@ -1,7 +1,8 @@
 // PeakD-style account badges: a `badge-XXXXXX` Hive account "follows" every
 // holder of that badge, and its own profile supplies the badge's name,
 // description and icon. Working that out takes hundreds of Hive calls, so
-// snapie.io builds the index server-side (cached for a day) and serves it
+// snapie.io builds the index server-side (rebuilt daily, responses cached for
+// an hour) and serves it
 // per user; the app reads that same public endpoint, like points.
 
 const SNAPIE_API_URL = 'https://snapie.io';
@@ -33,14 +34,20 @@ function isBadge(b: unknown): b is AccountBadge {
     );
 }
 
+/** Cached badges for `username` if still fresh, else null (no request). */
+export function getCachedBadges(username: string): AccountBadge[] | null {
+    const hit = cache.get(username.toLowerCase());
+    return hit && Date.now() - hit.at < CACHE_TTL_MS ? hit.badges : null;
+}
+
 /**
  * The badges `username` holds. Badges are decorative, so any failure resolves
  * to an empty list (and isn't cached, so the next profile visit retries).
  */
 export async function fetchAccountBadges(username: string): Promise<AccountBadge[]> {
     const key = username.toLowerCase();
-    const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.badges;
+    const cached = getCachedBadges(key);
+    if (cached) return cached;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

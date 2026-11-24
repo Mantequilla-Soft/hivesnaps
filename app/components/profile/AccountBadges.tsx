@@ -46,16 +46,28 @@ export const AccountBadges: React.FC<Props> = ({ username, colors }) => {
             ))}
 
             <Modal visible={selected !== null} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
-                <Pressable style={styles.backdrop} onPress={() => setSelected(null)} accessibilityLabel="Close">
+                {/* Backdrop and card are not accessibility elements: otherwise
+                    VoiceOver sees one "Close" element covering the card and
+                    can't reach its contents. The close button handles that. */}
+                <Pressable style={styles.backdrop} onPress={() => setSelected(null)} accessible={false}>
                     {selected && (
-                        <Pressable style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                        <Pressable style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]} accessible={false}>
+                            <TouchableOpacity
+                                onPress={() => setSelected(null)}
+                                style={styles.close}
+                                hitSlop={10}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close"
+                            >
+                                <FontAwesome name="times" size={18} color={colors.textSecondary} />
+                            </TouchableOpacity>
                             <ExpoImage source={{ uri: proxyImageUrl(selected.image) }} style={styles.cardIcon} contentFit="cover" />
                             <Text style={[styles.name, { color: colors.text }]}>{selected.name}</Text>
                             {selected.about ? (
                                 <Text style={[styles.about, { color: colors.textSecondary }]}>{selected.about}</Text>
                             ) : null}
                             <TouchableOpacity
-                                onPress={() => Linking.openURL(badgePageUrl(selected.account))}
+                                onPress={() => Linking.openURL(badgePageUrl(selected.account)).catch(() => {})}
                                 style={[styles.link, { backgroundColor: colors.button }]}
                                 accessibilityRole="link"
                             >
@@ -76,6 +88,7 @@ const styles = StyleSheet.create({
     icon: { width: '100%', height: '100%' },
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 32 },
     card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 20, alignItems: 'center' },
+    close: { position: 'absolute', top: 12, right: 12, padding: 4, zIndex: 1 },
     cardIcon: { width: 72, height: 72, borderRadius: 36, marginBottom: 12 },
     name: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
     about: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8 },

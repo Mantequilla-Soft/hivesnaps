@@ -1,4 +1,4 @@
-import { badgePageUrl, clearBadgeCache, fetchAccountBadges } from '../badgesService';
+import { badgePageUrl, clearBadgeCache, fetchAccountBadges, getCachedBadges } from '../badgesService';
 
 const badge = { account: 'badge-500503', name: 'Bumble Bee (HP)', about: 'Staked HP', image: 'https://files.peakd.com/b.webp' };
 
@@ -18,11 +18,28 @@ it('reads the user\'s badges from snapie.io and keeps well-formed ones', async (
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe('https://snapie.io/api/badges/meno');
 });
 
-it('caches per user', async () => {
+it('caches per user, case-insensitively, and exposes the cache synchronously', async () => {
     mockFetch({ badges: [badge] });
+    mockFetch({ badges: [] });
+    expect(getCachedBadges('meno')).toBeNull();
     await fetchAccountBadges('meno');
     await fetchAccountBadges('MENO');
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(getCachedBadges('Meno')).toEqual([badge]);
+    await expect(fetchAccountBadges('alice')).resolves.toEqual([]);
+    expect(getCachedBadges('alice')).toEqual([]);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+});
+
+it('refetches after the cache expires', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    mockFetch({ badges: [badge] });
+    await fetchAccountBadges('meno');
+    now.mockReturnValue(1_000_000 + 61 * 60 * 1000);
+    expect(getCachedBadges('meno')).toBeNull();
+    mockFetch({ badges: [] });
+    await expect(fetchAccountBadges('meno')).resolves.toEqual([]);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    now.mockRestore();
 });
 
 it('returns nothing on failure, and retries next time', async () => {
