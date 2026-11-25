@@ -36,6 +36,9 @@ import Snap from '../components/Snap';
 import { useContentFilter } from '@snapie/content-filter/react';
 import { contentFilterStore } from '../../services/contentFilter';
 import { hideComments } from '../../utils/hideComments';
+import { useMoodBadge } from '../../hooks/useMoodBadge';
+import { moodSpoken } from '../../services/moodBadgeService';
+import { MoodBadge } from '../components/common/MoodBadge';
 // ContentModal and GifPickerModal removed - now using ComposeScreen
 import genericAvatar from '../../assets/images/generic-avatar.png';
 import { getTheme } from '../../constants/Colors';
@@ -193,6 +196,7 @@ const HivePostScreen = () => {
   // Comments hidden by a muted author (community-muted + personally-muted
   // accounts) or a content filter (muted tag/app, "Hide game results").
   const { filter: isFilteredOut } = useContentFilter(contentFilterStore);
+  const authorMoodBadge = useMoodBadge(post?.author);
   const filteredComments = useMemo(() => {
     if (!comments) return comments;
 
@@ -394,14 +398,18 @@ const HivePostScreen = () => {
       >
         {/* Author Info */}
         <View style={HivePostScreenStyles.authorInfo}>
-          <ExpoImage
-            source={post.avatarUrl ? { uri: post.avatarUrl } : genericAvatar}
-            style={HivePostScreenStyles.avatar}
-            contentFit='cover'
-          />
+          <View>
+            <ExpoImage
+              source={post.avatarUrl ? { uri: post.avatarUrl } : genericAvatar}
+              style={HivePostScreenStyles.avatar}
+              contentFit='cover'
+            />
+            {authorMoodBadge && <MoodBadge sku={authorMoodBadge} size={22} ringColor={colors.background} />}
+          </View>
           <View style={HivePostScreenStyles.authorDetails}>
             <Text
               style={[HivePostScreenStyles.authorName, { color: colors.text }]}
+              accessibilityLabel={authorMoodBadge ? `${post.author}, ${moodSpoken(authorMoodBadge)}` : undefined}
             >
               {post.author}
             </Text>
