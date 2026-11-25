@@ -594,6 +594,16 @@ const ProfileScreen = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  style={profileTabStyles.whatsNewRow}
+                  onPress={() => router.push('/screens/FeedbackScreen')}
+                  accessibilityRole="button"
+                >
+                  <FontAwesome name='comment-o' size={16} color={colors.text} />
+                  <Text style={[profileTabStyles.whatsNewText, { color: colors.text }]}>Send feedback</Text>
+                  <FontAwesome name='chevron-right' size={12} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.logoutButton, { marginBottom: 12 }]}
                   onPress={() => router.push('/screens/AccountSelectionScreen')}
                 >

@@ -143,7 +143,7 @@ async function normalizeURIToFile(uri: string, extension: string): Promise<strin
 }
 
 /**
- * Smart image conversion - only converts HEIC/HEIF to JPEG, preserves GIFs and PNGs
+ * Smart image conversion - converts HEIC/HEIF and WebP to JPEG, preserves GIFs and PNGs
  * Handles iOS ph:// URIs by normalizing them to file:// URIs
  * 
  * @param uri - The URI of the image (supports file://, ph://, and assets-library:// schemes)
@@ -162,11 +162,12 @@ export async function convertImageSmart(
 
     if (__DEV__) console.log('[imageConverter] Smart conversion - file extension:', extension);
 
-    // Only convert HEIC/HEIF to JPEG (iOS photos)
-    const needsConversion = extension === 'heic' || extension === 'heif';
+    // Convert HEIC/HEIF (iOS photos) and WebP to JPEG: the fallback below
+    // labels bytes as JPEG without re-encoding, which only suits real JPEGs.
+    const needsConversion = extension === 'heic' || extension === 'heif' || extension === 'webp';
 
     if (needsConversion) {
-      if (__DEV__) console.log('[imageConverter] Converting HEIC/HEIF to JPEG');
+      if (__DEV__) console.log(`[imageConverter] Converting ${extension.toUpperCase()} to JPEG`);
       const converted = await convertToJPEG(uri, quality);
       return {
         uri: converted.uri,

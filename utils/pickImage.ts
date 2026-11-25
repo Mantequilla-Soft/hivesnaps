@@ -67,6 +67,9 @@ async function ensurePermission(source: 'camera' | 'gallery'): Promise<boolean> 
 export interface PickedImage {
     uri: string;
     fileName?: string;
+    /** Bytes, when the picker reports it. */
+    fileSize?: number;
+    mimeType?: string;
 }
 
 /**
@@ -88,10 +91,17 @@ export async function pickImage({ title, square }: { title: string; square: bool
     const result =
         source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     const asset = result.canceled ? undefined : result.assets?.[0];
-    return asset ? { uri: asset.uri, fileName: asset.fileName ?? undefined } : null;
+    return asset
+        ? {
+              uri: asset.uri,
+              fileName: asset.fileName ?? undefined,
+              fileSize: asset.fileSize ?? undefined,
+              mimeType: asset.mimeType ?? undefined,
+          }
+        : null;
 }
 
-/** Convert (HEIC → JPEG only) and upload a picked image; resolves its public URL. */
+/** Convert (HEIC and WebP → JPEG) and upload a picked image; resolves its public URL. */
 export async function uploadPickedImage(image: PickedImage, username: string): Promise<string> {
     const converted = await convertImageSmart(image.uri, image.fileName, 0.8);
     const result = await uploadImageSmart({ uri: converted.uri, name: converted.name, type: converted.type }, username);
