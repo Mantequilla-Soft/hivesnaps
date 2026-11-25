@@ -24,6 +24,16 @@ const FILTER_TYPES: Record<SummaryFilter, string[]> = {
     transfers: ['transfer'],
 };
 
+/** How each filter reads in "Showing only …". */
+export const SUMMARY_FILTER_LABELS: Record<SummaryFilter, string> = {
+    votes: 'votes',
+    replies: 'replies',
+    follows: 'new followers',
+    mentions: 'mentions',
+    reblogs: 'reblogs',
+    transfers: 'transfers',
+};
+
 type SummaryNotification = Pick<HiveNotification, 'type' | 'date' | 'msg'> & { actionUser?: string };
 
 export interface ActivitySummary {

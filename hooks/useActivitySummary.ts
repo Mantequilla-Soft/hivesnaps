@@ -17,31 +17,36 @@ interface Options {
     hasMore: boolean;
     loadingMore: boolean;
     loadMore: () => Promise<void>;
+    /** Changes whenever the list is replaced (a refresh), which restarts the page budget. */
+    listVersion: number;
 }
 
 /**
  * The Notifications activity summary: the chosen range, its counts, and a
- * tile filter for the list. The list loads 50 at a time, so a week or month
- * may reach past what's loaded; older pages are fetched until it's covered,
- * the history runs out, or MAX_BACKFILL_PAGES is reached.
+ * tile filter for the list. The list loads 50 at a time, so the range may
+ * reach past what's loaded; older pages are fetched until it's covered, the
+ * history runs out, or MAX_BACKFILL_PAGES have been fetched for this range
+ * and this list.
  */
-export function useActivitySummary({ notifications, hasMore, loadingMore, loadMore }: Options) {
+export function useActivitySummary({ notifications, hasMore, loadingMore, loadMore, listVersion }: Options) {
     const [range, setRange] = useState<SummaryRange>('week');
     const [filter, setFilter] = useState<SummaryFilter | null>(null);
-    const pagesFetched = useRef(0);
+
+    // Pages fetched for the current range and list. Keyed so that a new
+    // range or a refreshed list starts from a full budget in the same render.
+    const budgetKey = `${range}|${listVersion}`;
+    const budget = useRef({ key: budgetKey, used: 0 });
+    if (budget.current.key !== budgetKey) budget.current = { key: budgetKey, used: 0 };
+
+    const needsMore = hasMore && needsOlderPages(notifications, range);
+    const backfilling = needsMore && budget.current.used < MAX_BACKFILL_PAGES;
 
     useEffect(() => {
-        pagesFetched.current = 0;
-    }, [range]);
-
-    const needsMore = range !== 'today' && hasMore && needsOlderPages(notifications, range);
-    const backfilling = needsMore && pagesFetched.current < MAX_BACKFILL_PAGES;
-
-    useEffect(() => {
-        if (!needsMore || loadingMore || pagesFetched.current >= MAX_BACKFILL_PAGES) return;
-        pagesFetched.current += 1;
+        if (!backfilling || loadingMore) return;
+        budget.current.used += 1;
         loadMore();
-    }, [needsMore, loadingMore, loadMore, notifications]);
+        // budgetKey: a new range or a refreshed list re-checks even when nothing else changed.
+    }, [backfilling, loadingMore, loadMore, notifications, budgetKey]);
 
     const summary = useMemo(() => computeActivitySummary(notifications, range), [notifications, range]);
     const tiles = useMemo(() => summaryTiles(summary), [summary]);

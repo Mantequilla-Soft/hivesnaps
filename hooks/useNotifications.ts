@@ -32,6 +32,8 @@ interface UseNotificationsResult {
   refreshing: boolean;
   loadingMore: boolean;
   hasMore: boolean;
+  /** Goes up each time refresh() replaces the list with a fresh first page. */
+  listVersion: number;
   error: string | null;
   settings: ReturnType<typeof getDefaultNotificationSettings>;
   refresh: () => Promise<void>;
@@ -55,6 +57,7 @@ export const useNotifications = (
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [listVersion, setListVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState(getDefaultNotificationSettings());
   // Hive's own read cursor (bridge.unread_notifications) — the source of
@@ -122,6 +125,11 @@ export const useNotifications = (
   // discard its (now stale) page instead of appending onto the fresh list.
   const loadingMoreRef = useRef(false);
   const listGenRef = useRef(0);
+  // Where the next page starts: the id of the oldest notification the last
+  // page returned, before mute/settings filtering. Paging from the oldest
+  // *visible* one would re-request the same page forever when a whole page
+  // is filtered out.
+  const cursorRef = useRef<number | undefined>(undefined);
 
   // Load settings from storage
   useEffect(() => {
@@ -164,7 +172,9 @@ export const useNotifications = (
 
   // Fetch + filter a single page (mute list + user settings), unsorted-safe
   const fetchAndFilterPage = useCallback(
-    async (lastId?: number): Promise<{ items: ParsedNotification[]; rawCount: number }> => {
+    async (
+      lastId?: number
+    ): Promise<{ items: ParsedNotification[]; rawCount: number; oldestRawId?: number }> => {
       if (!username) return { items: [], rawCount: 0 };
 
       const raw = await fetchNotifications(username, PAGE_SIZE, lastId);
@@ -176,7 +186,8 @@ export const useNotifications = (
       });
 
       const filtered = filterNotificationsBySettings(notMuted, settings);
-      return { items: filtered, rawCount: raw.length };
+      const oldestRawId = raw.length > 0 ? Math.min(...raw.map(n => n.id)) : undefined;
+      return { items: filtered, rawCount: raw.length, oldestRawId };
     },
     [username, settings, mutedList]
   );
@@ -223,7 +234,7 @@ export const useNotifications = (
       setError(null);
 
       try {
-        const [{ items, rawCount }, freshLastRead] = await Promise.all([
+        const [{ items, rawCount, oldestRawId }, freshLastRead] = await Promise.all([
           fetchAndFilterPage(),
           fetchUnread(),
         ]);
@@ -231,9 +242,11 @@ export const useNotifications = (
         // Bump before replacing the list so a loadMore in flight from the
         // list this is about to replace can tell its page is now stale.
         listGenRef.current += 1;
+        cursorRef.current = oldestRawId;
         const withReadStatus = applyReadCursor(items, freshLastRead);
         setNotifications(sortNotifications(withReadStatus, 'chronological'));
         setHasMore(rawCount >= PAGE_SIZE);
+        setListVersion(v => v + 1);
 
         lastFetchTime.current = now;
       } catch (err) {
@@ -252,7 +265,7 @@ export const useNotifications = (
   const loadMore = useCallback(async () => {
     if (!username || loadingMoreRef.current || !hasMore) return;
 
-    const oldestId = notifications[notifications.length - 1]?.id;
+    const oldestId = cursorRef.current ?? notifications[notifications.length - 1]?.id;
     if (oldestId === undefined) return;
 
     loadingMoreRef.current = true;
@@ -261,11 +274,12 @@ export const useNotifications = (
     setError(null);
 
     try {
-      const { items, rawCount } = await fetchAndFilterPage(oldestId);
+      const { items, rawCount, oldestRawId } = await fetchAndFilterPage(oldestId);
       // refresh() replaced the list while this page was in flight — that
       // page belongs to a list this hook no longer shows, so drop it
       // instead of appending an older page onto the fresh one.
       if (gen !== listGenRef.current) return;
+      if (oldestRawId !== undefined) cursorRef.current = oldestRawId;
 
       const withReadStatus = applyReadCursor(items, lastReadRef.current);
 
@@ -387,6 +401,7 @@ export const useNotifications = (
     refreshing,
     loadingMore,
     hasMore,
+    listVersion,
     error,
     settings,
     refresh: () => refresh(true),

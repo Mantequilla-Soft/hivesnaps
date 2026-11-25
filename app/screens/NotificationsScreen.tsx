@@ -151,6 +151,7 @@ const NotificationsScreen = () => {
     refreshing,
     loadingMore,
     hasMore,
+    listVersion,
     settings,
     refresh,
     loadMore,
@@ -158,7 +159,7 @@ const NotificationsScreen = () => {
     updateSettings,
   } = useNotifications(currentUsername);
 
-  const activity = useActivitySummary({ notifications, hasMore, loadingMore, loadMore });
+  const activity = useActivitySummary({ notifications, hasMore, loadingMore, loadMore, listVersion });
 
   const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
@@ -375,21 +376,17 @@ const NotificationsScreen = () => {
         filter={activity.filter}
         onTilePress={activity.toggleFilter}
         backfilling={activity.backfilling}
+        onClearFilter={() => activity.setFilter(null)}
       />
     ) : null;
 
   const renderEmpty = () =>
     activity.filter ? (
-      <TouchableOpacity
-        style={styles.filteredEmpty}
-        onPress={() => activity.setFilter(null)}
-        accessibilityRole="button"
-      >
+      <View style={styles.filteredEmpty}>
         <Text style={[styles.emptySubtitle, { color: colors.subtext }]}>
-          Nothing of this kind loaded yet.{' '}
-          <Text style={{ color: colors.buttonBackground, fontWeight: '600' }}>Show all</Text>
+          Nothing of this kind loaded yet.
         </Text>
-      </TouchableOpacity>
+      </View>
     ) : (
     <View style={styles.emptyState}>
       <FontAwesome name='bell-o' size={64} color={colors.subtext} />
@@ -516,7 +513,9 @@ const NotificationsScreen = () => {
               tintColor={colors.buttonBackground}
             />
           }
-          ListHeaderComponent={renderSummary}
+          // An element, not a function: a new function each render would
+          // remount the card on every page load and cancel taps on it.
+          ListHeaderComponent={renderSummary()}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
           onEndReached={hasMore ? loadMore : undefined}
