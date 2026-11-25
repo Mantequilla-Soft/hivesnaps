@@ -266,12 +266,19 @@ export default function ComposeScreen() {
   const handlePickMention = (name: string): void => {
     const result = mentions.pick(name);
     if (!result) return;
+    // A programmatic change isn't limited by the input's maxLength.
+    if (mode !== 'blog' && result.text.length > 280) {
+      Alert.alert('Not enough room', `There isn't room for @${name} in this snap (280 characters max).`);
+      return;
+    }
     compose.setText(result.text);
     compose.setSelection(result.cursor, result.cursor);
+    // Wait for the new text to reach the native input before moving the
+    // cursor (an index past the old text is ignored on Android), as resnap does.
     setTimeout(() => {
       textInputRef.current?.focus();
       textInputRef.current?.setSelection(result.cursor, result.cursor);
-    }, 0);
+    }, 100);
   };
 
   const handleSelectionChange = (event: any) => {
@@ -423,6 +430,13 @@ export default function ComposeScreen() {
             />
           )}
 
+          <MentionSuggestions
+            suggestions={mentions.suggestions}
+            unknownMentions={mentions.unknownMentions}
+            onPick={handlePickMention}
+            colors={colors}
+          />
+
           {/* Text input */}
           <TextInput
             ref={textInputRef}
@@ -444,12 +458,6 @@ export default function ComposeScreen() {
             maxLength={mode === 'blog' ? undefined : 280}
           />
 
-          <MentionSuggestions
-            suggestions={mentions.suggestions}
-            unknownMentions={mentions.unknownMentions}
-            onPick={handlePickMention}
-            colors={colors}
-          />
 
           {/* Tags input (blog posts only) */}
           {mode === 'blog' && (

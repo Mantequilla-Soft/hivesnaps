@@ -30,7 +30,8 @@ export async function searchUsernamesByPrefix(prefix: string, limit = 8): Promis
     const p = prefix.trim().toLowerCase();
     if (p.length < MIN_MENTION_QUERY) return [];
     const cached = prefixCache.get(p);
-    if (cached) return cached.slice(0, limit);
+    // A cached list serves this call if it's complete or already has enough names.
+    if (cached && (completePrefixes.has(p) || cached.length >= limit)) return cached.slice(0, limit);
 
     // A shorter prefix already returned everything there is: filter it locally.
     const base = longestCompletePrefixOf(p);

@@ -67,3 +67,11 @@ it('flags finished mentions that are not accounts, never the one being typed', a
     expect(validate).toHaveBeenCalledWith(['nobody']);
     expect(h.current().unknownMentions).toEqual(['nobody']);
 });
+
+it('does not flag the mention being typed even with a trailing dot ("@smooth." → "smooth.witness")', async () => {
+    known.mockReturnValue(false);
+    const h = render('cc @smooth.', 11);
+    await act(async () => { jest.advanceTimersByTime(500); });
+    expect(validate).not.toHaveBeenCalled();
+    expect(h.current().unknownMentions).toEqual([]);
+});

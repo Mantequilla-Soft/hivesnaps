@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { extractMentions, getMentionDraft, insertMention, type MentionDraft } from '../utils/mentions';
+import { extractMentions, getMentionDraft, insertMention, normalizeMentionToken, type MentionDraft } from '../utils/mentions';
 import {
     getKnownValidity,
     MIN_MENTION_QUERY,
@@ -48,7 +48,9 @@ export function useMentions(text: string, cursor: number): UseMentionsResult {
     // Mentions to check: finished ones only (not the one still being typed).
     const finished = useMemo(() => {
         const all = extractMentions(text);
-        return draft ? all.filter((n) => n !== draft.query) : all;
+        // Compare like extractMentions does ("@smooth." while typing "smooth.witness" is "smooth").
+        const typing = draft ? normalizeMentionToken(draft.query) : null;
+        return typing ? all.filter((n) => n !== typing) : all;
     }, [text, draft]);
     const finishedKey = finished.join(',');
     const [checked, setChecked] = useState(0);

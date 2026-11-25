@@ -68,3 +68,11 @@ describe('validateUsernames', () => {
         expect(getKnownValidity('carol')).toBeNull();
     });
 });
+
+it('re-asks when a cached, incomplete list is shorter than a larger request', async () => {
+    call.mockResolvedValueOnce(['abca', 'abcb']);
+    await searchUsernamesByPrefix('abc', 2); // 2 of 2 → not known to be complete
+    call.mockResolvedValueOnce(['abca', 'abcb', 'abcc']);
+    await expect(searchUsernamesByPrefix('abc', 6)).resolves.toEqual(['abca', 'abcb', 'abcc']);
+    expect(call).toHaveBeenCalledTimes(2);
+});

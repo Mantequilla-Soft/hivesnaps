@@ -1,29 +1,41 @@
+import { isValidHiveUsername } from './hiveUsername';
+
 /**
  * @mention helpers for the composer (autocomplete + checking finished
  * mentions), matching snapie.io's lib/chat/mentions.ts.
  */
 
 /**
- * A complete @mention: "@" at the start or after a character that can't be
- * part of a word or address, so "me@gmail.com" is not a mention of gmail.com.
- * The name is capture group 1.
+ * What may come right before the "@" of a mention: start of text, or a
+ * character that isn't part of a word, an address or a URL path. So
+ * "me@gmail.com" and "peakd.com/@alice/post" are not mentions, while
+ * "(@alice)" and "\"@alice\"" are (same rule as utils/linkifyMentions).
  */
-const MENTION_REGEX = /(?:^|[^a-z0-9_.@-])@([a-z0-9.-]+)/gi;
+const BEFORE_MENTION = '(?:^|[^\\w/@.-])';
 
-/** A mention still being typed right before the cursor ("…hi @ali|"). */
-const MENTION_INPUT_REGEX = /(?:^|\s)@([a-z0-9.-]{0,32})$/i;
+/**
+ * A complete @mention (name in group 1). The name can't run into a word
+ * character, so "@foo_bar" is not a mention of "foo".
+ */
+const MENTION_REGEX = new RegExp(`${BEFORE_MENTION}@([a-z0-9.-]+)(?![\\w])`, 'gi');
+
+/** A mention still being typed right before the cursor ("…hi @ali|", "(@ali|"). */
+const MENTION_INPUT_REGEX = new RegExp(`${BEFORE_MENTION}@([a-z0-9.-]{0,32})$`, 'i');
 
 /** "@Alice." → "alice": trailing dots/dashes are punctuation, never part of a name. */
 export function normalizeMentionToken(value: string): string {
     return value.replace(/^@/, '').trim().toLowerCase().replace(/[.-]+$/, '');
 }
 
-/** Distinct mentioned usernames, normalized, in order of appearance. */
+/**
+ * Distinct mentioned usernames, normalized, in order of appearance. Only
+ * names that can be Hive accounts count ("@me" or "@a.b." punctuation don't).
+ */
 export function extractMentions(text: string): string[] {
     const out = new Set<string>();
     for (const match of text.matchAll(MENTION_REGEX)) {
         const name = normalizeMentionToken(match[1]);
-        if (name) out.add(name);
+        if (isValidHiveUsername(name)) out.add(name);
     }
     return Array.from(out);
 }

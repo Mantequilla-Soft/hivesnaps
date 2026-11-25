@@ -8,6 +8,9 @@ it('normalizes mention tokens', () => {
 it('extracts distinct mentions in order', () => {
     expect(extractMentions('hi @Bob and @alice, also @bob.')).toEqual(['bob', 'alice']);
     expect(extractMentions('email me@gmail.com or a@b')).toEqual([]);
+    expect(extractMentions('see https://peakd.com/@alice/post')).toEqual([]);
+    expect(extractMentions('@foo_bar and @x and @ab')).toEqual([]); // not usernames
+    expect(extractMentions('thanks @smooth.witness.')).toEqual(['smooth.witness']);
     expect(extractMentions('(@carol) [@dave] "@erin"')).toEqual(['carol', 'dave', 'erin']);
     expect(extractMentions('@start\n@next line')).toEqual(['start', 'next']);
 });
@@ -16,6 +19,12 @@ describe('getMentionDraft', () => {
     it('finds the mention being typed at the cursor', () => {
         expect(getMentionDraft('hi @Ali', 7)).toEqual({ start: 3, end: 7, query: 'ali' });
         expect(getMentionDraft('@', 1)).toEqual({ start: 0, end: 1, query: '' });
+    });
+
+    it('starts after brackets and quotes too, but not inside addresses or URLs', () => {
+        expect(getMentionDraft('(@ali', 5)?.query).toBe('ali');
+        expect(getMentionDraft('"@ali', 5)?.query).toBe('ali');
+        expect(getMentionDraft('peakd.com/@ali', 14)).toBeNull();
     });
 
     it('ignores mentions away from the cursor and @ inside words', () => {
