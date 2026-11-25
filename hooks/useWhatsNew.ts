@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getAppVersion, getLastSeenVersion, loadChangelog, setLastSeenVersion } from '../services/changelogService';
+import { getAppVersion, getLastSeenVersion, getShowOnUpdate, loadChangelog, setLastSeenVersion } from '../services/changelogService';
 import { unseenEntries, type ChangelogEntry } from '../utils/changelog';
 
 export interface UseWhatsNewResult {
@@ -13,7 +13,9 @@ export interface UseWhatsNewResult {
 
 /**
  * Shows the installed version's "What's new" once (and any versions skipped
- * since the last one seen).
+ * since the last one seen), if the user turned "Show what's new after
+ * updates" on in Profile. Otherwise nothing pops up; the Profile row shows a
+ * "New" dot instead (useUnseenWhatsNew).
  *
  * @param enabled start the check (once), e.g. once a user is logged in
  * @param canShow whether the sheet may appear right now, e.g. the feed is
@@ -36,6 +38,7 @@ export function useWhatsNew(enabled: boolean, canShow = true): UseWhatsNewResult
         if (!enabled || checkedRef.current) return;
         checkedRef.current = true;
         (async () => {
+            if (!(await getShowOnUpdate())) return;
             const [all, lastSeen] = await Promise.all([loadChangelog(), getLastSeenVersion()]);
             const fresh = unseenEntries(all, getAppVersion(), lastSeen);
             if (mountedRef.current && fresh.length > 0) setEntries(fresh);
@@ -49,3 +52,32 @@ export function useWhatsNew(enabled: boolean, canShow = true): UseWhatsNewResult
 
     return { entries, visible: entries.length > 0 && !dismissed && canShow, dismiss };
 }
+
+/**
+ * True while the installed version's notes haven't been seen (opened in
+ * Profile, or closed in the popup). Re-checks whenever `checkKey` changes,
+ * e.g. each time the screen showing the dot comes back into focus.
+ */
+// The changelog is fetched once per app run for the dot; the last-seen
+// version is re-read on every check, since that's what changes.
+let changelogOnce: Promise<ChangelogEntry[]> | null = null;
+const changelogForDot = (): Promise<ChangelogEntry[]> => {
+    if (!changelogOnce) changelogOnce = loadChangelog();
+    return changelogOnce;
+};
+
+export function useUnseenWhatsNew(checkKey: unknown = 0): boolean {
+    const [unseen, setUnseen] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const [all, lastSeen] = await Promise.all([changelogForDot(), getLastSeenVersion()]);
+            if (!cancelled) setUnseen(unseenEntries(all, getAppVersion(), lastSeen).length > 0);
+        })().catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [checkKey]);
+    return unseen;
+}
+

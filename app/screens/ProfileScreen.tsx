@@ -10,6 +10,7 @@ import {
   Alert,
   Pressable,
   StyleSheet,
+  Switch,
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -38,7 +39,8 @@ import { useProfileData } from '../../hooks/useProfileData';
 import { useFollowManagement } from '../../hooks/useFollowManagement';
 import { useUserSnaps } from '../../hooks/useUserSnaps';
 import { consumeProfileSaved } from '../../services/ProfileService';
-import { getAppVersion } from '../../services/changelogService';
+import { getAppVersion, getShowOnUpdate, setShowOnUpdate } from '../../services/changelogService';
+import { useUnseenWhatsNew } from '../../hooks/useWhatsNew';
 import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
@@ -117,6 +119,23 @@ const ProfileScreen = () => {
       hasFocused.current = true;
     }, [username, refreshFollowCounts])
   );
+
+  // "What's new": a "New" dot until this version's notes are seen (re-checked
+  // each time the screen is focused, e.g. back from the notes), and the
+  // opt-in for showing them as a popup after updates (off by default).
+  const [focusCount, setFocusCount] = useState(0);
+  useFocusEffect(useCallback(() => { setFocusCount(n => n + 1); }, []));
+  const whatsNewUnseen = useUnseenWhatsNew(focusCount);
+  const [showWhatsNewOnUpdate, setShowWhatsNewOnUpdate] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    getShowOnUpdate().then(on => { if (!cancelled) setShowWhatsNewOnUpdate(on); });
+    return () => { cancelled = true; };
+  }, []);
+  const toggleShowWhatsNewOnUpdate = (on: boolean): void => {
+    setShowWhatsNewOnUpdate(on);
+    void setShowOnUpdate(on);
+  };
 
   // Debug logging
   console.log('ProfileScreen Debug:', {
@@ -584,14 +603,33 @@ const ProfileScreen = () => {
                   style={profileTabStyles.whatsNewRow}
                   onPress={() => router.push('/screens/ChangelogScreen')}
                   accessibilityRole="button"
+                  accessibilityLabel={whatsNewUnseen ? 'What’s new, new notes for this version' : 'What’s new'}
                 >
                   <FontAwesome name='gift' size={16} color={colors.text} />
-                  <Text style={[profileTabStyles.whatsNewText, { color: colors.text }]}>What’s new</Text>
+                  <View style={profileTabStyles.whatsNewLabel}>
+                    <Text style={[profileTabStyles.whatsNewTitle, { color: colors.text }]}>What’s new</Text>
+                    {whatsNewUnseen && (
+                      <View style={[profileTabStyles.newBadge, { backgroundColor: colors.button }]}>
+                        <Text style={[profileTabStyles.newBadgeText, { color: colors.buttonText }]}>New</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={[profileTabStyles.whatsNewVersion, { color: colors.textSecondary }]}>
                     Version {getAppVersion()}
                   </Text>
                   <FontAwesome name='chevron-right' size={12} color={colors.textSecondary} />
                 </TouchableOpacity>
+                <View style={profileTabStyles.whatsNewSetting}>
+                  <Text style={[profileTabStyles.whatsNewSettingText, { color: colors.textSecondary }]}>
+                    Show what’s new after updates
+                  </Text>
+                  <Switch
+                    value={showWhatsNewOnUpdate}
+                    onValueChange={toggleShowWhatsNewOnUpdate}
+                    accessibilityLabel="Show what’s new after updates"
+                    trackColor={{ true: colors.button, false: colors.border }}
+                  />
+                </View>
 
                 <TouchableOpacity
                   style={profileTabStyles.whatsNewRow}
@@ -671,6 +709,19 @@ const profileTabStyles = StyleSheet.create({
     marginBottom: 8,
   },
   whatsNewText: { flex: 1, fontSize: 15, fontWeight: '600' },
+  whatsNewLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  whatsNewTitle: { fontSize: 15, fontWeight: '600' },
+  newBadge: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
+  newBadgeText: { fontSize: 11, fontWeight: '700' },
+  whatsNewSetting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: -8,
+    marginBottom: 8,
+    paddingLeft: 26,
+  },
+  whatsNewSettingText: { flex: 1, fontSize: 13 },
   whatsNewVersion: { fontSize: 13 },
   hidden: { display: 'none' },
   tabs: {
