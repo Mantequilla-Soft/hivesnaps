@@ -27,6 +27,11 @@ jest.mock('../../services/pointsAuthService', () => ({
     clearPointsAuthToken: jest.fn(),
 }));
 
+const mockFlushContentFilters = jest.fn().mockResolvedValue(undefined);
+jest.mock('../../services/contentFilter', () => ({
+    contentFilterStore: { flush: (...args: unknown[]) => mockFlushContentFilters(...args) },
+}));
+
 jest.mock('../../store/context', () => ({
     useAppStore: jest.fn(),
 }));
@@ -182,6 +187,20 @@ describe('useAuth', () => {
             expect(mockSetCurrentAccountUsername).toHaveBeenCalledWith('newuser');
             expect(mockSetCurrentUser).toHaveBeenCalledWith('newuser');
             expect(mockSetHasActiveKey).toHaveBeenCalledWith(false);
+        });
+
+        it("uploads pending content-filter changes before the account changes", async () => {
+            makeStore();
+            mockGetAccountKeys.mockResolvedValue({ postingKey: 'posting123', activeKey: undefined });
+            mockSetCurrentAccountUsername.mockResolvedValue(undefined);
+            mockAuthServiceAuthenticate.mockResolvedValue({ success: true, token: 'tok' });
+
+            const { result } = renderUseAuth();
+            await act(async () => { await result.switchAccount('newuser'); });
+
+            expect(mockFlushContentFilters).toHaveBeenCalled();
+            expect(mockFlushContentFilters.mock.invocationCallOrder[0])
+                .toBeLessThan(mockSetCurrentAccountUsername.mock.invocationCallOrder[0]);
         });
 
         it('sets hasActiveKey true when account has an active key', async () => {

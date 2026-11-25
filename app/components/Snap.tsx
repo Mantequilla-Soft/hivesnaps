@@ -59,7 +59,8 @@ import { ICON_SIZE, HEADER_SPACING, BUTTON_TAP_PADDING, TIMESTAMP_MAX_WIDTH, HIT
 import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
-import { useMutedTags } from '../../hooks/useMutedTags';
+import { suggestRules } from '@snapie/content-filter';
+import { contentFilterStore } from '../../services/contentFilter';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
 import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
 import { renderHiveToHtml } from '../../utils/renderHive';
@@ -293,19 +294,30 @@ const Snap: React.FC<SnapProps> = ({
   const hivePostUrls = extractBlogPostUrls(body); // Extract Hive post URLs for previews
   const hangoutRoomNames = useMemo(() => [...new Set(extractHangoutRoomNames(body))], [body]);
   const router = useRouter(); // For navigation in reply mode
-  const { addTag: addMutedTag } = useMutedTags();
-
   // Long-press on a #hashtag link offers to mute it (issue #267).
   const handleHashtagLongPress = (tag: string) => {
     Alert.alert(
       `Mute #${tag}?`,
-      `You won't see snaps tagged #${tag} in your feed anymore. You can undo this from your profile's Muted hashtags section.`,
+      `You won't see snaps tagged #${tag} anymore. You can undo this from Content filters on your profile.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Mute', style: 'destructive', onPress: () => addMutedTag(tag) },
+        {
+          text: 'Mute',
+          style: 'destructive',
+          onPress: () => contentFilterStore.addRule({ kind: 'tag', tag }),
+        },
       ]
     );
   };
+
+  // "Hide posts like this": rules built from this snap's own app and tags
+  // (never app-wide for general clients like HiveSnaps or PeakD).
+  // Not offered on your own snaps.
+  const isOwnSnap = !!currentUsername && author === currentUsername;
+  const hideSuggestions = useMemo(
+    () => (isOwnSnap ? [] : suggestRules({ json_metadata: (snap as any).json_metadata, body })),
+    [isOwnSnap, (snap as any).json_metadata, body]
+  );
 
   // Calculate indentation and content width for replies
   const maxVisualLevel = 2;
@@ -670,6 +682,13 @@ const Snap: React.FC<SnapProps> = ({
   };
   // Overflow (three-dots) menu
   const [moreMenuVisible, setMoreMenuVisible] = useState(false);
+  // The ••• sheet swaps to the "Hide posts like this" choices in place:
+  // a second modal right after the first one closes is unreliable on iOS.
+  const [hideMenuOpen, setHideMenuOpen] = useState(false);
+  const closeMoreMenu = () => {
+    setMoreMenuVisible(false);
+    setHideMenuOpen(false);
+  };
 
   // Translation
   const deviceLang = useMemo(() => {
@@ -1538,8 +1557,26 @@ const Snap: React.FC<SnapProps> = ({
         {/* Three-dots Action Sheet */}
         <ActionSheet
           visible={moreMenuVisible}
-          onClose={() => setMoreMenuVisible(false)}
-          items={[
+          onClose={closeMoreMenu}
+          items={hideMenuOpen ? hideSuggestions.map(s => {
+            // "Everything from hiveword" reads as "Hide everything from hiveword".
+            const what = s.label.charAt(0).toLowerCase() + s.label.slice(1);
+            return {
+              label: `Hide ${what}`,
+              accessibilityLabel: `Hide ${what}`,
+              onPress: () => {
+                closeMoreMenu();
+                contentFilterStore.addRule(s.rule);
+                // After the sheet has closed: an alert raised while the sheet's
+                // modal is up is dismissed with it, and the hidden snap (with
+                // its sheet) leaves the feed right away. Alert is global, so it
+                // still shows after this snap unmounts.
+                setTimeout(() => {
+                  Alert.alert('Hidden', `You won't see ${what} anymore. You can undo this from Content filters on your profile.`);
+                }, 400);
+              },
+            };
+          }) : [
             {
               label: 'Share Snap',
               accessibilityLabel: 'Share snap link',
@@ -1560,9 +1597,16 @@ const Snap: React.FC<SnapProps> = ({
               accessibilityLabel: 'Copy snap content to clipboard',
               onPress: handleCopyToClipboard,
             },
+            ...(hideSuggestions.length > 0
+              ? [{
+                  label: 'Hide posts like this',
+                  accessibilityLabel: 'Hide posts like this',
+                  onPress: () => setHideMenuOpen(true),
+                }]
+              : []),
             {
               label: 'Report Content',
-              tone: 'danger',
+              tone: 'danger' as const,
               accessibilityLabel: 'Report Content',
               onPress: () => {
                 setMoreMenuVisible(false);

@@ -33,6 +33,9 @@ import UpvoteModal from '../../components/UpvoteModal';
 import VotersModal from '../components/VotersModal';
 import { useMutedList } from '../../store/context';
 import Snap from '../components/Snap';
+import { useContentFilter } from '@snapie/content-filter/react';
+import { contentFilterStore } from '../../services/contentFilter';
+import { hideComments } from '../../utils/hideComments';
 // ContentModal and GifPickerModal removed - now using ComposeScreen
 import genericAvatar from '../../assets/images/generic-avatar.png';
 import { getTheme } from '../../constants/Colors';
@@ -187,24 +190,18 @@ const HivePostScreen = () => {
 
   const postMediaInfo = useMemo(() => detectMediaInBody(post?.body ?? ''), [post?.body]);
 
-  // Filter comments to exclude muted users (community-muted + personally-muted accounts)
+  // Comments hidden by a muted author (community-muted + personally-muted
+  // accounts) or a content filter (muted tag/app, "Hide game results").
+  const { filter: isFilteredOut } = useContentFilter(contentFilterStore);
   const filteredComments = useMemo(() => {
-    if (!comments || !mutedList) return comments;
+    if (!comments) return comments;
 
     // Ensure mutedList is a Set for efficient lookups
-    const mutedSet = mutedList instanceof Set ? mutedList : new Set(mutedList);
+    const mutedSet = mutedList ? (mutedList instanceof Set ? mutedList : new Set(mutedList)) : new Set<string>();
 
-    const filterCommentsRecursively = (commentList: typeof comments): typeof comments => {
-      return commentList
-        .filter(comment => !mutedSet.has(comment.author))
-        .map(comment => ({
-          ...comment,
-          replies: comment.replies ? filterCommentsRecursively(comment.replies) : undefined,
-        }));
-    };
-
-    return filterCommentsRecursively(comments);
-  }, [comments, mutedList]);
+    // A hidden comment's replies stay, moved up into its place (as in snap conversations).
+    return hideComments(comments, comment => mutedSet.has(comment.author) || isFilteredOut(comment));
+  }, [comments, mutedList, isFilteredOut]);
 
   // Function to flatten nested comments into a flat array with level information
   // This follows the same pattern as ConversationScreen for consistency

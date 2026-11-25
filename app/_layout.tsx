@@ -9,7 +9,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import 'react-native-reanimated';
 
@@ -21,6 +21,12 @@ import { useAuth } from '../hooks/useAuth';
 import { onAuthorityMismatch } from '../utils/hiveAuthErrors';
 import TOSWrapper from '../components/TOSWrapper';
 import { PointsToast } from './components/points/PointsToast';
+import {
+  contentFilterStore,
+  hydrateContentFilters,
+  resyncContentFilters,
+  startContentFilterSync,
+} from '../services/contentFilter';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -110,6 +116,7 @@ function RootLayoutNav() {
               </Stack>
               <PointsToast />
               <StaleKeyWatcher />
+              <ContentFilterSync />
             </TOSWrapper>
           </ThemeProvider>
         </HivePostPreviewProvider>
@@ -172,6 +179,42 @@ function StaleKeyWatcher(): ReactElement | null {
         });
     });
   }, [logout, router]);
+
+  return null;
+}
+
+/**
+ * Keeps content filters (muted tags/apps, "Hide game results") loaded and
+ * synced with snapie.io for whoever is signed in: on start, login, account
+ * switch and logout. Unsent changes are uploaded when the app backgrounds.
+ */
+function ContentFilterSync(): null {
+  const { currentUsername } = useAuth();
+  const usernameRef = useRef(currentUsername);
+  usernameRef.current = currentUsername;
+
+  useEffect(() => {
+    void hydrateContentFilters().catch(err =>
+      console.warn('[ContentFilterSync] Could not load filters:', err)
+    );
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'background' || state === 'inactive') {
+        void contentFilterStore.flush().catch(() => undefined);
+      } else if (state === 'active') {
+        // Pick up changes made on snapie.io, and retry a sync that failed.
+        void resyncContentFilters(usernameRef.current ?? null)?.catch(err =>
+          console.warn('[ContentFilterSync] Re-sync failed:', err)
+        );
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    void startContentFilterSync(currentUsername ?? null).catch(err =>
+      console.warn('[ContentFilterSync] Sync failed:', err)
+    );
+  }, [currentUsername]);
 
   return null;
 }

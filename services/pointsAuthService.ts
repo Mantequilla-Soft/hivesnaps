@@ -57,6 +57,18 @@ function jwtExpiryMs(token: string): number | null {
   }
 }
 
+/** The account a JWT was issued for (its `sub`, lowercased), or null if
+ *  unreadable. snapie.io signs `{ sub: username }`. */
+export function jwtAccount(token: string): string | null {
+  try {
+    const payload = token.split('.')[1];
+    const json = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    return typeof json.sub === 'string' ? json.sub.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 // Deduplicates concurrent mint attempts, keyed by username so a mid-flight
 // account switch doesn't hand the new user a token minted for the old one.
 let tokenMintInFlight: { username: string; promise: Promise<string | null> } | null = null;
@@ -96,7 +108,11 @@ export async function getPointsAuthToken(): Promise<string | null> {
     const cached = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
     if (cached) {
       const exp = jwtExpiryMs(cached);
-      if (exp === null || exp > Date.now() + TOKEN_EXPIRY_BUFFER_MS) return cached;
+      const owner = jwtAccount(cached);
+      // A token minted for a previous account (e.g. one that finished minting
+      // right after an account switch) is never handed to this one.
+      const sameAccount = owner === null || owner === username.toLowerCase();
+      if (sameAccount && (exp === null || exp > Date.now() + TOKEN_EXPIRY_BUFFER_MS)) return cached;
       await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   } catch {
@@ -105,13 +121,18 @@ export async function getPointsAuthToken(): Promise<string | null> {
 
   if (tokenMintInFlight?.username === username) return tokenMintInFlight.promise;
 
-  const promise = (async () => {
+  const entry: { username: string; promise: Promise<string | null> } = { username, promise: Promise.resolve(null) };
+  entry.promise = (async () => {
     try {
       const postingKey = await accountStorageService.getCurrentPostingKey();
       if (!postingKey) return null;
 
       const token = await mintToken(username, postingKey);
-      if (token) {
+      // Cache it only if this account is still the signed-in one: a mint that
+      // finishes after an account switch must not overwrite the new account's
+      // (just-cleared) cache with the old account's token.
+      const stillCurrent = (await accountStorageService.getCurrentAccountUsername()) === username;
+      if (token && stillCurrent) {
         try {
           await AsyncStorage.setItem(TOKEN_STORAGE_KEY, token);
         } catch {
@@ -124,12 +145,13 @@ export async function getPointsAuthToken(): Promise<string | null> {
       console.warn('[pointsAuthService] Authentication failed:', error instanceof Error ? error.message : 'Unknown error');
       return null;
     } finally {
-      tokenMintInFlight = null;
+      // Only clear our own entry: a newer mint (another account) may have replaced it.
+      if (tokenMintInFlight === entry) tokenMintInFlight = null;
     }
   })();
 
-  tokenMintInFlight = { username, promise };
-  return promise;
+  tokenMintInFlight = entry;
+  return entry.promise;
 }
 
 /** Clears the cached token — call on logout/account switch so a stale JWT

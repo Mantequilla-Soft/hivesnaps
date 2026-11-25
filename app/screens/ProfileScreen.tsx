@@ -44,7 +44,7 @@ import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
 import { useHiveData } from '../../hooks/useHiveData';
 import { localAuthService } from '../../services/LocalAuthService';
-import MutedTagsEditor from '../components/MutedTagsEditor';
+import ContentFiltersEditor from '../components/ContentFiltersEditor';
 // useEdit removed - now using ComposeScreen for edit
 
 const ProfileScreen = () => {
@@ -560,7 +560,7 @@ const ProfileScreen = () => {
             {/* Account actions - Only show for own profile */}
             {isOwnProfile && (
               <View style={styles.logoutSection}>
-                <MutedTagsEditor colors={colors} />
+                <ContentFiltersEditor colors={colors} />
                 {/* Active key status badge + action */}
                 <View style={styles.keyBadgeRow}>
                   <View style={[styles.keyBadge, { backgroundColor: hasActiveKey ? colors.followButton : colors.buttonInactive }]}>
