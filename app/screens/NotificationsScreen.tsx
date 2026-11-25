@@ -382,11 +382,21 @@ const NotificationsScreen = () => {
 
   const renderEmpty = () =>
     activity.filter ? (
-      <View style={styles.filteredEmpty}>
+      // The card (and its Show all) is hidden when nothing is loaded, e.g.
+      // after a settings change, so the way back is offered here too.
+      <TouchableOpacity
+        style={styles.filteredEmpty}
+        onPress={() => activity.setFilter(null)}
+        accessibilityRole="button"
+        accessibilityLabel="Nothing of this kind loaded yet. Show all notifications"
+      >
         <Text style={[styles.emptySubtitle, { color: colors.subtext }]}>
-          Nothing of this kind loaded yet.
+          Nothing of this kind loaded yet.{' '}
+          <Text style={{ color: colors.buttonBackground, fontWeight: '600' }}>
+            Show all
+          </Text>
         </Text>
-      </View>
+      </TouchableOpacity>
     ) : (
     <View style={styles.emptyState}>
       <FontAwesome name='bell-o' size={64} color={colors.subtext} />

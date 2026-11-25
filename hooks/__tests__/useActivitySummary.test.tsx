@@ -3,6 +3,16 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { useActivitySummary, MAX_BACKFILL_PAGES } from '../useActivitySummary';
 import type { ParsedNotification } from '../../utils/notifications';
 
+// A fixed local midday, so "a few seconds ago" is always still today.
+// Only Date is faked; timers and promises run as usual.
+beforeAll(() => {
+    jest.useFakeTimers({
+        now: new Date(2026, 10, 20, 12, 0, 0),
+        doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask'],
+    });
+});
+afterAll(() => jest.useRealTimers());
+
 const hiveDate = (msAgo: number): string => new Date(Date.now() - msAgo).toISOString().replace('Z', '').slice(0, 19);
 const DAY = 86_400_000;
 let nextId = 1;
