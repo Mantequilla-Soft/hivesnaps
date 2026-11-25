@@ -69,6 +69,8 @@ import { useHiveData } from '../../hooks/useHiveData';
 // useGifPicker and GifPickerModal removed - now handled in ComposeScreen
 
 import { useMutedList } from '../../store/context';
+import { useContentFilter } from '@snapie/content-filter/react';
+import { contentFilterStore } from '../../services/contentFilter';
 
 
 const ConversationScreenRefactored = () => {
@@ -680,14 +682,18 @@ const ConversationScreenRefactored = () => {
     return flattened;
   };
 
+  // Replies hidden by a muted author or a content filter (muted tag/app, "Hide game results").
+  const { filter: isFilteredOut } = useContentFilter(contentFilterStore);
   // Memoize filtered replies to avoid re-filtering on every render
   const filteredReplies = useMemo(() => {
-    const visible = flattenReplies(replies).filter(reply => !mutedList || !mutedList.includes(reply.author));
+    const visible = flattenReplies(replies).filter(
+      reply => !(mutedList && mutedList.includes(reply.author)) && !isFilteredOut(reply)
+    );
     // Live threads read like a chat: flat, newest on top (normal threads are payout-sorted and nested).
     return live
       ? visible.map(r => ({ ...r, visualLevel: 0 })).sort((a, b) => b.created.localeCompare(a.created))
       : visible;
-  }, [replies, mutedList, live]);
+  }, [replies, mutedList, live, isFilteredOut]);
 
   // DEPRECATED: renderReplyTree function - Now using flattened approach instead
   const renderReplyTree = (reply: ReplyData, level = 0) => {

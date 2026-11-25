@@ -30,8 +30,8 @@ import { useAuth } from '../../store/context';
 import { useFeedData, FeedFilter } from '../../hooks/useFeedData';
 import { useBlogFeed } from '../../hooks/useBlogFeed';
 import { useWavesFeed } from '../../hooks/useWavesFeed';
-import { useMutedTags } from '../../hooks/useMutedTags';
-import { hasMutedTag } from '../../utils/mutedTags';
+import { useContentFilter } from '@snapie/content-filter/react';
+import { contentFilterStore } from '../../services/contentFilter';
 import { useTrendingFeed } from '../../hooks/useTrendingFeed';
 import { interleave, promoteToTopOrMerge } from '../../utils/interleave';
 import { hasUserVoted } from '../../utils/votes';
@@ -224,12 +224,13 @@ const FeedScreenRefactored = () => {
   }
 
   // Memoize filtered snaps to avoid re-filtering on every render
-  const { mutedTags } = useMutedTags();
-  // Single hide rule for every feed source: muted author OR muted hashtag.
+  const { filter: isFilteredOut } = useContentFilter(contentFilterStore);
+  // Single hide rule for every feed source: muted author OR a content filter
+  // (muted tag, app, app + tag, or a preset like "Hide game results").
   const isVisible = useCallback(
-    (item: { author: string; json_metadata?: string | Record<string, unknown> }) =>
-      !mutedList?.includes(item.author) && !hasMutedTag(item.json_metadata, mutedTags),
-    [mutedList, mutedTags]
+    (item: { author: string; json_metadata?: string | Record<string, unknown>; body?: string }) =>
+      !mutedList?.includes(item.author) && !isFilteredOut(item),
+    [mutedList, isFilteredOut]
   );
 
   const filteredSnaps = useMemo(() => snaps.filter(isVisible), [snaps, isVisible]);
