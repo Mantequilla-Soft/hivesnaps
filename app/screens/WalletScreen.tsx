@@ -19,6 +19,7 @@ import { hasPendingRewards } from '../../utils/pendingRewards';
 import { usePendingRewards } from '../../hooks/usePendingRewards';
 import PendingRewardsBanner from '../components/PendingRewardsBanner';
 import { SavingsModal, type SavingsMode } from '../components/wallet/SavingsModal';
+import { MarketModal, type MarketMode } from '../components/wallet/MarketModal';
 import { SavingsCard } from '../components/wallet/SavingsCard';
 import { CancelWithdrawModal } from '../components/wallet/CancelWithdrawModal';
 import { DelegateModal } from '../components/wallet/DelegateModal';
@@ -86,6 +87,7 @@ const WalletScreen = (): React.JSX.Element => {
     const [scanPaymentVisible, setScanPaymentVisible] = useState(false);
     const [transferPrefill, setTransferPrefill] = useState<{ to: string; amount: string; memo: string } | null>(null);
     const [savingsMode, setSavingsMode] = useState<SavingsMode | null>(null);
+    const [marketMode, setMarketMode] = useState<MarketMode | null>(null);
     const [savingsCurrency, setSavingsCurrency] = useState<'HIVE' | 'HBD'>('HBD');
     const [withdrawalToCancel, setWithdrawalToCancel] = useState<SavingsWithdrawal | null>(null);
     const [delegateVisible, setDelegateVisible] = useState(false);
@@ -132,10 +134,12 @@ const WalletScreen = (): React.JSX.Element => {
         powerDownLoading, powerDownSuccess,
         savingsLoading, savingsSuccess,
         delegateLoading, delegateSuccess,
+        marketLoading, marketSuccess,
         claimLoading,
         transfer, powerUp, powerDown, cancelPowerDown,
         depositToSavings, withdrawFromSavings, cancelSavingsWithdraw,
         delegate, claimRewards,
+        swap, convertHbd,
         resetOperationSuccess,
         checkStoredKeyAvailable,
     } = useWalletOperations(currentUsername, async () => {
@@ -179,6 +183,10 @@ const WalletScreen = (): React.JSX.Element => {
         setSavingsMode(null);
         setWithdrawalToCancel(null);
         resetOperationSuccess('savings');
+    });
+    useDismissAfterSuccess(marketSuccess, () => {
+        setMarketMode(null);
+        resetOperationSuccess('market');
     });
     useDismissAfterSuccess(delegateSuccess, () => {
         setDelegateVisible(false);
@@ -309,6 +317,16 @@ const WalletScreen = (): React.JSX.Element => {
             label: 'HBD\nSavings',
             icon: 'bank' as const,
             onPress: () => openSavings('deposit', 'HBD'),
+        },
+        {
+            label: 'Swap\nHIVE/HBD',
+            icon: 'exchange' as const,
+            onPress: () => setMarketMode('swap'),
+        },
+        {
+            label: 'Convert\nHBD',
+            icon: 'hourglass-half' as const,
+            onPress: () => setMarketMode('convert'),
         },
         {
             label: 'Request\nPayment',
@@ -523,6 +541,20 @@ const WalletScreen = (): React.JSX.Element => {
                 onClose={() => setPowerDownVisible(false)}
                 onPowerDown={handlePowerDown}
                 onCancelPowerDown={handleCancelPowerDown}
+            />
+
+            {/* Swap HIVE ⇄ HBD / Convert HBD → HIVE */}
+            <MarketModal
+                visible={marketMode !== null}
+                mode={marketMode ?? 'swap'}
+                balances={{ HIVE: walletData?.hiveBalance ?? 0, HBD: walletData?.hbdBalance ?? 0 }}
+                hasStoredKey={storedKeyAvailable}
+                loading={marketLoading}
+                success={marketSuccess}
+                colors={colors}
+                onClose={() => setMarketMode(null)}
+                onSwap={(direction, amount, min, manualKey) => ignoreAuthCancel(() => swap(direction, amount, min, manualKey))}
+                onConvert={(amount, manualKey) => ignoreAuthCancel(() => convertHbd(amount, manualKey))}
             />
 
             {/* Savings deposit / withdraw */}

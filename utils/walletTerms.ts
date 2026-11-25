@@ -8,7 +8,9 @@ export type WalletTerm =
     | 'powerDown'
     | 'savings'
     | 'delegation'
-    | 'pendingRewards';
+    | 'pendingRewards'
+    | 'swap'
+    | 'convert';
 
 export const WALLET_TERMS: Record<WalletTerm, { title: string; body: string }> = {
     hive: {
@@ -55,5 +57,17 @@ export const WALLET_TERMS: Record<WalletTerm, { title: string; body: string }> =
         body:
             'What you’ve earned from posts, comments and curation that hasn’t been added to your balance yet. ' +
             'Claiming moves it into your wallet.',
+    },
+    swap: {
+        title: 'Swap',
+        body:
+            'An instant trade between HIVE and HBD on Hive’s own market, at the prices people are offering right now. ' +
+            'It fills completely in one go or not at all, and never below the minimum you accept. No fee, but the price moves with the market.',
+    },
+    convert: {
+        title: 'Convert',
+        body:
+            'Turns HBD into HIVE at the blockchain’s own rate: the median price over the next 3.5 days, which is when the HIVE ' +
+            'arrives. Slower than a Swap, but not affected by a thin market at the moment you convert. No fee, and it can’t be cancelled.',
     },
 };
