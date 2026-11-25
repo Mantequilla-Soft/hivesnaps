@@ -3,6 +3,9 @@ import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FontAwesome } from '@expo/vector-icons';
 import { createProfileScreenStyles } from '../../../styles/ProfileScreenStyles';
+import { useMoodBadge } from '../../../hooks/useMoodBadge';
+import { moodSpoken } from '../../../services/moodBadgeService';
+import { MoodBadge } from '../common/MoodBadge';
 
 interface ColorScheme {
     background: string;
@@ -37,6 +40,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     const [coverFailed, setCoverFailed] = useState(false);
     useEffect(() => setCoverFailed(false), [coverUrl]);
     const showCover = !!coverUrl && /^https?:\/\//i.test(coverUrl) && !coverFailed;
+    const moodBadge = useMoodBadge(username);
 
     return (
         <>
@@ -78,10 +82,14 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                         <FontAwesome name='user' size={60} color={colors.icon} />
                     </View>
                 )}
+                {moodBadge && <MoodBadge sku={moodBadge} size={34} ringColor={colors.background} offset={2} />}
             </View>
 
             {/* Username */}
-            <Text style={[styles.username, { color: colors.text }]}>
+            <Text
+                style={[styles.username, { color: colors.text }]}
+                accessibilityLabel={moodBadge ? `@${username}, ${moodSpoken(moodBadge)}` : undefined}
+            >
                 @{username}
             </Text>
 

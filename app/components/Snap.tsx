@@ -60,6 +60,9 @@ import { useAppColors } from '../styles/colors';
 import { submitReport, mapUiReasonToApi } from '../../services/reportService';
 import { SnapData } from '../../hooks/useConversationData';
 import { suggestRules } from '@snapie/content-filter';
+import { useMoodBadge } from '../../hooks/useMoodBadge';
+import { moodSpoken } from '../../services/moodBadgeService';
+import { MoodBadge } from './common/MoodBadge';
 import { contentFilterStore } from '../../services/contentFilter';
 import { wasPostedViaHiveSnaps } from '../../utils/appDetection';
 import { preprocessForMarkdown } from '../../utils/htmlPreprocessing';
@@ -727,9 +730,13 @@ const Snap: React.FC<SnapProps> = ({
     return () => { cancelled = true; };
   }, [author, showAuthor, isReply]);
 
+  // Mood badge (snapie.io), on the avatar's corner.
+  const moodBadge = useMoodBadge(author, showAuthor || isReply);
+
   // The pills sit inside the profile button, so VoiceOver reads them only
-  // through its label: "View alice's profile, Snap Master, Wave".
+  // through its label: "View alice's profile, feeling sleepy, Snap Master, Wave".
   const headerLabels = [
+    moodBadge ? moodSpoken(moodBadge) : null,
     patronTier ? PATRON_TIER_SPOKEN[patronTier] : null,
     isWave ? 'Wave' : null,
     isDiscovery && discoveryReason ? DISCOVERY_REASON_SPOKEN[discoveryReason] : null,
@@ -879,14 +886,17 @@ const Snap: React.FC<SnapProps> = ({
               accessibilityRole='button'
               accessibilityLabel={headerAccessibilityLabel}
             >
-              <ExpoImage
-                source={
-                  avatarUrl
-                    ? { uri: avatarUrl }
-                    : require('../../assets/images/generic-avatar.png')
-                }
-                style={styles.avatar}
-              />
+              <View style={styles.avatarWrap}>
+                <ExpoImage
+                  source={
+                    avatarUrl
+                      ? { uri: avatarUrl }
+                      : require('../../assets/images/generic-avatar.png')
+                  }
+                  style={styles.avatar}
+                />
+                {moodBadge && <MoodBadge sku={moodBadge} size={18} ringColor={colors.bubble} />}
+              </View>
               {/* Name gets the whole first line; tier/label pills go on a
                   second line under it, only when there are any. */}
               <View style={styles.nameColumn}>
@@ -1692,11 +1702,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  avatarWrap: {
+    position: 'relative',
+    marginRight: 8,
+  },
   avatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    marginRight: 8,
     backgroundColor: '#E1E8ED',
   },
   username: {
