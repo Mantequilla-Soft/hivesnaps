@@ -32,6 +32,8 @@ import AudioRecorderModal from '../components/AudioRecorderModal';
 import AudioPreview from '../components/AudioPreview';
 import ProgressBar from '../components/ProgressBar';
 import { BeneficiariesEditor } from '../components/BeneficiariesEditor';
+import MentionSuggestions from '../components/MentionSuggestions';
+import { useMentions } from '../../hooks/useMentions';
 import { getTheme } from '../../constants/Colors';
 import { styles } from './ComposeScreen.styles';
 
@@ -258,6 +260,27 @@ export default function ComposeScreen() {
     compose.closeSpoilerModal();
   };
 
+  // @mention autocomplete for the main text box (snaps, replies, edits, blog body).
+  const mentionCursor = compose.state.selectionStart === compose.state.selectionEnd ? compose.state.selectionEnd : -1;
+  const mentions = useMentions(compose.state.text, mentionCursor);
+  const handlePickMention = (name: string): void => {
+    const result = mentions.pick(name);
+    if (!result) return;
+    // A programmatic change isn't limited by the input's maxLength.
+    if (mode !== 'blog' && result.text.length > 280) {
+      Alert.alert('Not enough room', `There isn't room for @${name} in this snap (280 characters max).`);
+      return;
+    }
+    compose.setText(result.text);
+    compose.setSelection(result.cursor, result.cursor);
+    // Wait for the new text to reach the native input before moving the
+    // cursor (an index past the old text is ignored on Android), as resnap does.
+    setTimeout(() => {
+      textInputRef.current?.focus();
+      textInputRef.current?.setSelection(result.cursor, result.cursor);
+    }, 100);
+  };
+
   const handleSelectionChange = (event: any) => {
     const { start, end } = event.nativeEvent.selection;
     compose.setSelection(start, end);
@@ -407,6 +430,13 @@ export default function ComposeScreen() {
             />
           )}
 
+          <MentionSuggestions
+            suggestions={mentions.suggestions}
+            unknownMentions={mentions.unknownMentions}
+            onPick={handlePickMention}
+            colors={colors}
+          />
+
           {/* Text input */}
           <TextInput
             ref={textInputRef}
@@ -427,6 +457,7 @@ export default function ComposeScreen() {
             textAlignVertical='top'
             maxLength={mode === 'blog' ? undefined : 280}
           />
+
 
           {/* Tags input (blog posts only) */}
           {mode === 'blog' && (
