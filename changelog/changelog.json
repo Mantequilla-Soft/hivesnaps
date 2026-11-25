@@ -2,9 +2,15 @@
   "entries": [
     {
       "version": "1.4.0",
-      "date": "2026-11-24",
-      "title": "Wallet savings, reblogs, profile editing and more",
+      "date": "2026-11-25",
+      "title": "Hide game results, swaps, profile editing and more",
       "items": [
+        { "type": "feature", "text": "Content filters: hide snaps by tag, by the app they were posted from, or both, and turn on \"Hide game results\" with one switch. Your filters sync with snapie.io, and \"Hide posts like this\" is in every snap's ••• menu." },
+        { "type": "feature", "text": "Wallet: swap HIVE and HBD instantly at market prices, or convert HBD to HIVE over 3.5 days." },
+        { "type": "feature", "text": "Notifications open with an activity summary for today, this week or this month. Tap a count to see only those notifications." },
+        { "type": "feature", "text": "Type @ while writing to pick an account to mention." },
+        { "type": "feature", "text": "Send feedback from your profile, with an optional screenshot. It goes straight to the team." },
+        { "type": "feature", "text": "Profiles show the account's badges, like on PeakD." },
         { "type": "feature", "text": "Edit your whole profile: display name, about, location, website, profile photo and cover image. Saving uses your posting key, and settings other Hive apps keep in your profile are left alone." },
         { "type": "feature", "text": "Profiles show their cover image, and have Snaps, Posts and Reblogs tabs." },
         { "type": "feature", "text": "Reblog blog posts from the post page. Reblogging earns Snapie Points." },
@@ -13,8 +19,9 @@
         { "type": "feature", "text": "Buy Snapie Points with HBD, and see your points history from the points card on your profile." },
         { "type": "feature", "text": "Tap a vote count to see who voted, and tap Followers or Following on a profile to see the lists." },
         { "type": "feature", "text": "Snap-Cast: follow a snap thread live as replies come in." },
-        { "type": "feature", "text": "Mute hashtags to hide snaps with those tags without muting the author. Long-press a #tag to mute it." },
+        { "type": "improvement", "text": "3Speak audio links and playlists play right in the snap." },
         { "type": "improvement", "text": "The home feed shows a \"N new snaps\" banner instead of jumping, and a banner when you have rewards to claim." },
+        { "type": "fix", "text": "Fixed an \"Authentication failed\" error that could appear right after opening the app." },
         { "type": "fix", "text": "Blog feed cards show when you've already voted, and your recent votes stay visible after refreshing." }
       ]
     }
