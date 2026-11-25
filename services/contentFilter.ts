@@ -7,18 +7,19 @@
  * migrated into tag rules on first run.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Buffer } from 'buffer';
 import {
   createContentFilterRemote,
   createContentFilterStore,
   fetchPresetCatalog,
 } from '@snapie/content-filter';
-import { getPointsAuthToken } from './pointsAuthService';
+import { getPointsAuthToken, jwtAccount } from './pointsAuthService';
 
 const SNAPIE = 'https://snapie.io';
 const LEGACY_TAGS_KEY = 'hivesnaps_muted_tags';
 /** How long to wait for a snapie.io token before treating sync as unavailable. */
 const TOKEN_TIMEOUT_MS = 10_000;
+/** A sync request that hasn't answered by then is abandoned (and retried later). */
+export const REQUEST_TIMEOUT_MS = 15_000;
 
 export const contentFilterStore = createContentFilterStore({
   storage: AsyncStorage,
@@ -35,17 +36,7 @@ export const contentFilterStore = createContentFilterStore({
 });
 
 /** The account a snapie.io JWT was issued for (its `sub`), or null if unreadable. */
-export function tokenAccount(token: string): string | null {
-  try {
-    const payload = token.split('.')[1];
-    const json = JSON.parse(
-      Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
-    );
-    return typeof json.sub === 'string' ? json.sub.toLowerCase() : null;
-  } catch {
-    return null;
-  }
-}
+export const tokenAccount = jwtAccount;
 
 /** The current account's snapie.io token, or null after TOKEN_TIMEOUT_MS. */
 function tokenWithTimeout(): Promise<string | null> {
@@ -69,10 +60,19 @@ export function makeFilterRequest(username: string, getToken: () => Promise<stri
   return async (path: string, init: RequestInit): Promise<Response | null> => {
     const token = await getToken();
     if (!token || tokenAccount(token) !== account) return null;
-    return fetch(`${SNAPIE}${path}`, {
-      ...init,
-      headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
-    });
+    // A hung request would otherwise keep the store "reconciling" and block
+    // retries for this account until the OS gives up on it.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(`${SNAPIE}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   };
 }
 
@@ -97,7 +97,22 @@ let catalogRequested = false;
  * the latest preset catalog once per app run, so new games can be hidden
  * without an app update.
  */
+let lastSyncStart = 0;
+/** Foreground re-syncs no more often than this. */
+export const RESYNC_MIN_INTERVAL_MS = 60_000;
+
+/**
+ * Re-sync when the app returns to the foreground: picks up changes made on
+ * snapie.io and retries a sync that failed (e.g. offline at launch). Skipped
+ * if a sync started less than RESYNC_MIN_INTERVAL_MS ago.
+ */
+export function resyncContentFilters(username: string | null, now: number = Date.now()): Promise<void> | null {
+  if (!username || now - lastSyncStart < RESYNC_MIN_INTERVAL_MS) return null;
+  return startContentFilterSync(username);
+}
+
 export async function startContentFilterSync(username: string | null): Promise<void> {
+  lastSyncStart = Date.now();
   // Local filters first, so the first sync merges with what's on the phone.
   await hydrateContentFilters().catch(() => undefined);
   if (!catalogRequested) {

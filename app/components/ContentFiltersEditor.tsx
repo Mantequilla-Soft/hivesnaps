@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Switch, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Switch, StyleSheet, AccessibilityInfo } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useContentFilter } from '@snapie/content-filter/react';
-import { describeRule, ruleKey } from '@snapie/content-filter';
+import { describeRule, hasRule, ruleKey } from '@snapie/content-filter';
 import { contentFilterStore } from '../../services/contentFilter';
 import { parseRuleInput } from '../../utils/contentFilterInput';
 
@@ -31,8 +31,15 @@ export default function ContentFiltersEditor({ colors }: Props): React.JSX.Eleme
   const submit = (): void => {
     if (!draft.trim()) return;
     const parsed = parseRuleInput(draft);
-    if ('error' in parsed) {
-      setError(parsed.error);
+    const problem = 'error' in parsed
+      ? parsed.error
+      : hasRule(prefs, parsed.rule)
+        ? `${describeRule(parsed.rule)} is already hidden.`
+        : null;
+    if (problem || 'error' in parsed) {
+      const message = problem ?? 'Type a #tag or app:name.';
+      setError(message);
+      AccessibilityInfo.announceForAccessibility(message);
       return;
     }
     addRule(parsed.rule);
@@ -88,7 +95,11 @@ export default function ContentFiltersEditor({ colors }: Props): React.JSX.Eleme
         accessibilityLabel="Add a content filter"
         accessibilityHint="Type a hashtag, app:name, or app:name followed by a hashtag, then press done"
       />
-      {error ? <Text style={[styles.error, { color: colors.error ?? '#E74C3C' }]}>{error}</Text> : null}
+      {error ? (
+        <Text style={[styles.error, { color: colors.error ?? '#E74C3C' }]} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
 
       <View style={styles.chips}>
         {prefs.rules.map(rule => {

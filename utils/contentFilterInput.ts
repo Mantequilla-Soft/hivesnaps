@@ -3,6 +3,15 @@ import { normalizeApp, normalizeTag, type MuteRule } from '@snapie/content-filte
 export type ParsedRuleInput = { rule: MuteRule } | { error: string };
 
 const APP_PREFIX = /^app\s*:\s*/i;
+/** A tag is one word: no spaces, commas or another '#'. */
+const BAD_TAG = /[\s,#]/;
+
+function parseTag(raw: string): { tag: string } | { error: string } {
+  const tag = normalizeTag(raw);
+  if (!tag) return { error: 'Type a #tag or app:name.' };
+  if (BAD_TAG.test(tag)) return { error: 'One tag at a time, without spaces or commas.' };
+  return { tag };
+}
 
 /**
  * Turns what the user typed into a rule:
@@ -20,16 +29,27 @@ export function parseRuleInput(raw: string): ParsedRuleInput {
     const appPart = hashAt === -1 ? rest : rest.slice(0, hashAt);
     const app = normalizeApp(appPart);
     if (!app) return { error: 'Add the app name after app:, like app:hiveword.' };
-    if (hashAt === -1) return { rule: { kind: 'app', app } };
-    const tag = normalizeTag(rest.slice(hashAt));
-    if (!tag) return { error: 'Add a tag after #, like app:hivesuite #scratchcard.' };
-    return { rule: { kind: 'app_tag', app, tag } };
+    if (hashAt === -1) {
+      // "app:hivesuite scratchcard" almost always means a forgotten '#'.
+      // (Apps whose name has spaces can still be hidden with "Hide posts
+      // like this" on one of their posts.)
+      if (/\s/.test(app)) {
+        return { error: 'Put # before the tag, like app:hivesuite #scratchcard.' };
+      }
+      return { rule: { kind: 'app', app } };
+    }
+    const parsed = parseTag(rest.slice(hashAt));
+    if ('error' in parsed) {
+      return {
+        error: parsed.error.startsWith('Type')
+          ? 'Add a tag after #, like app:hivesuite #scratchcard.'
+          : 'One tag at a time, like app:hivesuite #scratchcard.',
+      };
+    }
+    return { rule: { kind: 'app_tag', app, tag: parsed.tag } };
   }
 
-  if (/\s/.test(text.replace(/^#+/, '').trim())) {
-    return { error: 'One tag at a time, without spaces.' };
-  }
-  const tag = normalizeTag(text);
-  if (!tag) return { error: 'Type a #tag or app:name.' };
-  return { rule: { kind: 'tag', tag } };
+  const parsed = parseTag(text);
+  if ('error' in parsed) return parsed;
+  return { rule: { kind: 'tag', tag: parsed.tag } };
 }

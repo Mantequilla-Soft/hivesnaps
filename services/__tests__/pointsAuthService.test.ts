@@ -40,9 +40,9 @@ function mockFetchOnce(body: unknown, ok = true) {
 }
 
 // Minimal unsigned JWT with a given exp claim (signature not verified client-side).
-function fakeJwt(expSecondsFromNow: number): string {
+function fakeJwt(expSecondsFromNow: number, sub: string = TEST_USERNAME): string {
   const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64');
-  const payload = Buffer.from(JSON.stringify({ sub: TEST_USERNAME, exp: Math.floor(Date.now() / 1000) + expSecondsFromNow })).toString('base64');
+  const payload = Buffer.from(JSON.stringify({ sub, exp: Math.floor(Date.now() / 1000) + expSecondsFromNow })).toString('base64');
   return `${header}.${payload}.sig`;
 }
 
@@ -155,6 +155,64 @@ describe('pointsAuthService', () => {
     expect(t1).toBe('fresh-jwt');
     expect(t2).toBe('fresh-jwt');
     expect(global.fetch).toHaveBeenCalledTimes(2); // one challenge + one verify, not two
+  });
+
+  it("never hands out a cached token issued for another account; mints this account's own", async () => {
+    AsyncStorage.getItem.mockResolvedValue(fakeJwt(3600, 'bob'));
+    mockFetchOnce({ challenge: 'nonce-123' });
+    mockFetchOnce({ token: 'alice-jwt' });
+
+    const token = await pointsAuthService.getPointsAuthToken();
+
+    expect(token).toBe('alice-jwt');
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('snapie-points-token');
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body).username).toBe(TEST_USERNAME);
+  });
+
+  it('does not cache a token whose mint finished after the account was switched', async () => {
+    mockFetchOnce({ challenge: 'nonce-123' });
+    mockFetchOnce({ token: 'alice-jwt' });
+    // alice when the mint starts, bob by the time it finishes
+    accountStorageService.getCurrentAccountUsername
+      .mockResolvedValueOnce(TEST_USERNAME)
+      .mockResolvedValue('bob');
+
+    const token = await pointsAuthService.getPointsAuthToken();
+
+    expect(token).toBe('alice-jwt'); // still returned to the caller that asked for alice
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("an older account's mint finishing doesn't undo the newer account's de-duplication", async () => {
+    const pending: Record<string, (v: unknown) => void> = {};
+    (global.fetch as jest.Mock).mockImplementation((url: string, init: { body: string }) => {
+      const { username } = JSON.parse(init.body);
+      if (String(url).endsWith('/challenge')) {
+        // Each account's challenge waits until the test lets it through.
+        return new Promise(res => { pending[username] = res; });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ token: `${username}-jwt` }) });
+    });
+    const flush = () => new Promise(r => setImmediate(r));
+    const answer = (who: string) => pending[who]({ ok: true, json: async () => ({ challenge: `nonce-${who}` }) });
+
+    const alice = pointsAuthService.getPointsAuthToken();
+    await flush();
+    accountStorageService.getCurrentAccountUsername.mockResolvedValue('bob');
+    const bob1 = pointsAuthService.getPointsAuthToken(); // bob's mint starts, alice's still running
+    await flush();
+    answer(TEST_USERNAME);
+    await alice; // alice's mint ends while bob's is still in flight
+    const bob2 = pointsAuthService.getPointsAuthToken(); // must join bob's mint, not start another
+    await flush();
+    answer('bob');
+
+    expect(await bob1).toBe('bob-jwt');
+    expect(await bob2).toBe('bob-jwt');
+    const bobChallenges = (global.fetch as jest.Mock).mock.calls.filter(
+      ([url, init]) => String(url).endsWith('/challenge') && JSON.parse(init.body).username === 'bob'
+    );
+    expect(bobChallenges).toHaveLength(1);
   });
 
   it('clearPointsAuthToken removes the cached token', async () => {

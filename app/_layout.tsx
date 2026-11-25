@@ -24,6 +24,7 @@ import { PointsToast } from './components/points/PointsToast';
 import {
   contentFilterStore,
   hydrateContentFilters,
+  resyncContentFilters,
   startContentFilterSync,
 } from '../services/contentFilter';
 
@@ -189,6 +190,8 @@ function StaleKeyWatcher(): ReactElement | null {
  */
 function ContentFilterSync(): null {
   const { currentUsername } = useAuth();
+  const usernameRef = useRef(currentUsername);
+  usernameRef.current = currentUsername;
 
   useEffect(() => {
     void hydrateContentFilters().catch(err =>
@@ -197,6 +200,11 @@ function ContentFilterSync(): null {
     const sub = AppState.addEventListener('change', state => {
       if (state === 'background' || state === 'inactive') {
         void contentFilterStore.flush().catch(() => undefined);
+      } else if (state === 'active') {
+        // Pick up changes made on snapie.io, and retry a sync that failed.
+        void resyncContentFilters(usernameRef.current ?? null)?.catch(err =>
+          console.warn('[ContentFilterSync] Re-sync failed:', err)
+        );
       }
     });
     return () => sub.remove();

@@ -1565,9 +1565,15 @@ const Snap: React.FC<SnapProps> = ({
               label: `Hide ${what}`,
               accessibilityLabel: `Hide ${what}`,
               onPress: () => {
-                contentFilterStore.addRule(s.rule);
                 closeMoreMenu();
-                Alert.alert('Hidden', `You won't see ${what} anymore. You can undo this from Content filters on your profile.`);
+                contentFilterStore.addRule(s.rule);
+                // After the sheet has closed: an alert raised while the sheet's
+                // modal is up is dismissed with it, and the hidden snap (with
+                // its sheet) leaves the feed right away. Alert is global, so it
+                // still shows after this snap unmounts.
+                setTimeout(() => {
+                  Alert.alert('Hidden', `You won't see ${what} anymore. You can undo this from Content filters on your profile.`);
+                }, 400);
               },
             };
           }) : [

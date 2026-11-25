@@ -8,6 +8,7 @@ import { useAppStore } from '../store/context';
 import { authService } from '../services/AuthService';
 import { accountStorageService } from '../services/AccountStorageService';
 import { clearPointsAuthToken } from '../services/pointsAuthService';
+import { contentFilterStore } from '../services/contentFilter';
 
 export const useAuth = () => {
   const router = useRouter();
@@ -68,6 +69,9 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(async () => {
+    // Upload a content-filter change made in the last moment, while this
+    // account's token is still the cached one.
+    await contentFilterStore.flush().catch(() => undefined);
     try {
       await accountStorageService.clearCurrentAccountUsername();
     } catch (error) {
@@ -90,6 +94,9 @@ export const useAuth = () => {
     if (!keys) {
       throw new Error(`No keys found for account @${username}`);
     }
+    // Upload a content-filter change made in the last moment for the account
+    // we're leaving, while its token is still the cached one.
+    await contentFilterStore.flush().catch(() => undefined);
     await accountStorageService.setCurrentAccountUsername(username);
     void clearPointsAuthToken(); // previous account's cached JWT must not leak onto the new one
     setCurrentUser(username);

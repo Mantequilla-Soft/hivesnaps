@@ -23,5 +23,15 @@ describe('parseRuleInput', () => {
         expect(parseRuleInput('app:')).toEqual({ error: expect.stringMatching(/app name after app:/) });
         expect(parseRuleInput('app:hivesuite #')).toEqual({ error: expect.stringMatching(/tag after #/) });
         expect(parseRuleInput('two words')).toEqual({ error: expect.stringMatching(/One tag at a time/) });
+        expect(parseRuleInput('foo,bar')).toEqual({ error: expect.stringMatching(/One tag at a time/) });
+    });
+
+    it('catches a forgotten # after the app name instead of saving a rule that matches nothing', () => {
+        expect(parseRuleInput('app:hivesuite scratchcard')).toEqual({ error: expect.stringMatching(/Put # before the tag/) });
+    });
+
+    it('takes one tag after the app, not several', () => {
+        expect(parseRuleInput('app:hivesuite #a #b')).toEqual({ error: expect.stringMatching(/One tag at a time/) });
+        expect(parseRuleInput('app:hivesuite #a b')).toEqual({ error: expect.stringMatching(/One tag at a time/) });
     });
 });
