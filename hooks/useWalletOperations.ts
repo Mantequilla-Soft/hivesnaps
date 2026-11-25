@@ -6,10 +6,12 @@ import { localAuthService, AuthCancelledError } from '../services/LocalAuthServi
 import { hpToVests } from '../utils/hiveCalculations';
 import { newSavingsRequestId, COMPLETE_AMOUNT } from '../utils/wallet';
 import { buildClaimRewardOp, type PendingRewards } from '../utils/pendingRewards';
+import { convertOperation, expirationFrom, newOrderId, swapOperation, type SwapDirection } from '../utils/market';
+import { fetchHeadTime } from '../services/marketService';
 
 const client = getClient();
 
-export type WalletOperationKind = 'transfer' | 'powerUp' | 'powerDown' | 'savings' | 'delegate';
+export type WalletOperationKind = 'transfer' | 'powerUp' | 'powerDown' | 'savings' | 'delegate' | 'market';
 
 interface UseWalletOperationsReturn {
     transferLoading: boolean;
@@ -31,6 +33,15 @@ interface UseWalletOperationsReturn {
     delegateSuccess: boolean;
     /** Set the HP delegated to `delegatee` (replaces any existing delegation; '0' removes it). */
     delegate: (delegatee: string, amountHp: string, globalProps: { total_vesting_fund_hive: string; total_vesting_shares: string }, manualKey?: string) => Promise<void>;
+    marketLoading: boolean;
+    marketSuccess: boolean;
+    /**
+     * Instant HIVE ⇄ HBD swap: a fill-or-kill market order that fills
+     * completely for at least `minReceive`, or doesn't happen at all.
+     */
+    swap: (direction: SwapDirection, amount: string, minReceive: number, manualKey?: string) => Promise<void>;
+    /** Convert HBD to HIVE (pays out in 3.5 days at the median price feed; can't be cancelled). */
+    convertHbd: (amount: string, manualKey?: string) => Promise<void>;
     claimLoading: boolean;
     /** Claim pending author/curation rewards (posting key, no biometric prompt). */
     claimRewards: (rewards: Pick<PendingRewards, 'hive' | 'hbd' | 'vests'>) => Promise<void>;
@@ -54,6 +65,10 @@ export const useWalletOperations = (
     const [savingsSuccess, setSavingsSuccess] = useState(false);
     const [delegateLoading, setDelegateLoading] = useState(false);
     const [delegateSuccess, setDelegateSuccess] = useState(false);
+    const [marketLoading, setMarketLoading] = useState(false);
+    const [marketSuccess, setMarketSuccess] = useState(false);
+    /** A swap or conversion is being prepared or broadcast; blocks a second tap. */
+    const marketBusyRef = useRef(false);
     const [claimLoading, setClaimLoading] = useState(false);
 
     const pendingTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -332,6 +347,39 @@ export const useWalletOperations = (
         ]);
     };
 
+    /**
+     * One market operation at a time: the flag is set before any await, so a
+     * second tap (or a tap while the chain time is being read) is ignored
+     * instead of sending a second order.
+     */
+    const runMarketOp = async (prepare: () => Promise<(username: string) => Operation[]>, manualKey?: string): Promise<void> => {
+        if (marketBusyRef.current) return;
+        marketBusyRef.current = true;
+        setMarketLoading(true);
+        try {
+            const buildOps = await prepare();
+            await runActiveOp(setMarketLoading, setMarketSuccess, manualKey, buildOps);
+        } finally {
+            marketBusyRef.current = false;
+            setMarketLoading(false);
+        }
+    };
+
+    const swap = (direction: SwapDirection, amount: string, minReceive: number, manualKey?: string): Promise<void> => {
+        const sell = parsePositiveAmount(amount, direction === 'HIVE_TO_HBD' ? 'HIVE' : 'HBD');
+        if (!(minReceive > 0)) return Promise.reject(new Error('No market price available. Please try again.'));
+        return runMarketOp(async () => {
+            // Read chain time before the biometric prompt, so the order doesn't expire while it's open.
+            const expiration = expirationFrom(await fetchHeadTime(), 10);
+            return (username) => [swapOperation(username, direction, sell, minReceive, newOrderId(), expiration) as Operation];
+        }, manualKey);
+    };
+
+    const convertHbd = (amount: string, manualKey?: string): Promise<void> => {
+        const hbd = parsePositiveAmount(amount, 'HBD');
+        return runMarketOp(async () => (username) => [convertOperation(username, hbd, newOrderId()) as Operation], manualKey);
+    };
+
     const claimRewards = async (rewards: Pick<PendingRewards, 'hive' | 'hbd' | 'vests'>): Promise<void> => {
         const username = requireUsername();
         setClaimLoading(true);
@@ -354,6 +402,7 @@ export const useWalletOperations = (
         if (!kind || kind === 'powerDown') setPowerDownSuccess(false);
         if (!kind || kind === 'savings') setSavingsSuccess(false);
         if (!kind || kind === 'delegate') setDelegateSuccess(false);
+        if (!kind || kind === 'market') setMarketSuccess(false);
     }, []);
 
     return {
@@ -375,6 +424,10 @@ export const useWalletOperations = (
         delegateLoading,
         delegateSuccess,
         delegate,
+        marketLoading,
+        marketSuccess,
+        swap,
+        convertHbd,
         claimLoading,
         claimRewards,
         resetOperationSuccess,
