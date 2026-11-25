@@ -60,8 +60,10 @@ it('keeps the What\'s new popup off until the user turns it on', async () => {
     (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('broken'));
     await expect(getShowOnUpdate()).resolves.toBe(false);
 
-    await setShowOnUpdate(true);
+    await expect(setShowOnUpdate(true)).resolves.toBe(true);
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('whatsNew.showOnUpdate', 'true');
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('full'));
+    await expect(setShowOnUpdate(false)).resolves.toBe(false); // the switch flips back
     (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('true');
     await expect(getShowOnUpdate()).resolves.toBe(true);
 });

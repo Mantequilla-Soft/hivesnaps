@@ -39,8 +39,8 @@ import { useProfileData } from '../../hooks/useProfileData';
 import { useFollowManagement } from '../../hooks/useFollowManagement';
 import { useUserSnaps } from '../../hooks/useUserSnaps';
 import { consumeProfileSaved } from '../../services/ProfileService';
-import { getAppVersion, getShowOnUpdate, setShowOnUpdate } from '../../services/changelogService';
-import { useUnseenWhatsNew } from '../../hooks/useWhatsNew';
+import { getAppVersion } from '../../services/changelogService';
+import { useShowWhatsNewOnUpdate, useUnseenWhatsNew } from '../../hooks/useWhatsNew';
 import { useRewardsManagement } from '../../hooks/useRewardsManagement';
 import { useAuth } from '../../store/context';
 import { useUpvote } from '../../hooks/useUpvote';
@@ -120,22 +120,14 @@ const ProfileScreen = () => {
     }, [username, refreshFollowCounts])
   );
 
-  // "What's new": a "New" dot until this version's notes are seen (re-checked
-  // each time the screen is focused, e.g. back from the notes), and the
-  // opt-in for showing them as a popup after updates (off by default).
+  // "What's new" (own profile only): a "New" label until this version's notes
+  // are seen (re-checked each time the screen is focused, e.g. back from the
+  // notes), and the opt-in for showing them as a popup after updates (off by
+  // default).
   const [focusCount, setFocusCount] = useState(0);
   useFocusEffect(useCallback(() => { setFocusCount(n => n + 1); }, []));
-  const whatsNewUnseen = useUnseenWhatsNew(focusCount);
-  const [showWhatsNewOnUpdate, setShowWhatsNewOnUpdate] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    getShowOnUpdate().then(on => { if (!cancelled) setShowWhatsNewOnUpdate(on); });
-    return () => { cancelled = true; };
-  }, []);
-  const toggleShowWhatsNewOnUpdate = (on: boolean): void => {
-    setShowWhatsNewOnUpdate(on);
-    void setShowOnUpdate(on);
-  };
+  const whatsNewUnseen = useUnseenWhatsNew(focusCount, isOwnProfile);
+  const [showWhatsNewOnUpdate, toggleShowWhatsNewOnUpdate] = useShowWhatsNewOnUpdate(isOwnProfile);
 
   // Debug logging
   console.log('ProfileScreen Debug:', {
@@ -603,7 +595,7 @@ const ProfileScreen = () => {
                   style={profileTabStyles.whatsNewRow}
                   onPress={() => router.push('/screens/ChangelogScreen')}
                   accessibilityRole="button"
-                  accessibilityLabel={whatsNewUnseen ? 'What’s new, new notes for this version' : 'What’s new'}
+                  accessibilityLabel={`What’s new${whatsNewUnseen ? ', new notes for this version' : ''}, version ${getAppVersion()}`}
                 >
                   <FontAwesome name='gift' size={16} color={colors.text} />
                   <View style={profileTabStyles.whatsNewLabel}>

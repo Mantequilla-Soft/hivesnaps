@@ -15,7 +15,7 @@ const ChangelogScreen = (): React.JSX.Element => {
     const appVersion = getAppVersion();
     const [entries, setEntries] = useState<ChangelogEntry[] | null>(null);
 
-    // Opening the notes counts as seeing them: clears the "New" dot on Profile.
+    // Opening the notes counts as seeing them: clears the "New" label on Profile.
     useEffect(() => {
         void setLastSeenVersion(appVersion);
     }, [appVersion]);

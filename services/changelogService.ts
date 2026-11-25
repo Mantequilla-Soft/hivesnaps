@@ -52,7 +52,7 @@ export async function setLastSeenVersion(version: string): Promise<void> {
 /**
  * Whether "What's new" pops up on the feed after an update. Off unless the
  * user turned it on in Profile: the notes are always there, with a "New"
- * dot on the Profile row until they're seen.
+ * label on the Profile row until they're seen.
  */
 export async function getShowOnUpdate(): Promise<boolean> {
     try {
@@ -62,11 +62,14 @@ export async function getShowOnUpdate(): Promise<boolean> {
     }
 }
 
-export async function setShowOnUpdate(show: boolean): Promise<void> {
+/** Saves the setting; resolves false if it couldn't be saved. */
+export async function setShowOnUpdate(show: boolean): Promise<boolean> {
     try {
         await AsyncStorage.setItem(SHOW_ON_UPDATE_KEY, show ? 'true' : 'false');
+        return true;
     } catch (err) {
         console.warn('[changelog] could not save the What\'s new setting:', err);
+        return false;
     }
 }
 
