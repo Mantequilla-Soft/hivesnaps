@@ -6,7 +6,15 @@ jest.mock('expo-application', () => ({ nativeApplicationVersion: '1.4.0' }));
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { version: '9.9.9' } } }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CHANGELOG_URL, getAppVersion, getLastSeenVersion, loadChangelog, setLastSeenVersion } from '../changelogService';
+import {
+    CHANGELOG_URL,
+    getAppVersion,
+    getLastSeenVersion,
+    getShowOnUpdate,
+    loadChangelog,
+    setLastSeenVersion,
+    setShowOnUpdate,
+} from '../changelogService';
 import bundled from '../../changelog/changelog.json';
 import { parseChangelog } from '../../utils/changelog';
 
@@ -44,4 +52,18 @@ it('stores the last seen version, and reads null when storage fails', async () =
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('whatsNew.lastSeenVersion', '1.4.0');
     (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('broken'));
     await expect(getLastSeenVersion()).resolves.toBeNull();
+});
+
+it('keeps the What\'s new popup off until the user turns it on', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(null);
+    await expect(getShowOnUpdate()).resolves.toBe(false);
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('broken'));
+    await expect(getShowOnUpdate()).resolves.toBe(false);
+
+    await expect(setShowOnUpdate(true)).resolves.toBe(true);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith('whatsNew.showOnUpdate', 'true');
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('full'));
+    await expect(setShowOnUpdate(false)).resolves.toBe(false); // the switch flips back
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('true');
+    await expect(getShowOnUpdate()).resolves.toBe(true);
 });

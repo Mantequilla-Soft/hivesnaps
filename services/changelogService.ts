@@ -8,6 +8,7 @@ import { parseChangelog, type ChangelogEntry } from '../utils/changelog';
 export const CHANGELOG_URL = 'https://raw.githubusercontent.com/Mantequilla-Soft/hivesnaps/main/changelog/changelog.json';
 const FETCH_TIMEOUT_MS = 8_000;
 const LAST_SEEN_KEY = 'whatsNew.lastSeenVersion';
+const SHOW_ON_UPDATE_KEY = 'whatsNew.showOnUpdate';
 
 /** The installed app's version, e.g. "1.4.0". */
 export function getAppVersion(): string {
@@ -47,3 +48,28 @@ export async function setLastSeenVersion(version: string): Promise<void> {
         console.warn('[changelog] could not save last seen version:', err);
     }
 }
+
+/**
+ * Whether "What's new" pops up on the feed after an update. Off unless the
+ * user turned it on in Profile: the notes are always there, with a "New"
+ * label on the Profile row until they're seen.
+ */
+export async function getShowOnUpdate(): Promise<boolean> {
+    try {
+        return (await AsyncStorage.getItem(SHOW_ON_UPDATE_KEY)) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+/** Saves the setting; resolves false if it couldn't be saved. */
+export async function setShowOnUpdate(show: boolean): Promise<boolean> {
+    try {
+        await AsyncStorage.setItem(SHOW_ON_UPDATE_KEY, show ? 'true' : 'false');
+        return true;
+    } catch (err) {
+        console.warn('[changelog] could not save the What\'s new setting:', err);
+        return false;
+    }
+}
+

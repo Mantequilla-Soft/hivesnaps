@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
-import { getAppVersion, loadChangelog } from '../../services/changelogService';
+import { getAppVersion, loadChangelog, setLastSeenVersion } from '../../services/changelogService';
 import { entriesForApp, type ChangelogEntry } from '../../utils/changelog';
 import { ChangelogEntries } from '../components/changelog/ChangelogEntries';
 
@@ -14,6 +14,11 @@ const ChangelogScreen = (): React.JSX.Element => {
     const router = useRouter();
     const appVersion = getAppVersion();
     const [entries, setEntries] = useState<ChangelogEntry[] | null>(null);
+
+    // Opening the notes counts as seeing them: clears the "New" label on Profile.
+    useEffect(() => {
+        void setLastSeenVersion(appVersion);
+    }, [appVersion]);
 
     useEffect(() => {
         let cancelled = false;
