@@ -14,10 +14,8 @@ const TIMEOUT_MS = 15_000;
 /** snapie.io's limits (lib/feedback/model.ts). */
 export const FEEDBACK_TITLE_MAX = 120;
 export const FEEDBACK_BODY_MAX = 4_000;
-/** Characters kept free for the version footer added to the message. */
-const FOOTER_RESERVE = 80;
 /** What the message box allows. */
-export const FEEDBACK_MESSAGE_MAX = FEEDBACK_BODY_MAX - FOOTER_RESERVE;
+export const FEEDBACK_MESSAGE_MAX = FEEDBACK_BODY_MAX;
 export const FEEDBACK_SCREENSHOT_MAX_BYTES = 5 * 1024 * 1024;
 const SCREENSHOT_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 
@@ -62,8 +60,7 @@ export function screenshotProblem(image: { fileSize?: number; mimeType?: string 
 export function feedbackError(title: string, body: string): string | null {
     if (!title.trim() || !body.trim()) return 'Add a short title and a message.';
     if (title.trim().length > FEEDBACK_TITLE_MAX) return 'That title is too long.';
-    // Room for the "Sent from HiveSnaps …" footer.
-    if (body.trim().length > FEEDBACK_BODY_MAX - FOOTER_RESERVE) return 'That message is too long.';
+    if (body.trim().length > FEEDBACK_MESSAGE_MAX) return 'That message is too long.';
     return null;
 }
 
@@ -94,15 +91,13 @@ export async function fetchFeedbackIdentity(token: string | null): Promise<strin
 export const getFeedbackToken = (): Promise<string | null> => getPointsAuthToken().catch(() => null);
 
 export async function submitFeedback(input: FeedbackInput, token: string | null): Promise<FeedbackResult> {
-    const version = appVersionLabel();
     const payload: Record<string, string> = {
         title: input.title.trim(),
-        // snapie.io only keeps http(s) page links, so the app version goes in
-        // a footer, visible on the issue before snapie-io#376 adds appVersion.
-        body: `${input.body.trim()}\n\n— Sent from HiveSnaps ${version}`,
+        body: input.body.trim(),
         category: input.category,
         source: 'hivesnaps',
-        appVersion: version,
+        // snapie.io shows this on the issue's "From" line.
+        appVersion: appVersionLabel(),
     };
     if (input.screenshotUrl) payload.screenshotUrl = input.screenshotUrl;
     try {

@@ -43,7 +43,7 @@ it('checks screenshot type and size', () => {
 });
 
 describe('submitFeedback', () => {
-    it('posts to snapie.io with the token, the hivesnaps source and a version footer', async () => {
+    it('posts to snapie.io with the token, the hivesnaps source and the app version', async () => {
         reply({ url: 'https://github.com/Mantequilla-Soft/hivesnaps/issues/1' }, true, 201);
         const result = await submitFeedback(
             { title: ' Crash ', body: ' It broke ', category: 'bug', screenshotUrl: 'https://images.hive.blog/x.png' },
@@ -56,7 +56,7 @@ describe('submitFeedback', () => {
         expect(init.headers.Authorization).toBe('Bearer JWT');
         expect(JSON.parse(init.body)).toEqual({
             title: 'Crash',
-            body: 'It broke\n\n— Sent from HiveSnaps 1.4.0 (ios 18.2)',
+            body: 'It broke',
             category: 'bug',
             source: 'hivesnaps',
             appVersion: '1.4.0 (ios 18.2)',
