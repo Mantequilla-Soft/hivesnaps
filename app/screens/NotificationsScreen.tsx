@@ -25,6 +25,8 @@ import {
   type ParsedNotification,
 } from '../../utils/notifications';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useActivitySummary } from '../../hooks/useActivitySummary';
+import { ActivitySummaryCard } from '../components/notifications/ActivitySummaryCard';
 import { detectPostType, type PostInfo } from '../../utils/postTypeDetector';
 import { getClient } from '../../services/HiveClient';
 
@@ -155,6 +157,8 @@ const NotificationsScreen = () => {
     markAllAsRead,
     updateSettings,
   } = useNotifications(currentUsername);
+
+  const activity = useActivitySummary({ notifications, hasMore, loadingMore, loadMore });
 
   const theme = getTheme(isDark ? 'dark' : 'light');
   const colors = {
@@ -361,7 +365,32 @@ const NotificationsScreen = () => {
     </View>
   );
 
-  const renderEmpty = () => (
+  const renderSummary = () =>
+    notifications.length > 0 ? (
+      <ActivitySummaryCard
+        theme={theme}
+        range={activity.range}
+        onRangeChange={activity.setRange}
+        tiles={activity.tiles}
+        filter={activity.filter}
+        onTilePress={activity.toggleFilter}
+        backfilling={activity.backfilling}
+      />
+    ) : null;
+
+  const renderEmpty = () =>
+    activity.filter ? (
+      <TouchableOpacity
+        style={styles.filteredEmpty}
+        onPress={() => activity.setFilter(null)}
+        accessibilityRole="button"
+      >
+        <Text style={[styles.emptySubtitle, { color: colors.subtext }]}>
+          Nothing of this kind loaded yet.{' '}
+          <Text style={{ color: colors.buttonBackground, fontWeight: '600' }}>Show all</Text>
+        </Text>
+      </TouchableOpacity>
+    ) : (
     <View style={styles.emptyState}>
       <FontAwesome name='bell-o' size={64} color={colors.subtext} />
       <Text style={[styles.emptyTitle, { color: colors.text }]}>
@@ -477,7 +506,7 @@ const NotificationsScreen = () => {
         </View>
       ) : (
         <FlatList
-          data={notifications}
+          data={activity.visible}
           renderItem={renderNotification}
           keyExtractor={item => item.id.toString()}
           refreshControl={
@@ -487,6 +516,7 @@ const NotificationsScreen = () => {
               tintColor={colors.buttonBackground}
             />
           }
+          ListHeaderComponent={renderSummary}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
           onEndReached={hasMore ? loadMore : undefined}
@@ -506,6 +536,10 @@ const NotificationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  filteredEmpty: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
   header: {
     flexDirection: 'row',
