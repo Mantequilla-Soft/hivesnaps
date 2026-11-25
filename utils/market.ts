@@ -26,9 +26,11 @@ function parseLevels(raw: unknown): BookLevel[] {
     return raw.flatMap((o): BookLevel[] => {
         const hive = Number((o as { hive?: unknown })?.hive) / 1000;
         const hbd = Number((o as { hbd?: unknown })?.hbd) / 1000;
-        return hive > 0 && hbd > 0 && Number.isFinite(hive) && Number.isFinite(hbd)
-            ? [{ hive, hbd, price: hbd / hive }]
-            : [];
+        if (!(hive > 0 && hbd > 0 && Number.isFinite(hive) && Number.isFinite(hbd))) return [];
+        // real_price (HBD per HIVE on both sides) is the order's exact price;
+        // hbd/hive is computed from amounts the chain has rounded.
+        const real = Number((o as { real_price?: unknown })?.real_price);
+        return [{ hive, hbd, price: real > 0 && Number.isFinite(real) ? real : hbd / hive }];
     });
 }
 

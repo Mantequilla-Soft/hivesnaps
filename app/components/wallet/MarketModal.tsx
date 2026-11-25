@@ -52,6 +52,8 @@ export const MarketModal: React.FC<MarketModalProps> = ({
     const [book, setBook] = useState<OrderBook | null>(null);
     const [feedPrice, setFeedPrice] = useState<number | null>(null);
     const [priceError, setPriceError] = useState(false);
+    /** The minimum shown when the user started typing/reviewing; a refresh can't lower it silently. */
+    const [shownMin, setShownMin] = useState<{ key: string; min: number } | null>(null);
 
     const isSwap = mode === 'swap';
     const sell = isSwap ? (direction === 'HIVE_TO_HBD' ? 'HIVE' : 'HBD') : 'HBD';
@@ -65,6 +67,9 @@ export const MarketModal: React.FC<MarketModalProps> = ({
         setSlippage(1);
         setActiveKeyInput('');
         setError('');
+        // Never quote from a book left over from a previous opening.
+        setBook(null);
+        setShownMin(null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visible]);
 
@@ -92,7 +97,17 @@ export const MarketModal: React.FC<MarketModalProps> = ({
         () => (book && validAmount ? quoteSwap(book, isSwap ? direction : 'HBD_TO_HIVE', value) : null),
         [book, validAmount, isSwap, direction, value]
     );
-    const min = quote ? minReceive(quote.exactReceive, slippage) : 0;
+    const liveMin = quote ? minReceive(quote.exactReceive, slippage) : 0;
+    // Keep the minimum the user saw for this amount/direction/slippage: if a
+    // price refresh would lower it, the order still asks for what was shown
+    // (and simply doesn't fill if the market moved too far).
+    const minKey = `${direction}|${amount}|${slippage}`;
+    useEffect(() => {
+        if (!liveMin) return;
+        setShownMin((prev) => (prev && prev.key === minKey && prev.min >= liveMin ? prev : { key: minKey, min: liveMin }));
+    }, [minKey, liveMin]);
+    const min = shownMin && shownMin.key === minKey ? Math.max(shownMin.min, liveMin) : liveMin;
+    const stale = priceError && !!book;
     const convertEstimate = !isSwap && feedPrice && validAmount ? value / feedPrice : null;
 
     const hasKey = hasStoredKey || activeKeyInput.trim().length > 0;
@@ -196,6 +211,11 @@ export const MarketModal: React.FC<MarketModalProps> = ({
                             <Row label="You get about" value={`${fmt(quote.receive)} ${get}`} colors={colors} strong />
                             <Row label="At least" value={`${fmt(min)} ${get}`} colors={colors} />
                             <Row label="Average price" value={`${quote.averagePrice.toFixed(4)} HBD per HIVE`} colors={colors} />
+                            {stale && (
+                                <Text style={[styles.note, { color: colors.error ?? '#E74C3C' }]}>
+                                    Couldn’t refresh prices; these may be out of date. Tap ↻ to retry.
+                                </Text>
+                            )}
                         </>
                     ) : (
                         <Text style={[styles.summaryText, { color: colors.error ?? '#E74C3C' }]}>

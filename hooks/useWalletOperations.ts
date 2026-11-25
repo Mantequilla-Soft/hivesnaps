@@ -67,6 +67,8 @@ export const useWalletOperations = (
     const [delegateSuccess, setDelegateSuccess] = useState(false);
     const [marketLoading, setMarketLoading] = useState(false);
     const [marketSuccess, setMarketSuccess] = useState(false);
+    /** A swap or conversion is being prepared or broadcast; blocks a second tap. */
+    const marketBusyRef = useRef(false);
     const [claimLoading, setClaimLoading] = useState(false);
 
     const pendingTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -345,21 +347,37 @@ export const useWalletOperations = (
         ]);
     };
 
-    const swap = async (direction: SwapDirection, amount: string, minReceive: number, manualKey?: string): Promise<void> => {
-        const sell = parsePositiveAmount(amount, direction === 'HIVE_TO_HBD' ? 'HIVE' : 'HBD');
-        if (!(minReceive > 0)) throw new Error('No market price available. Please try again.');
-        // Read chain time before the biometric prompt, so the order doesn't expire while it's open.
-        const expiration = expirationFrom(await fetchHeadTime(), 10);
-        return runActiveOp(setMarketLoading, setMarketSuccess, manualKey, (username) => [
-            swapOperation(username, direction, sell, minReceive, newOrderId(), expiration) as Operation,
-        ]);
+    /**
+     * One market operation at a time: the flag is set before any await, so a
+     * second tap (or a tap while the chain time is being read) is ignored
+     * instead of sending a second order.
+     */
+    const runMarketOp = async (prepare: () => Promise<(username: string) => Operation[]>, manualKey?: string): Promise<void> => {
+        if (marketBusyRef.current) return;
+        marketBusyRef.current = true;
+        setMarketLoading(true);
+        try {
+            const buildOps = await prepare();
+            await runActiveOp(setMarketLoading, setMarketSuccess, manualKey, buildOps);
+        } finally {
+            marketBusyRef.current = false;
+            setMarketLoading(false);
+        }
     };
 
-    const convertHbd = async (amount: string, manualKey?: string): Promise<void> => {
+    const swap = (direction: SwapDirection, amount: string, minReceive: number, manualKey?: string): Promise<void> => {
+        const sell = parsePositiveAmount(amount, direction === 'HIVE_TO_HBD' ? 'HIVE' : 'HBD');
+        if (!(minReceive > 0)) return Promise.reject(new Error('No market price available. Please try again.'));
+        return runMarketOp(async () => {
+            // Read chain time before the biometric prompt, so the order doesn't expire while it's open.
+            const expiration = expirationFrom(await fetchHeadTime(), 10);
+            return (username) => [swapOperation(username, direction, sell, minReceive, newOrderId(), expiration) as Operation];
+        }, manualKey);
+    };
+
+    const convertHbd = (amount: string, manualKey?: string): Promise<void> => {
         const hbd = parsePositiveAmount(amount, 'HBD');
-        return runActiveOp(setMarketLoading, setMarketSuccess, manualKey, (username) => [
-            convertOperation(username, hbd, newOrderId()) as Operation,
-        ]);
+        return runMarketOp(async () => (username) => [convertOperation(username, hbd, newOrderId()) as Operation], manualKey);
     };
 
     const claimRewards = async (rewards: Pick<PendingRewards, 'hive' | 'hbd' | 'vests'>): Promise<void> => {

@@ -31,6 +31,11 @@ describe('parseOrderBook', () => {
         expect(book.bids[0]).toEqual({ hive: 100, hbd: 3.5, price: 0.035 });
     });
 
+    it('prefers the exact real_price over the rounded amounts', () => {
+        const book = parseOrderBook({ bids: [{ hive: 5365, hbd: 194, real_price: '0.03616' }], asks: [] });
+        expect(book.bids[0].price).toBe(0.03616);
+    });
+
     it('tolerates garbage', () => {
         expect(parseOrderBook(null)).toEqual({ bids: [], asks: [] });
         expect(parseOrderBook({ bids: 'x' })).toEqual({ bids: [], asks: [] });
