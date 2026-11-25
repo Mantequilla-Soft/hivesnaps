@@ -50,7 +50,8 @@ export function screenshotProblem(image: { fileSize?: number; mimeType?: string 
     if (image.mimeType && !SCREENSHOT_TYPES.has(image.mimeType.toLowerCase())) {
         return 'Screenshots can be PNG, JPEG or WebP.';
     }
-    if (image.fileSize && image.fileSize > FEEDBACK_SCREENSHOT_MAX_BYTES) {
+    if (!image.fileSize) return 'We couldn’t read that image’s size. Try another one.';
+    if (image.fileSize > FEEDBACK_SCREENSHOT_MAX_BYTES) {
         return 'That image is over 5 MB. Try a smaller one.';
     }
     return null;
@@ -87,8 +88,21 @@ export async function fetchFeedbackIdentity(token: string | null): Promise<strin
     }
 }
 
-/** The signed-in user's snapie.io token, or null (feedback then goes as a guest). */
-export const getFeedbackToken = (): Promise<string | null> => getPointsAuthToken().catch(() => null);
+/** How long to wait for snapie.io sign-in before sending without it. */
+export const FEEDBACK_TOKEN_TIMEOUT_MS = 10_000;
+
+/**
+ * The signed-in user's snapie.io token, or null: feedback then goes as a
+ * guest, and a screenshot is refused (the identity check fails). Minting a
+ * token has no timeout of its own, so don't wait on it forever.
+ */
+export function getFeedbackToken(): Promise<string | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), FEEDBACK_TOKEN_TIMEOUT_MS);
+    });
+    return Promise.race([getPointsAuthToken().catch(() => null), timeout]).finally(() => clearTimeout(timer));
+}
 
 export async function submitFeedback(input: FeedbackInput, token: string | null): Promise<FeedbackResult> {
     const payload: Record<string, string> = {

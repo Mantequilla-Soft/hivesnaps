@@ -101,7 +101,7 @@ export async function pickImage({ title, square }: { title: string; square: bool
         : null;
 }
 
-/** Convert (HEIC → JPEG only) and upload a picked image; resolves its public URL. */
+/** Convert (HEIC and WebP → JPEG) and upload a picked image; resolves its public URL. */
 export async function uploadPickedImage(image: PickedImage, username: string): Promise<string> {
     const converted = await convertImageSmart(image.uri, image.fileName, 0.8);
     const result = await uploadImageSmart({ uri: converted.uri, name: converted.name, type: converted.type }, username);

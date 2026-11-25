@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     View,
     Text,
@@ -16,28 +16,18 @@ import {
 import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../store/context';
-import { pickImage, uploadPickedImage, type PickedImage } from '../../utils/pickImage';
-import {
-    feedbackError,
-    fetchFeedbackIdentity,
-    getFeedbackToken,
-    screenshotProblem,
-    submitFeedback,
-    FEEDBACK_MESSAGE_MAX,
-    FEEDBACK_TITLE_MAX,
-    type FeedbackCategory,
-} from '../../services/feedbackService';
+import { useFeedbackForm } from '../../hooks/useFeedbackForm';
+import { FEEDBACK_MESSAGE_MAX, FEEDBACK_TITLE_MAX, type FeedbackCategory } from '../../services/feedbackService';
 
 const CATEGORIES: { key: FeedbackCategory; label: string; icon: React.ComponentProps<typeof FontAwesome>['name'] }[] = [
     { key: 'bug', label: 'Bug', icon: 'bug' },
     { key: 'idea', label: 'Idea', icon: 'lightbulb-o' },
     { key: 'other', label: 'Other', icon: 'comment-o' },
 ];
-
-type Stage = 'idle' | 'checking' | 'uploading' | 'sending';
 
 /**
  * Send feedback (snapie.io's FeedbackModal): a bug, idea or anything else,
@@ -46,79 +36,28 @@ type Stage = 'idle' | 'checking' | 'uploading' | 'sending';
 const FeedbackScreen = (): React.JSX.Element => {
     const theme = useTheme();
     const router = useRouter();
+    const navigation = useNavigation();
     const { currentUsername } = useAuth();
-    const [category, setCategory] = useState<FeedbackCategory>('bug');
-    const [title, setTitle] = useState('');
-    const [body, setBody] = useState('');
-    const [screenshot, setScreenshot] = useState<PickedImage | null>(null);
-    const [stage, setStage] = useState<Stage>('idle');
-    const [error, setError] = useState<string | null>(null);
-    const [sent, setSent] = useState<{ issueUrl: string | null } | null>(null);
+    const form = useFeedbackForm(currentUsername ?? null);
+    const { category, setCategory, title, setTitle, body, setBody, screenshot, stage, error, sent, busy, dirty, canSend } = form;
 
-    const busy = stage !== 'idle';
-    const dirty = !!(title.trim() || body.trim() || screenshot);
+    // Any way of leaving (Cancel, Android Back, the iOS swipe) asks before
+    // throwing away an unsent note, and waits while one is being sent.
+    usePreventRemove(!sent && (dirty || busy), ({ data }) => {
+        if (busy) return;
+        Alert.alert('Discard feedback?', 'Your note hasn’t been sent.', [
+            { text: 'Keep writing', style: 'cancel' },
+            { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(data.action) },
+        ]);
+    });
 
     const attach = async (): Promise<void> => {
-        const picked = await pickImage({ title: 'Attach a screenshot', square: false });
-        if (!picked) return;
-        const problem = screenshotProblem(picked);
-        if (problem) {
-            Alert.alert('Can’t attach that image', problem);
-            return;
-        }
-        setScreenshot(picked);
-        setError(null);
-    };
-
-    const send = async (): Promise<void> => {
-        if (busy) return;
-        const problem = feedbackError(title, body);
-        if (problem) {
-            setError(problem);
-            return;
-        }
-        setError(null);
-        try {
-            setStage('checking');
-            const token = await getFeedbackToken();
-            let screenshotUrl: string | null = null;
-            if (screenshot) {
-                // snapie.io only accepts screenshots from a signed-in account;
-                // check first so a rejected note never leaves a public image behind.
-                const who = await fetchFeedbackIdentity(token);
-                if (!who || !currentUsername || who !== currentUsername.toLowerCase()) {
-                    setError('We couldn’t confirm your account to attach the screenshot. Remove it to send the note without it, or try again.');
-                    return;
-                }
-                setStage('uploading');
-                try {
-                    screenshotUrl = await uploadPickedImage(screenshot, currentUsername);
-                } catch {
-                    setError('We couldn’t upload that screenshot. Try again, or remove it to send the note without it.');
-                    return;
-                }
-            }
-            setStage('sending');
-            const result = await submitFeedback({ title, body, category, screenshotUrl }, token);
-            if (!result.ok) {
-                setError(result.error);
-                return;
-            }
-            setSent({ issueUrl: result.issueUrl });
-        } finally {
-            setStage('idle');
-        }
+        const result = await form.attach();
+        if (!result.ok && result.problem) Alert.alert('Can’t attach that image', result.problem);
     };
 
     const close = (): void => {
-        if (sent || !dirty || busy) {
-            if (!busy) router.back();
-            return;
-        }
-        Alert.alert('Discard feedback?', 'Your note hasn’t been sent.', [
-            { text: 'Keep writing', style: 'cancel' },
-            { text: 'Discard', style: 'destructive', onPress: () => router.back() },
-        ]);
+        if (!busy) router.back();
     };
 
     const stageLabel = stage === 'uploading' ? 'Uploading screenshot…' : stage === 'sending' ? 'Sending…' : null;
@@ -135,11 +74,11 @@ const FeedbackScreen = (): React.JSX.Element => {
                         <View style={styles.headerButton} />
                     ) : (
                         <TouchableOpacity
-                            onPress={send}
-                            disabled={busy || !title.trim() || !body.trim()}
+                            onPress={form.send}
+                            disabled={!canSend}
                             style={[
                                 styles.sendButton,
-                                { backgroundColor: busy || !title.trim() || !body.trim() ? theme.buttonInactive : theme.button },
+                                { backgroundColor: canSend ? theme.button : theme.buttonInactive },
                             ]}
                             accessibilityRole="button"
                             accessibilityLabel="Send feedback"
@@ -227,7 +166,7 @@ const FeedbackScreen = (): React.JSX.Element => {
                             <View style={[styles.preview, { borderColor: theme.inputBorder }]}>
                                 <ExpoImage source={{ uri: screenshot.uri }} style={styles.previewImage} contentFit="cover" />
                                 <TouchableOpacity
-                                    onPress={() => setScreenshot(null)}
+                                    onPress={form.removeScreenshot}
                                     disabled={busy}
                                     style={styles.removeScreenshot}
                                     accessibilityRole="button"

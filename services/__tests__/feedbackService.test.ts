@@ -7,6 +7,7 @@ import {
     feedbackError,
     fetchFeedbackIdentity,
     getFeedbackToken,
+    FEEDBACK_TOKEN_TIMEOUT_MS,
     screenshotProblem,
     submitFeedback,
     FEEDBACK_MESSAGE_MAX,
@@ -36,10 +37,12 @@ it('validates the note', () => {
 
 it('checks screenshot type and size', () => {
     expect(screenshotProblem({ mimeType: 'image/png', fileSize: 1000 })).toBeNull();
-    expect(screenshotProblem({ mimeType: 'image/heic' })).toBeNull();
-    expect(screenshotProblem({ mimeType: 'image/gif' })).toMatch(/PNG, JPEG or WebP/);
+    expect(screenshotProblem({ mimeType: 'image/heic', fileSize: 1000 })).toBeNull();
+    expect(screenshotProblem({ mimeType: 'image/gif', fileSize: 1000 })).toMatch(/PNG, JPEG or WebP/);
+    expect(screenshotProblem({ fileSize: 5 * 1024 * 1024 })).toBeNull();
     expect(screenshotProblem({ fileSize: 6 * 1024 * 1024 })).toMatch(/over 5 MB/);
-    expect(screenshotProblem({})).toBeNull();
+    // A size we can't read isn't let through unchecked.
+    expect(screenshotProblem({ mimeType: 'image/png' })).toMatch(/couldn’t read that image’s size/);
 });
 
 describe('submitFeedback', () => {
@@ -103,4 +106,16 @@ it('uses the Snapie Points token, and sends as a guest if getting it fails', asy
     (getPointsAuthToken as jest.Mock).mockResolvedValueOnce('JWT').mockRejectedValueOnce(new Error('no key'));
     await expect(getFeedbackToken()).resolves.toBe('JWT');
     await expect(getFeedbackToken()).resolves.toBeNull();
+});
+
+it('stops waiting for sign-in after the timeout and sends as a guest', async () => {
+    jest.useFakeTimers();
+    try {
+        (getPointsAuthToken as jest.Mock).mockReturnValueOnce(new Promise(() => {}));
+        const token = getFeedbackToken();
+        jest.advanceTimersByTime(FEEDBACK_TOKEN_TIMEOUT_MS);
+        await expect(token).resolves.toBeNull();
+    } finally {
+        jest.useRealTimers();
+    }
 });
