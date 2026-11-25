@@ -30,7 +30,7 @@ export const MoodBadge: React.FC<Props> = ({ sku, size, ringColor, offset = -3 }
     ]}
   >
     <ExpoImage
-      source={{ uri: moodBadgeImageUrl(sku, size <= 24 ? 64 : 128) }}
+      source={{ uri: moodBadgeImageUrl(sku, size <= 20 ? 64 : 128) }}
       style={{ width: size - 2, height: size - 2, borderRadius: (size - 2) / 2 }}
       contentFit="contain"
       cachePolicy="memory-disk"
